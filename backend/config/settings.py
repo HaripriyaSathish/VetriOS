@@ -21,11 +21,12 @@ ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='*').split(',')
 
 # Application definition
 #
-# NOTE: django.contrib.auth, contenttypes, admin, and sessions are
-# deliberately NOT included. VetriOSDB has no django_session,
-# django_content_type, auth_permission, or django_admin_log tables —
-# login here is fully custom, built directly against user_account /
-# role / user_role in module_01_identity_access.
+# Full contrib stack (admin/auth/contenttypes/sessions/messages) per
+# dev's d7dd7a0 — adopted here instead of the earlier JWT-only,
+# no-admin setup. AUTH_USER_MODEL and SIMPLE_JWT below are still
+# required on top of that: without them, JWTAuthentication and the
+# admin site would both fall back to the default (non-existent, for
+# our schema) auth.User instead of our real UserAccount model.
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -52,8 +53,14 @@ INSTALLED_APPS = [
     'local_extensions',
 ]
 
+# JWTAuthentication resolves the token's user via get_user_model(), and
+# the admin site's own login also authenticates against whatever
+# AUTH_USER_MODEL points to — both need this pointed at our real
+# UserAccount, not contrib.auth's default User.
+AUTH_USER_MODEL = 'module_01_identity_access.UserAccount'
+
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',
+    'corsheaders.middleware.CorsMiddleware',        # must sit near the top, before CommonMiddleware
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -62,10 +69,6 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
-
-# CSRF/session middleware removed along with contrib.auth/sessions above.
-# CSRF protection isn't needed here since this is a token-based (JWT) API,
-# not a session-cookie-based Django app.
 
 ROOT_URLCONF = 'config.urls'
 
@@ -76,10 +79,10 @@ TEMPLATES = [
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
-    'django.template.context_processors.request',
-    'django.contrib.auth.context_processors.auth',
-    'django.contrib.messages.context_processors.messages',
-],
+                'django.template.context_processors.request',
+                'django.contrib.auth.context_processors.auth',
+                'django.contrib.messages.context_processors.messages',
+            ],
         },
     },
 ]
@@ -111,6 +114,12 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
     ),
+}
+
+# simplejwt defaults to reading `user.id` — UserAccount's primary key
+# attribute is `user_id` instead, so point it there explicitly.
+SIMPLE_JWT = {
+    'USER_ID_FIELD': 'user_id',
 }
 
 

@@ -1,0 +1,17 @@
+.module-placeholder {
+  font-family: "Manrope", ui-sans-serif, system-ui, sans-serif;
+}
+
+.module-placeholder h1 {
+  font-family: "Sora", sans-serif;
+  font-weight: 700;
+  font-size: 24px;
+  color: #161a26;
+  margin: 0 0 8px;
+}
+
+.module-placeholder p {
+  font-size: 14px;
+  color: #8a93a6;
+  margin: 0;
+}

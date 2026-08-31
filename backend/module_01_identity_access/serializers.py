@@ -1,0 +1,258 @@
+from django.utils import timezone
+from rest_framework import serializers
+
+from .models import Permission, Person, Role, RolePermission, UserAccount, UserRole
+
+
+# Validates username + password against user_account directly — not a
+# ModelSerializer, since this never creates/updates a UserAccount row.
+class LoginSerializer(serializers.Serializer):
+    username = serializers.CharField()
+    password = serializers.CharField(write_only=True, trim_whitespace=False)
+
+    def validate(self, attrs):
+        # Look the account up by username first, so a wrong password and a
+        # nonexistent username both fail with the same generic message —
+        # avoids leaking which usernames exist.
+        try:
+            user = UserAccount.objects.get(username=attrs["username"])
+        except UserAccount.DoesNotExist:
+            raise serializers.ValidationError("Invalid username or password.")
+
+        # check_password compares the raw input against password_hash
+        # using Django's own hasher, without us handling the hash directly.
+        if not user.check_password(attrs["password"]):
+            raise serializers.ValidationError("Invalid username or password.")
+
+        if not user.is_active:
+            raise serializers.ValidationError("This account is inactive.")
+
+        # Stash the resolved user so the view doesn't need to re-query it.
+        attrs["user"] = user
+        return attrs
+
+
+# Plain id+name representation of a role — used to populate the role
+# dropdown on the User & Accounts form.
+class RoleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Role
+        fields = ["role_id", "role_name"]
+
+
+# Role card on the Roles & Permissions screen — name, description, and how
+# many of the total permission set this role currently grants.
+class RoleCardSerializer(serializers.ModelSerializer):
+    permission_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Role
+        fields = ["role_id", "role_name", "description", "is_active", "created_at", "permission_count"]
+
+    def get_permission_count(self, obj):
+        return RolePermission.objects.filter(role=obj).count()
+
+
+# Permissions screen row — the permission table's own columns, same
+# read-only shape the Roles screen started as.
+class PermissionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Permission
+        fields = ["permission_id", "permission_code", "permission_name", "description", "is_active", "created_at"]
+
+
+# Create/update a role — just its own fields, no permission assignment
+# (that stays on role_permission, edited separately if that screen comes
+# back).
+class RoleWriteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Role
+        fields = ["role_id", "role_name", "description", "is_active"]
+        read_only_fields = ["role_id"]
+
+    def validate_role_name(self, value):
+        qs = Role.objects.filter(role_name__iexact=value)
+        if self.instance is not None:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError("A role with this name already exists.")
+        return value
+
+    def create(self, validated_data):
+        now = timezone.now()
+        return Role.objects.create(created_at=now, updated_at=now, **validated_data)
+
+    def update(self, instance, validated_data):
+        for field, value in validated_data.items():
+            setattr(instance, field, value)
+        instance.updated_at = timezone.now()
+        instance.save()
+        return instance
+
+
+# "View" detail for one role — its own fields plus the permissions it
+# currently grants, read-only.
+class RoleDetailSerializer(serializers.ModelSerializer):
+    permissions = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Role
+        fields = ["role_id", "role_name", "description", "is_active", "created_at", "permissions"]
+
+    def get_permissions(self, obj):
+        codes = RolePermission.objects.filter(role=obj).select_related("permission")
+        return [rp.permission.permission_code for rp in codes]
+
+
+# The identity + role/permission summary returned by both login and
+# /me/ — the shape every other module reads to decide what to show.
+class MeSerializer(serializers.ModelSerializer):
+    # These three are computed per-request (not plain model fields), since
+    # roles/permissions depend on today's date via active_roles().
+    roles = serializers.SerializerMethodField()
+    permissions = serializers.SerializerMethodField()
+    full_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = UserAccount
+        fields = ["user_id", "username", "full_name", "roles", "permissions"]
+
+    def get_full_name(self, obj):
+        # Person.__str__ already formats "first_name last_name".
+        return str(obj.person)
+
+    def get_roles(self, obj):
+        return list(obj.active_role_names())
+
+    def get_permissions(self, obj):
+        return sorted(obj.active_permission_codes())
+
+
+# Row shape for the User & Accounts table — read-only, one query per list
+# (person is select_related'd by the view).
+class UserAccountListSerializer(serializers.ModelSerializer):
+    full_name = serializers.SerializerMethodField()
+    email = serializers.SerializerMethodField()
+    roles = serializers.SerializerMethodField()
+
+    class Meta:
+        model = UserAccount
+        fields = ["user_id", "username", "full_name", "email", "is_active", "last_login", "roles"]
+
+    def get_full_name(self, obj):
+        return str(obj.person)
+
+    def get_email(self, obj):
+        return obj.person.email
+
+    def get_roles(self, obj):
+        return sorted(obj.active_role_names())
+
+
+# Handles create + update for a user account. Not a ModelSerializer:
+# a single "user" here spans person, user_account, and (for its one
+# primary role) user_role, so create()/update() write to all three
+# directly rather than relying on nested-serializer plumbing.
+class UserAccountWriteSerializer(serializers.Serializer):
+    username = serializers.CharField(max_length=255)
+    password = serializers.CharField(
+        required=False, allow_blank=True, trim_whitespace=False, write_only=True
+    )
+    is_active = serializers.BooleanField(required=False, default=True)
+    first_name = serializers.CharField(max_length=100)
+    last_name = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    email = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    phone = serializers.CharField(max_length=30, required=False, allow_blank=True)
+    # The one role this screen assigns at a time — matches the mockup's
+    # "role assignments" drawer, which showed a single active role per user
+    # for every seeded account.
+    role_id = serializers.IntegerField(required=False, allow_null=True)
+
+    def validate_username(self, value):
+        qs = UserAccount.objects.filter(username=value)
+        if self.instance is not None:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError("This username is already taken.")
+        return value
+
+    def validate_role_id(self, value):
+        if value is not None and not Role.objects.filter(pk=value, is_active=True).exists():
+            raise serializers.ValidationError("Unknown role.")
+        return value
+
+    def create(self, validated_data):
+        now = timezone.now()
+        person = Person.objects.create(
+            first_name=validated_data["first_name"],
+            last_name=validated_data.get("last_name") or None,
+            email=validated_data.get("email") or None,
+            phone=validated_data.get("phone") or None,
+            created_at=now,
+            updated_at=now,
+        )
+
+        user = UserAccount(
+            person=person,
+            username=validated_data["username"],
+            is_active=validated_data.get("is_active", True),
+            created_at=now,
+            updated_at=now,
+        )
+        user.set_password(validated_data["password"])
+        user.save()
+
+        role_id = validated_data.get("role_id")
+        if role_id:
+            UserRole.objects.create(
+                user_id=user.pk,
+                role_id=role_id,
+                effective_from=timezone.localdate(),
+                effective_to=None,
+                is_active=True,
+                created_at=now,
+            )
+        return user
+
+    def update(self, instance, validated_data):
+        now = timezone.now()
+
+        person = instance.person
+        if "first_name" in validated_data:
+            person.first_name = validated_data["first_name"]
+        if "last_name" in validated_data:
+            person.last_name = validated_data["last_name"] or None
+        if "email" in validated_data:
+            person.email = validated_data["email"] or None
+        if "phone" in validated_data:
+            person.phone = validated_data["phone"] or None
+        person.updated_at = now
+        person.save()
+
+        if "username" in validated_data:
+            instance.username = validated_data["username"]
+        if "is_active" in validated_data:
+            instance.is_active = validated_data["is_active"]
+        if validated_data.get("password"):
+            instance.set_password(validated_data["password"])
+        instance.updated_at = now
+        instance.save()
+
+        if "role_id" in validated_data:
+            # Close out whatever role(s) were active, then open the new one
+            # — same effective_from/effective_to pattern used everywhere
+            # else in this schema, not a hard delete of the old assignment.
+            UserRole.objects.filter(user_id=instance.pk, is_active=True).update(
+                is_active=False, effective_to=timezone.localdate()
+            )
+            role_id = validated_data["role_id"]
+            if role_id:
+                UserRole.objects.create(
+                    user_id=instance.pk,
+                    role_id=role_id,
+                    effective_from=timezone.localdate(),
+                    effective_to=None,
+                    is_active=True,
+                    created_at=now,
+                )
+        return instance

@@ -1,0 +1,85 @@
+.sidebar {
+  width: 220px;
+  flex: none;
+  background: #163c52;
+  color: #dce7ee;
+  padding: 18px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-family: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 8px 18px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sidebar-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #fff;
+  font-weight: 700;
+  font-family: "Sora", sans-serif;
+  font-size: 13px;
+}
+
+.sidebar-brand-name {
+  color: #fff;
+  font-family: "Sora", sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.nav-group-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.4);
+  padding: 14px 12px 6px;
+}
+
+.sidebar .nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  color: #dce7ee;
+  text-decoration: none;
+}
+
+.sidebar .nav-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.sidebar .nav-item.active {
+  background: #235777;
+  color: #fff;
+  font-weight: 600;
+}
+
+.nav-icon {
+  width: 18px;
+  text-align: center;
+  flex: none;
+}

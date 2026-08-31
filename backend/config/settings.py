@@ -21,24 +21,19 @@ ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='*').split(',')
 
 # Application definition
 #
-# NOTE: django.contrib.admin and sessions are deliberately NOT included —
-# no admin panel (the React frontend is the real interface), no
-# session-cookie auth (this is a JWT-only API). (Revisited and confirmed
-# 2026-08-31; dev's d7dd7a0 re-added admin/sessions independently — kept
-# out here per that earlier decision, worth syncing with Haripriya.)
-#
-# contenttypes + auth ARE included below, but only as a hard dependency of
-# djangorestframework_simplejwt itself — its authentication.py imports
-# django.contrib.auth.models, which requires contenttypes to resolve
-# ContentType's app_label. This creates a small set of Django-owned
-# tables (django_content_type, auth_permission, auth_group,
-# auth_group_permissions) — notably NOT django_session or
-# auth_user/auth_user_groups/auth_user_user_permissions, since we're not
-# using sessions and AUTH_USER_MODEL is swapped to our own UserAccount.
+# Full contrib stack (admin/auth/contenttypes/sessions/messages) per
+# dev's d7dd7a0 — adopted here instead of the earlier JWT-only,
+# no-admin setup. AUTH_USER_MODEL and SIMPLE_JWT below are still
+# required on top of that: without them, JWTAuthentication and the
+# admin site would both fall back to the default (non-existent, for
+# our schema) auth.User instead of our real UserAccount model.
 
 INSTALLED_APPS = [
-    'django.contrib.contenttypes',
+    'django.contrib.admin',
     'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
     'django.contrib.staticfiles',
 
     'rest_framework',
@@ -58,22 +53,22 @@ INSTALLED_APPS = [
     'local_extensions',
 ]
 
-# Still needed even without admin: JWTAuthentication resolves the token's
-# user via get_user_model(), which requires AUTH_USER_MODEL to point at
-# our custom UserAccount instead of the (non-existent, since contrib.auth
-# isn't installed) default auth.User.
+# JWTAuthentication resolves the token's user via get_user_model(), and
+# the admin site's own login also authenticates against whatever
+# AUTH_USER_MODEL points to — both need this pointed at our real
+# UserAccount, not contrib.auth's default User.
 AUTH_USER_MODEL = 'module_01_identity_access.UserAccount'
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',        # must sit near the top, before CommonMiddleware
     'django.middleware.security.SecurityMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
-
-# CSRF/session middleware removed along with contrib.auth/sessions above.
-# CSRF protection isn't needed here since this is a token-based (JWT) API,
-# not a session-cookie-based Django app.
 
 ROOT_URLCONF = 'config.urls'
 
@@ -85,6 +80,8 @@ TEMPLATES = [
         'OPTIONS': {
             'context_processors': [
                 'django.template.context_processors.request',
+                'django.contrib.auth.context_processors.auth',
+                'django.contrib.messages.context_processors.messages',
             ],
         },
     },

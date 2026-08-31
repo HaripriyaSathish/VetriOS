@@ -21,13 +21,23 @@ ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='*').split(',')
 
 # Application definition
 #
-# NOTE: django.contrib.auth, contenttypes, admin, and sessions are
-# deliberately NOT included. VetriOSDB has no django_session,
-# django_content_type, auth_permission, or django_admin_log tables —
-# login here is fully custom, built directly against user_account /
-# role / user_role in module_01_identity_access.
+# NOTE: django.contrib.admin and sessions are deliberately NOT included —
+# no admin panel (the React frontend is the real interface), no
+# session-cookie auth (this is a JWT-only API). (Revisited and confirmed
+# 2026-08-31.)
+#
+# contenttypes + auth ARE included below, but only as a hard dependency of
+# djangorestframework_simplejwt itself — its authentication.py imports
+# django.contrib.auth.models, which requires contenttypes to resolve
+# ContentType's app_label. This creates a small set of Django-owned
+# tables (django_content_type, auth_permission, auth_group,
+# auth_group_permissions) — notably NOT django_session or
+# auth_user/auth_user_groups/auth_user_user_permissions, since we're not
+# using sessions and AUTH_USER_MODEL is swapped to our own UserAccount.
 
 INSTALLED_APPS = [
+    'django.contrib.contenttypes',
+    'django.contrib.auth',
     'django.contrib.staticfiles',
 
     'rest_framework',
@@ -46,6 +56,12 @@ INSTALLED_APPS = [
     'module_09_ai_rag',
     'local_extensions',
 ]
+
+# Still needed even without admin: JWTAuthentication resolves the token's
+# user via get_user_model(), which requires AUTH_USER_MODEL to point at
+# our custom UserAccount instead of the (non-existent, since contrib.auth
+# isn't installed) default auth.User.
+AUTH_USER_MODEL = 'module_01_identity_access.UserAccount'
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',        # must sit near the top, before CommonMiddleware
@@ -98,6 +114,12 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
     ),
+}
+
+# simplejwt defaults to reading `user.id` — UserAccount's primary key
+# attribute is `user_id` instead, so point it there explicitly.
+SIMPLE_JWT = {
+    'USER_ID_FIELD': 'user_id',
 }
 
 

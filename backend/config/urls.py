@@ -14,9 +14,12 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
-from django.contrib import admin
-from django.urls import path
+from django.urls import include, path
+
+# django.contrib.admin is not installed (see settings.py) — login is fully
+# custom against user_account/role/user_role, so there's no admin/ route.
+# Module URLs get included here as each module builds out its API.
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
+    path('api/identity/', include('module_01_identity_access.urls')),
 ]

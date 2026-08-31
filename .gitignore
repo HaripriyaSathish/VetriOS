@@ -1,0 +1,22 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# Django
+db.sqlite3
+staticfiles/
+media/
+
+# Environment files — never commit real secrets
+.env
+backend/.env
+frontend/.env
+
+# Node / React
+node_modules/
+dist/
+
+# OS/editor junk
+.vscode/
+.DS_Store

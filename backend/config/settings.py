@@ -24,7 +24,8 @@ ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='*').split(',')
 # NOTE: django.contrib.admin and sessions are deliberately NOT included —
 # no admin panel (the React frontend is the real interface), no
 # session-cookie auth (this is a JWT-only API). (Revisited and confirmed
-# 2026-08-31.)
+# 2026-08-31; dev's d7dd7a0 re-added admin/sessions independently — kept
+# out here per that earlier decision, worth syncing with Haripriya.)
 #
 # contenttypes + auth ARE included below, but only as a hard dependency of
 # djangorestframework_simplejwt itself — its authentication.py imports
@@ -102,9 +103,11 @@ DATABASES = {
         'PASSWORD': config('DB_PASSWORD'),
         'HOST': config('DB_HOST', default='localhost'),
         'PORT': config('DB_PORT', default='5432'),
+        'OPTIONS': {
+            'options': '-c search_path=django,public'
+        },
     }
 }
-
 
 # Django REST Framework — JWT only, no session auth
 REST_FRAMEWORK = {

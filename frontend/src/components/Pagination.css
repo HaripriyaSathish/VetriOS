@@ -1,0 +1,47 @@
+.pg-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px 16px;
+  border-top: 1px solid #d9dfe8;
+  font-family: "Manrope", ui-sans-serif, system-ui, sans-serif;
+}
+
+.pg-range {
+  font-size: 12px;
+  color: #8a93a6;
+}
+
+.pg-controls {
+  display: flex;
+  gap: 4px;
+}
+
+.pg-btn {
+  border: 1px solid #c2cad8;
+  background: #fff;
+  color: #5b6478;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+  min-width: 32px;
+}
+
+.pg-btn:hover:not(:disabled) {
+  background: #eaeef4;
+}
+
+.pg-btn.active {
+  background: #235777;
+  border-color: #235777;
+  color: #fff;
+}
+
+.pg-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

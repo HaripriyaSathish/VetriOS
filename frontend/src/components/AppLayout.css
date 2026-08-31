@@ -1,0 +1,56 @@
+.app-shell {
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  background: #f5f7fa;
+}
+
+.app-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  padding: 14px 28px;
+  background: #fff;
+  border-bottom: 1px solid #e2e6ed;
+  font-family: "Manrope", ui-sans-serif, system-ui, sans-serif;
+}
+
+.app-topbar-user {
+  font-size: 13px;
+  font-weight: 600;
+  color: #5b6478;
+}
+
+.app-logout {
+  border: 1px solid #c2cad8;
+  background: #fff;
+  color: #5b6478;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.app-logout:hover {
+  background: #fbe7e5;
+  border-color: #e3a8a3;
+  color: #96271f;
+}
+
+.app-content {
+  flex: 1;
+  padding: 32px;
+}

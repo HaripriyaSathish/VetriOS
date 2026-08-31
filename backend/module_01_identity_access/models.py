@@ -3,6 +3,8 @@ from django.db import models
 from django.utils import timezone
 
 
+# Base identity record — every human in the system (student, employee,
+# trainer...) links back to one person row.
 class Person(models.Model):
     person_id = models.BigAutoField(primary_key=True)
     first_name = models.CharField(max_length=100)
@@ -23,6 +25,9 @@ class Person(models.Model):
         return f"{self.first_name} {self.last_name or ''}".strip()
 
 
+# One of the 5 confirmed RBAC roles (System Administrator, HR
+# Administrator, Manager, Employee, Viewer) — a user can hold several
+# at once via UserRole.
 class Role(models.Model):
     role_id = models.BigAutoField(primary_key=True)
     role_name = models.CharField(max_length=100)
@@ -39,6 +44,8 @@ class Role(models.Model):
         return self.role_name
 
 
+# A single granted capability, e.g. DOCUMENT_CREATE — roles are granted
+# permissions via RolePermission, not the other way round.
 class Permission(models.Model):
     permission_id = models.BigAutoField(primary_key=True)
     permission_code = models.CharField(max_length=150)
@@ -55,6 +62,7 @@ class Permission(models.Model):
         return self.permission_code
 
 
+# Join table: which permissions a given role actually grants.
 class RolePermission(models.Model):
     role_permission_id = models.BigAutoField(primary_key=True)
     role = models.ForeignKey(Role, on_delete=models.DO_NOTHING, db_column="role_id")
@@ -65,6 +73,8 @@ class RolePermission(models.Model):
         db_table = "role_permission"
 
 
+# AbstractBaseUser requires a custom manager; this just teaches it to
+# look users up by username instead of the default "email" assumption.
 class UserAccountManager(BaseUserManager):
     def get_by_natural_key(self, username):
         # Required by AbstractBaseUser's auth machinery to look a user up
@@ -72,6 +82,7 @@ class UserAccountManager(BaseUserManager):
         return self.get(username=username)
 
 
+# The login account itself — one per person, JWT subject for the whole API.
 class UserAccount(AbstractBaseUser):
     """Maps to the existing `user_account` table (managed=False — PostgreSQL
     owns this schema). JWT subject for the REST API — no Django admin,
@@ -131,6 +142,8 @@ class UserAccount(AbstractBaseUser):
         return code in self.active_permission_codes()
 
 
+# One role assignment for one user, time-bound via effective_from/to —
+# a user can have several active rows here at once (multi-role).
 class UserRole(models.Model):
     user_role_id = models.BigAutoField(primary_key=True)
     user_id = models.BigIntegerField()
@@ -145,6 +158,8 @@ class UserRole(models.Model):
         db_table = "user_role"
 
 
+# A one-off permission grant/override tied directly to a user, outside
+# their roles — not currently read by active_permission_codes() above.
 class UserPermission(models.Model):
     user_permission_id = models.BigAutoField(primary_key=True)
     user_id = models.BigIntegerField()

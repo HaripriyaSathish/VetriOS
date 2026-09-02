@@ -4,7 +4,7 @@ import client from "../../../api/client";
 import "../styles/Login.css";
 
 // Sign-in form: POSTs to /api/identity/login/, stores the returned JWT
-// pair, then sends the user on to the dashboard.
+// pair, then sends the user on to the right landing page for their role.
 function Login() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -30,7 +30,20 @@ function Login() {
       localStorage.setItem("refresh_token", response.data.refresh);
       localStorage.setItem("user", JSON.stringify(response.data.user));
 
-      navigate("/dashboard");
+      const roles = response.data.user?.roles || [];
+
+      // Route to the module matching this person's role. Order matters —
+      // check the most senior/specific role first so someone holding
+      // several roles at once lands somewhere sensible by default. As
+      // more modules get their own landing page, add another
+      // "else if" line here for each new role.
+      if (roles.includes("System Administrator")) {
+        navigate("/dashboard");
+      } else if (roles.includes("Employee")) {
+        navigate("/training");
+      } else {
+        navigate("/dashboard");
+      }
     } catch (err) {
       const detail = err.response?.data?.non_field_errors?.[0];
       setError(detail || "Invalid username or password.");

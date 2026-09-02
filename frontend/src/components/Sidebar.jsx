@@ -1,9 +1,13 @@
-import { NavLink } from "react-router-dom";
+﻿import { NavLink } from "react-router-dom";
+import { NAV_ITEMS, hasAccess } from "../config/nav";
 import "../components-styles/Sidebar.css";
 
-// Left nav — module list is deliberately left out for now until those
-// modules have real pages; only Dashboard is linked.
 function Sidebar() {
+  const user = JSON.parse(localStorage.getItem("user") || "null");
+
+  const identityRequirement = { type: "role", value: "System Administrator" };
+  const trainingItem = NAV_ITEMS.find((item) => item.id === "training");
+
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">
@@ -18,27 +22,46 @@ function Sidebar() {
         <span className="nav-icon">📊</span> Dashboard
       </NavLink>
 
-      <NavLink
-        to="/identity/users"
-        className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
-      >
-        <span className="nav-icon">👤</span> User & Accounts
-      </NavLink>
+      {hasAccess(identityRequirement, user) && (
+        <>
+          <NavLink
+            to="/identity/users"
+            className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
+          >
+            <span className="nav-icon">👤</span> User & Accounts
+          </NavLink>
 
-      <NavLink
-        to="/identity/roles"
-        className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
-      >
-        <span className="nav-icon">🔑</span> Roles
-      </NavLink>
+          <NavLink
+            to="/identity/roles"
+            className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
+          >
+            <span className="nav-icon">🔑</span> Roles
+          </NavLink>
 
-      <NavLink
-        to="/identity/permissions"
-        className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
-      >
-        <span className="nav-icon">🛡️</span> Permissions
-      </NavLink>
+          <NavLink
+            to="/identity/permissions"
+            className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
+          >
+            <span className="nav-icon">🛡️</span> Permissions
+          </NavLink>
 
+          <NavLink
+            to="/identity/user-permissions"
+            className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
+          >
+            <span className="nav-icon">🧾</span> User Permissions
+          </NavLink>
+        </>
+      )}
+
+      {trainingItem && hasAccess(trainingItem.requirement, user) && (
+        <NavLink
+          to="/training"
+          className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
+        >
+          <span className="nav-icon">🎓</span> Training
+        </NavLink>
+      )}
     </aside>
   );
 }

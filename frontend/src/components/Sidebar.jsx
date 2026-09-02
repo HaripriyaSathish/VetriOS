@@ -7,6 +7,7 @@ function Sidebar() {
 
   const identityRequirement = { type: "role", value: "System Administrator" };
   const trainingItem = NAV_ITEMS.find((item) => item.id === "training");
+  const hrItem = NAV_ITEMS.find((item) => item.id === "hr");
 
   return (
     <aside className="sidebar">
@@ -45,13 +46,18 @@ function Sidebar() {
             <span className="nav-icon">🛡️</span> Permissions
           </NavLink>
 
-          <NavLink
-            to="/identity/user-permissions"
-            className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
-          >
-            <span className="nav-icon">🧾</span> User Permissions
-          </NavLink>
+          {/* User Permissions menu hidden for now — page/route still exist,
+              re-add this NavLink when it's needed again. */}
         </>
+      )}
+
+      {hrItem && hasAccess(hrItem.requirement, user) && (
+        <NavLink
+          to="/hr"
+          className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
+        >
+          <span className="nav-icon">🧑‍💼</span> HR
+        </NavLink>
       )}
 
       {trainingItem && hasAccess(trainingItem.requirement, user) && (

@@ -3,6 +3,185 @@ import client from "../../../api/client";
 import Pagination, { paginate } from "../../../components/Pagination";
 import "../styles/UserAccounts.css";
 
+// Exactly 8 characters: at least one capital letter, one digit, one
+// special (non-alphanumeric) character.
+const PASSWORD_PATTERN = /^(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8}$/;
+const PASSWORD_HINT =
+  "Exactly 8 characters, with at least one capital letter, one number, and one special character.";
+
+// "Role: ... / Designation: ..." summary shown alongside a name in the
+// Edit and Permissions popups — role is the RBAC grant, designation is
+// HR's job title, and the two can share a name (e.g. both called
+// "Manager") without being the same thing.
+function IdentityLine({ user }) {
+  return (
+    <span className="ua-modal-identity-sub">
+      <span className="ua-modal-identity-field">
+        <IconUser />
+        <strong>Role:</strong> {(user.roles || []).join(", ") || "No role assigned"}
+      </span>
+      {user.designation && (
+        <span className="ua-modal-identity-field">
+          <IconBriefcase />
+          <strong>Designation:</strong> {user.designation}
+        </span>
+      )}
+    </span>
+  );
+}
+
+// Small line-style icons, inline so the popup doesn't need an icon
+// library dependency for a handful of glyphs.
+function svgProps(extra) {
+  return { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round", ...extra };
+}
+
+function IconShield() {
+  return (
+    <svg {...svgProps({ width: 20, height: 20 })}>
+      <path d="M12 3l7 3v6c0 4.5-3 8-7 9-4-1-7-4.5-7-9V6l7-3z" />
+    </svg>
+  );
+}
+
+function IconUser() {
+  return (
+    <svg {...svgProps({ width: 14, height: 14 })}>
+      <circle cx="12" cy="8" r="3.5" />
+      <path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6" />
+    </svg>
+  );
+}
+
+function IconBriefcase() {
+  return (
+    <svg {...svgProps({ width: 14, height: 14 })}>
+      <rect x="3" y="7" width="18" height="12" rx="2" />
+      <path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    </svg>
+  );
+}
+
+function IconInfo() {
+  return (
+    <svg {...svgProps({ width: 18, height: 18 })}>
+      <circle cx="12" cy="12" r="9" />
+      <line x1="12" y1="11" x2="12" y2="16" />
+      <line x1="12" y1="8" x2="12" y2="8.01" />
+    </svg>
+  );
+}
+
+function IconChevron({ collapsed }) {
+  return (
+    <svg {...svgProps({ width: 16, height: 16 })} style={{ transform: collapsed ? "rotate(180deg)" : "none" }}>
+      <polyline points="18 15 12 9 6 15" />
+    </svg>
+  );
+}
+
+function IconCheckCircle() {
+  return (
+    <svg {...svgProps({ width: 18, height: 18, stroke: "none" })}>
+      <circle cx="12" cy="12" r="10" fill="#1f6837" />
+      <polyline points="7 12.5 10.5 16 17 9" fill="none" stroke="#fff" strokeWidth={2.4} />
+    </svg>
+  );
+}
+
+function IconRestrictedCircle() {
+  return (
+    <svg {...svgProps({ width: 18, height: 18, stroke: "none" })}>
+      <circle cx="12" cy="12" r="10" fill="#c13b34" />
+      <line x1="8.5" y1="8.5" x2="15.5" y2="15.5" stroke="#fff" strokeWidth={2.4} strokeLinecap="round" />
+      <line x1="15.5" y1="8.5" x2="8.5" y2="15.5" stroke="#fff" strokeWidth={2.4} strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconFolder() {
+  return (
+    <svg {...svgProps({ width: 16, height: 16 })}>
+      <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" />
+    </svg>
+  );
+}
+
+function IconDocument() {
+  return (
+    <svg {...svgProps({ width: 16, height: 16 })}>
+      <path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" />
+      <path d="M14 3v5h5" />
+    </svg>
+  );
+}
+
+function IconPeople() {
+  return (
+    <svg {...svgProps({ width: 16, height: 16 })}>
+      <circle cx="9" cy="8" r="3" />
+      <path d="M2 20c0-3 3-5 7-5s7 2 7 5" />
+      <circle cx="17" cy="8" r="2.5" />
+      <path d="M16 12c2.8.4 5 2.2 5 5" />
+    </svg>
+  );
+}
+
+function IconChart() {
+  return (
+    <svg {...svgProps({ width: 16, height: 16 })}>
+      <line x1="5" y1="20" x2="5" y2="12" />
+      <line x1="12" y1="20" x2="12" y2="7" />
+      <line x1="19" y1="20" x2="19" y2="15" />
+    </svg>
+  );
+}
+
+function IconGear() {
+  return (
+    <svg {...svgProps({ width: 16, height: 16 })}>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19 12a7 7 0 0 0-.1-1.2l2-1.6-2-3.4-2.4.7a7 7 0 0 0-2-1.2L14 3h-4l-.5 2.3a7 7 0 0 0-2 1.2l-2.4-.7-2 3.4 2 1.6a7 7 0 0 0 0 2.4l-2 1.6 2 3.4 2.4-.7a7 7 0 0 0 2 1.2L10 21h4l.5-2.3a7 7 0 0 0 2-1.2l2.4.7 2-3.4-2-1.6c.1-.4.1-.8.1-1.2z" />
+    </svg>
+  );
+}
+
+function IconCap() {
+  return (
+    <svg {...svgProps({ width: 16, height: 16 })}>
+      <path d="M2 9l10-5 10 5-10 5-10-5z" />
+      <path d="M6 11v5c0 1.5 2.7 3 6 3s6-1.5 6-3v-5" />
+    </svg>
+  );
+}
+
+const GROUP_ICONS = {
+  AUDIT: IconClipboardIcon,
+  DOCUMENT: IconDocument,
+  EMPLOYEE: IconPeople,
+  PROJECT: IconFolder,
+  REPORT: IconChart,
+  SYSTEM: IconGear,
+  TRAINING: IconCap,
+  USER: IconUser,
+};
+
+function IconClipboardIcon() {
+  return (
+    <svg {...svgProps({ width: 16, height: 16 })}>
+      <rect x="5" y="4" width="14" height="17" rx="2" />
+      <path d="M9 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1" />
+      <line x1="8" y1="11" x2="16" y2="11" />
+      <line x1="8" y1="15" x2="16" y2="15" />
+    </svg>
+  );
+}
+
+function groupIcon(name) {
+  const Icon = GROUP_ICONS[name] || IconFolder;
+  return <Icon />;
+}
+
 const EMPTY_FORM = {
   username: "",
   password: "",
@@ -47,6 +226,7 @@ function UserAccounts() {
   const [confirmTarget, setConfirmTarget] = useState(null);
   const [confirming, setConfirming] = useState(false);
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
 
   const [editRoleIds, setEditRoleIds] = useState(new Set());
   const [roleToggleBusyId, setRoleToggleBusyId] = useState(null);
@@ -63,6 +243,15 @@ function UserAccounts() {
   const [permLoading, setPermLoading] = useState(false);
   const [permError, setPermError] = useState("");
   const [permPendingId, setPermPendingId] = useState(null);
+  const [collapsedGroups, setCollapsedGroups] = useState(new Set());
+
+  const toggleGroupCollapse = (name) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      next.has(name) ? next.delete(name) : next.add(name);
+      return next;
+    });
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -173,8 +362,14 @@ function UserAccounts() {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    setSubmitting(true);
     setFormError("");
+
+    if (form.password && !PASSWORD_PATTERN.test(form.password)) {
+      setFormError(PASSWORD_HINT);
+      return;
+    }
+
+    setSubmitting(true);
 
     const payload = { ...form };
     if (!payload.password) delete payload.password;
@@ -276,19 +471,20 @@ function UserAccounts() {
   };
 
   const cyclePermission = async (row) => {
-    const next = row.override === null ? "ALLOW" : row.override === "ALLOW" ? "DENY" : null;
+    // Straight toggle, not a 3-way cycle: whatever the row currently
+    // shows (Allowed/Restricted), clicking it flips to the other one —
+    // always via an explicit override, so a role-granted "Allowed" row
+    // actually turns into "Restricted" on click instead of silently
+    // staying Allowed (ALLOW layered on an already-true role grant).
+    const next = isEffective(row) ? "DENY" : "ALLOW";
     setPermPendingId(row.permission_id);
     setPermRows((prev) =>
       prev.map((r) => (r.permission_id === row.permission_id ? { ...r, override: next } : r))
     );
     try {
-      if (next === null) {
-        await client.delete(`/api/identity/users/${permUser.user_id}/permissions/${row.permission_id}/`);
-      } else {
-        await client.put(`/api/identity/users/${permUser.user_id}/permissions/${row.permission_id}/`, {
-          effect: next,
-        });
-      }
+      await client.put(`/api/identity/users/${permUser.user_id}/permissions/${row.permission_id}/`, {
+        effect: next,
+      });
     } catch (err) {
       setPermError("Couldn't update that permission.");
       setPermRows((prev) =>
@@ -313,6 +509,18 @@ function UserAccounts() {
 
   const permEffectiveCount = permRows.filter(isEffective).length;
 
+  const filteredUsers = users.filter((user) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      user.full_name.toLowerCase().includes(q) ||
+      user.username.toLowerCase().includes(q) ||
+      (user.email || "").toLowerCase().includes(q) ||
+      (user.roles || []).some((r) => r.toLowerCase().includes(q)) ||
+      (user.designation || "").toLowerCase().includes(q)
+    );
+  });
+
   return (
     <div className="ua-screen">
       <div className="ua-head">
@@ -330,6 +538,15 @@ function UserAccounts() {
       <div className="ua-panel">
         <div className="ua-panel-head">
           <h3>All accounts</h3>
+          <input
+            className="ua-search"
+            placeholder="Search by name, username, email, role, designation…"
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
+          />
         </div>
 
         {loading ? (
@@ -348,7 +565,7 @@ function UserAccounts() {
                 </tr>
               </thead>
               <tbody>
-                {paginate(users, page).map((user) => (
+                {paginate(filteredUsers, page).map((user) => (
                   <tr key={user.user_id}>
                     <td>
                       <div className="ua-cell-user">
@@ -395,7 +612,7 @@ function UserAccounts() {
               </tbody>
             </table>
           </div>
-          <Pagination page={page} totalItems={users.length} onPageChange={setPage} />
+          <Pagination page={page} totalItems={filteredUsers.length} onPageChange={setPage} />
           </>
         )}
       </div>
@@ -403,7 +620,16 @@ function UserAccounts() {
       {modalOpen && (
         <div className="ua-modal-backdrop" onClick={closeModal}>
           <form className="ua-modal" onClick={(e) => e.stopPropagation()} onSubmit={handleSubmit}>
+            <button type="button" className="ua-modal-x" onClick={closeModal} aria-label="Close">
+              ✕
+            </button>
             <h2>{editingUser ? "Edit account" : "New account"}</h2>
+            {editingUser && (
+              <p className="ua-modal-identity">
+                <span className="ua-modal-identity-name">{editingUser.full_name}</span>
+                <IdentityLine user={editingUser} />
+              </p>
+            )}
 
             {!editingUser && (
               <div className="ua-person-mode">
@@ -502,6 +728,9 @@ function UserAccounts() {
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
                 required={!editingUser}
+                pattern={form.password ? PASSWORD_PATTERN.source : undefined}
+                title={PASSWORD_HINT}
+                maxLength={8}
               />
               <button
                 type="button"
@@ -513,6 +742,7 @@ function UserAccounts() {
                 {showPassword ? "🙈" : "👁"}
               </button>
             </div>
+            <p className="ua-perm-hint">{PASSWORD_HINT}</p>
 
             {(editingUser || personMode === "new") && (
               <>
@@ -599,6 +829,9 @@ function UserAccounts() {
       {confirmTarget && (
         <div className="ua-modal-backdrop" onClick={cancelToggleActive}>
           <div className="ua-modal ua-confirm" onClick={(e) => e.stopPropagation()}>
+            <button type="button" className="ua-modal-x" onClick={cancelToggleActive} aria-label="Close">
+              ✕
+            </button>
             <h2>{confirmTarget.is_active ? "Deactivate account?" : "Reactivate account?"}</h2>
             <p>
               {confirmTarget.is_active
@@ -625,20 +858,39 @@ function UserAccounts() {
       {permUser && (
         <div className="ua-modal-backdrop" onClick={closePermissions}>
           <div className="ua-modal ua-perm-modal" onClick={(e) => e.stopPropagation()}>
-            <h2>
-              {permUser.full_name}'s permissions
-              {!permLoading && (
-                <span className="ua-perm-total-count">
-                  {" "}
-                  ({permEffectiveCount}/{permRows.length})
-                </span>
-              )}
-            </h2>
-            <p className="ua-perm-hint">
-              {permUser.full_name} already has the permissions marked "via role", granted through
-              their assigned role(s). Use this screen only to override a specific permission for
-              this user — click once to Allow, click again to Deny, click again to reset.
-            </p>
+            <button type="button" className="ua-modal-x" onClick={closePermissions} aria-label="Close">
+              ✕
+            </button>
+            <div className="ua-perm-modal-head">
+              <span className="ua-perm-modal-icon">
+                <IconShield />
+              </span>
+              <h2>
+                Permissions
+                {!permLoading && (
+                  <span className="ua-perm-total-count">
+                    {" "}
+                    ({permEffectiveCount}/{permRows.length})
+                  </span>
+                )}
+              </h2>
+            </div>
+
+            <div className="ua-perm-identity">
+              <div className="ua-perm-avatar">{initials(permUser.full_name)}</div>
+              <div>
+                <div className="ua-modal-identity-name">{permUser.full_name}</div>
+                <IdentityLine user={permUser} />
+              </div>
+            </div>
+
+            <div className="ua-perm-info-box">
+              <IconInfo />
+              <p>
+                Green = Allowed, red = Restricted. Click a row to switch it between the two for
+                this user.
+              </p>
+            </div>
 
             {permError && <p className="ua-error">{permError}</p>}
 
@@ -646,42 +898,60 @@ function UserAccounts() {
               <p className="ua-empty">Loading…</p>
             ) : (
               <div className="ua-perm-groups">
-                {permGroups.map(([name, rows]) => (
-                  <div className="ua-perm-group" key={name}>
-                    <div className="ua-perm-group-name">
-                      {name} ({rows.filter(isEffective).length}/{rows.length})
+                {permGroups.map(([name, rows]) => {
+                  const collapsed = collapsedGroups.has(name);
+                  return (
+                    <div className="ua-perm-group-card" key={name}>
+                      <button
+                        type="button"
+                        className="ua-perm-group-header"
+                        onClick={() => toggleGroupCollapse(name)}
+                      >
+                        <span className="ua-perm-group-icon">{groupIcon(name)}</span>
+                        <span className="ua-perm-group-title">{name}</span>
+                        <span className="ua-perm-group-badge">
+                          {rows.filter(isEffective).length}/{rows.length}
+                        </span>
+                        <span className="ua-perm-group-chevron">
+                          <IconChevron collapsed={collapsed} />
+                        </span>
+                      </button>
+                      {!collapsed &&
+                        rows.map((row) => {
+                          const effective = isEffective(row);
+                          const busy = permPendingId === row.permission_id;
+                          const overridden = row.override === "ALLOW" || row.override === "DENY";
+                          return (
+                            <button
+                              key={row.permission_id}
+                              className={
+                                "ua-perm-row" +
+                                (effective ? " effective" : " restricted") +
+                                (overridden ? " overridden" : "")
+                              }
+                              onClick={() => cyclePermission(row)}
+                              disabled={busy}
+                              title={
+                                overridden
+                                  ? `Individually ${row.override === "ALLOW" ? "allowed" : "restricted"} for this user`
+                                  : row.viaRole
+                                  ? "Allowed through this user's role"
+                                  : "Not granted by any role"
+                              }
+                            >
+                              <span className="ua-perm-row-icon">
+                                {busy ? null : effective ? <IconCheckCircle /> : <IconRestrictedCircle />}
+                              </span>
+                              <span className="ua-perm-code">{row.code}</span>
+                              <span className="ua-perm-state">
+                                {busy ? "…" : effective ? "✓ Allowed" : "✕ Restricted"}
+                              </span>
+                            </button>
+                          );
+                        })}
                     </div>
-                    {rows.map((row) => {
-                      const effective = isEffective(row);
-                      const busy = permPendingId === row.permission_id;
-                      return (
-                        <button
-                          key={row.permission_id}
-                          className={
-                            "ua-perm-row" +
-                            (row.override === "ALLOW" ? " allow" : row.override === "DENY" ? " deny" : "") +
-                            (effective ? " effective" : "")
-                          }
-                          onClick={() => cyclePermission(row)}
-                          disabled={busy}
-                        >
-                          <span className="ua-perm-code">{row.code}</span>
-                          <span className="ua-perm-state">
-                            {busy
-                              ? "…"
-                              : row.override
-                              ? row.override === "ALLOW"
-                                ? "Allow"
-                                : "Deny"
-                              : row.viaRole
-                              ? "via role"
-                              : "—"}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
 

@@ -22,5 +22,6 @@ from django.urls import include, path
 
 urlpatterns = [
     path('api/identity/', include('module_01_identity_access.urls')),
+    path('api/hr/', include('module_02_hr.urls')),
     path('api/training/', include('module_03_training.urls')),
 ]

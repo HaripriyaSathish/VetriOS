@@ -8,6 +8,9 @@ import "../styles/Permissions.css";
 // there). So "module" here is just the naming convention already in
 // the data — the prefix before the first underscore — used to split
 // the list into tabs, not a real DB-backed category.
+// Hidden for now per request — flip back on when it's wanted again.
+const SHOW_PERM_SEARCH = false;
+
 function groupOf(code) {
   return code.split("_")[0];
 }
@@ -26,6 +29,7 @@ function Permissions() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [pendingKey, setPendingKey] = useState(null);
+  const [search, setSearch] = useState("");
 
   const loadData = async () => {
     setLoading(true);
@@ -116,6 +120,18 @@ function Permissions() {
   const groupGrantedCount = (perms) =>
     perms.filter((p) => grants.has(cellKey(activeRoleId, p.permission_id))).length;
 
+  const searching = search.trim().length > 0;
+  const visiblePerms = searching
+    ? permissions.filter((p) => {
+        const q = search.trim().toLowerCase();
+        return (
+          p.permission_code.toLowerCase().includes(q) ||
+          p.permission_name.toLowerCase().includes(q) ||
+          (p.description || "").toLowerCase().includes(q)
+        );
+      })
+    : activeGroupPerms;
+
   return (
     <div className="perm-screen">
       <div className="perm-head">
@@ -148,23 +164,33 @@ function Permissions() {
 
           <div className="perm-groups-head">
             <h3>{activeRole ? `${activeRole.role_name}'s permissions` : "Permissions"}</h3>
+            {SHOW_PERM_SEARCH && (
+              <input
+                className="perm-search"
+                placeholder="Search permissions by code, name, description…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            )}
             <span className="perm-hint">Click a row to apply or remove</span>
           </div>
 
-          <div className="perm-module-tabs">
-            {groups.map(([name, perms]) => (
-              <button
-                key={name}
-                className={"perm-module-tab" + (name === activeGroup ? " active" : "")}
-                onClick={() => setActiveGroup(name)}
-              >
-                {name}
-                <span className="perm-module-count">
-                  {groupGrantedCount(perms)}/{perms.length}
-                </span>
-              </button>
-            ))}
-          </div>
+          {!searching && (
+            <div className="perm-module-tabs">
+              {groups.map(([name, perms]) => (
+                <button
+                  key={name}
+                  className={"perm-module-tab" + (name === activeGroup ? " active" : "")}
+                  onClick={() => setActiveGroup(name)}
+                >
+                  {name}
+                  <span className="perm-module-count">
+                    {groupGrantedCount(perms)}/{perms.length}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
 
           <div className="perm-panel">
             <div className="perm-table-scroll">
@@ -178,7 +204,14 @@ function Permissions() {
                   </tr>
                 </thead>
                 <tbody>
-                  {activeGroupPerms.map((perm) => {
+                  {visiblePerms.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="perm-empty-row">
+                        No permissions match "{search}".
+                      </td>
+                    </tr>
+                  )}
+                  {visiblePerms.map((perm) => {
                     const key = cellKey(activeRoleId, perm.permission_id);
                     const has = grants.has(key);
                     const busy = pendingKey === key;
@@ -194,7 +227,7 @@ function Permissions() {
                             disabled={busy}
                             title={has ? "Applied — click to remove" : "Restricted — click to apply"}
                           >
-                            {busy ? "…" : has ? "✓ Applied" : "○ Restricted"}
+                            {busy ? "…" : has ? "✓ Applied" : "✕ Restricted"}
                           </button>
                         </td>
                       </tr>

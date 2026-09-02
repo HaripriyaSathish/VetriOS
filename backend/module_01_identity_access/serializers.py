@@ -147,10 +147,11 @@ class UserAccountListSerializer(serializers.ModelSerializer):
     full_name = serializers.SerializerMethodField()
     email = serializers.SerializerMethodField()
     roles = serializers.SerializerMethodField()
+    designation = serializers.SerializerMethodField()
 
     class Meta:
         model = UserAccount
-        fields = ["user_id", "username", "full_name", "email", "is_active", "last_login", "roles"]
+        fields = ["user_id", "username", "full_name", "email", "is_active", "last_login", "roles", "designation"]
 
     def get_full_name(self, obj):
         return str(obj.person)
@@ -160,6 +161,9 @@ class UserAccountListSerializer(serializers.ModelSerializer):
 
     def get_roles(self, obj):
         return sorted(obj.active_role_names())
+
+    def get_designation(self, obj):
+        return obj.current_designation_name()
 
 
 # Handles create + update for a user account. Not a ModelSerializer:

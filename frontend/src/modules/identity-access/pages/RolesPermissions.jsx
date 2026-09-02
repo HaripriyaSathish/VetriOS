@@ -26,6 +26,7 @@ function RolesPermissions() {
   const [confirmTarget, setConfirmTarget] = useState(null);
   const [confirming, setConfirming] = useState(false);
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
 
   const loadData = async () => {
     setLoading(true);
@@ -123,11 +124,20 @@ function RolesPermissions() {
     }
   };
 
+  const filteredRoles = roles.filter((role) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      role.role_name.toLowerCase().includes(q) ||
+      (role.description || "").toLowerCase().includes(q)
+    );
+  });
+
   return (
     <div className="rp-screen">
       <div className="rp-head">
         <div>
-          <h1>Roles &amp; permissions</h1>
+          <h1>Roles</h1>
           <p>{roles.length} roles · role table</p>
         </div>
         <button className="rp-btn-accent" onClick={openCreate}>
@@ -143,6 +153,15 @@ function RolesPermissions() {
         <div className="rp-panel rp-roles-panel">
           <div className="rp-panel-head">
             <h3>All roles</h3>
+            <input
+              className="rp-search"
+              placeholder="Search roles by name or description…"
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+            />
             <span className="rp-hint">role table, live</span>
           </div>
           <div className="rp-table-scroll">
@@ -154,11 +173,11 @@ function RolesPermissions() {
                   <th>Status</th>
                   <th>Permissions</th>
                   <th>Created</th>
-                  <th></th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {paginate(roles, page).map((role) => (
+                {paginate(filteredRoles, page).map((role) => (
                   <tr key={role.role_id}>
                     <td className="rp-role-name">{role.role_name}</td>
                     <td className="rp-sub">{role.description}</td>
@@ -189,14 +208,20 @@ function RolesPermissions() {
               </tbody>
             </table>
           </div>
-          <Pagination page={page} totalItems={roles.length} onPageChange={setPage} />
+          <Pagination page={page} totalItems={filteredRoles.length} onPageChange={setPage} />
         </div>
       )}
 
       {formOpen && (
         <div className="rp-modal-backdrop" onClick={closeForm}>
           <form className="rp-modal" onClick={(e) => e.stopPropagation()} onSubmit={handleSubmit}>
+            <button type="button" className="rp-modal-x" onClick={closeForm} aria-label="Close">
+              ✕
+            </button>
             <h2>{editingRole ? "Edit role" : "New role"}</h2>
+            {editingRole && (
+              <p className="rp-hint">To manage this role's permissions, use the Permissions menu.</p>
+            )}
 
             <label>Role name</label>
             <input
@@ -238,6 +263,9 @@ function RolesPermissions() {
       {viewRole && (
         <div className="rp-modal-backdrop" onClick={closeView}>
           <div className="rp-modal" onClick={(e) => e.stopPropagation()}>
+            <button type="button" className="rp-modal-x" onClick={closeView} aria-label="Close">
+              ✕
+            </button>
             <h2>{viewRole.role_name}</h2>
             <p className="rp-view-desc">{viewRole.description}</p>
             <span className={"rp-pill " + (viewRole.is_active ? "on" : "off")}>
@@ -271,6 +299,9 @@ function RolesPermissions() {
       {confirmTarget && (
         <div className="rp-modal-backdrop" onClick={cancelToggleActive}>
           <div className="rp-modal rp-confirm" onClick={(e) => e.stopPropagation()}>
+            <button type="button" className="rp-modal-x" onClick={cancelToggleActive} aria-label="Close">
+              ✕
+            </button>
             <h2>{confirmTarget.is_active ? "Deactivate role?" : "Reactivate role?"}</h2>
             <p>
               {confirmTarget.is_active

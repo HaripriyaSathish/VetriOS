@@ -44,6 +44,11 @@
 .ua-panel-head {
   padding: 14px 18px;
   border-bottom: 1px solid #d9dfe8;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .ua-panel-head h3 {
@@ -51,6 +56,22 @@
   font-size: 14px;
   font-family: "Sora", sans-serif;
   color: #161a26;
+}
+
+.ua-search {
+  border: 1px solid #c2cad8;
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-size: 13px;
+  font-family: inherit;
+  color: #161a26;
+  min-width: 260px;
+}
+
+.ua-search:focus {
+  outline: 2px solid #235777;
+  outline-offset: 1px;
+  border-color: #235777;
 }
 
 .ua-empty {
@@ -228,8 +249,9 @@
 }
 
 .ua-modal {
+  position: relative;
   width: 100%;
-  max-width: 420px;
+  max-width: 560px;
   max-height: 90vh;
   overflow-y: auto;
   background: #fff;
@@ -240,12 +262,75 @@
   gap: 4px;
 }
 
+.ua-modal-x {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: #eaeef4;
+  color: #3a4152;
+  border-radius: 50%;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.ua-modal-x:hover {
+  background: #d9dfe8;
+  color: #161a26;
+}
+
 .ua-modal h2 {
   font-family: "Sora", sans-serif;
   font-size: 18px;
   font-weight: 700;
   color: #161a26;
+  margin: 0 28px 4px 0;
+}
+
+.ua-modal-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
   margin: 0 0 14px;
+}
+
+.ua-modal-identity-name {
+  font-family: "Sora", sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: #161a26;
+}
+
+.ua-modal-identity-sub {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ua-modal-identity-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #3a4152;
+}
+
+.ua-modal-identity-field svg {
+  flex: none;
+  color: #6c4fd1;
+}
+
+.ua-modal-identity-field strong {
+  font-weight: 700;
+  color: #161a26;
 }
 
 .ua-modal label {
@@ -305,7 +390,7 @@
 }
 
 .ua-perm-modal {
-  max-width: 480px;
+  max-width: 640px;
 }
 
 .ua-perm-hint {
@@ -314,22 +399,136 @@
   margin: 0 0 14px;
 }
 
+.ua-perm-modal-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.ua-perm-modal-icon {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: #ece7fb;
+  color: #6c4fd1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ua-perm-modal-head h2 {
+  margin: 0;
+}
+
+.ua-perm-identity {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.ua-perm-avatar {
+  flex: none;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: #ece7fb;
+  color: #6c4fd1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Sora", sans-serif;
+  font-weight: 700;
+  font-size: 18px;
+}
+
+.ua-perm-info-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: #f3f5fa;
+  border: 1px solid #e2e6ed;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+
+.ua-perm-info-box svg {
+  flex: none;
+  color: #235777;
+  margin-top: 1px;
+}
+
+.ua-perm-info-box p {
+  margin: 0;
+  font-size: 12.5px;
+  color: #3a4152;
+  line-height: 1.5;
+}
+
 .ua-perm-groups {
   max-height: 50vh;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
 }
 
-.ua-perm-group-name {
+.ua-perm-group-card {
+  border: 1px solid #e2e6ed;
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.ua-perm-group-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 4px 4px 8px;
+  font-family: inherit;
+}
+
+.ua-perm-group-icon {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: #ece7fb;
+  color: #6c4fd1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ua-perm-group-title {
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-weight: 700;
   font-size: 12.5px;
   color: #161a26;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  margin-bottom: 6px;
+}
+
+.ua-perm-group-badge {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: #3a4152;
+  background: #eaeef4;
+  padding: 2px 9px;
+  border-radius: 999px;
+}
+
+.ua-perm-group-chevron {
+  margin-left: auto;
+  color: #8a93a6;
+  display: flex;
 }
 
 .ua-perm-total-count {
@@ -343,14 +542,19 @@
   width: 100%;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 8px 10px;
-  border: 1px solid #e2e6ed;
-  border-radius: 7px;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1.5px solid #e2e6ed;
+  border-radius: 8px;
   background: #fff;
   cursor: pointer;
   font-family: inherit;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.ua-perm-row:last-child {
+  margin-bottom: 0;
 }
 
 .ua-perm-row:hover {
@@ -358,13 +562,24 @@
 }
 
 .ua-perm-row.effective {
-  background: #f4faf6;
-  border-color: #cdeeda;
+  background: #eefaf1;
+  border-color: #8fdba8;
 }
 
-.ua-perm-row.deny {
-  background: #fdf3f2;
-  border-color: #f3c9c5;
+.ua-perm-row.restricted {
+  background: #fdf2f1;
+  border-color: #f0aca6;
+}
+
+.ua-perm-row.overridden {
+  border-style: dashed;
+}
+
+.ua-perm-row-icon {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  display: flex;
 }
 
 .ua-perm-code {
@@ -372,6 +587,8 @@
   font-size: 13px;
   font-weight: 600;
   color: #161a26;
+  flex: 1;
+  text-align: left;
 }
 
 .ua-perm-state {
@@ -380,11 +597,11 @@
   color: #161a26;
 }
 
-.ua-perm-row.allow .ua-perm-state {
+.ua-perm-row.effective .ua-perm-state {
   color: #1f6837;
 }
 
-.ua-perm-row.deny .ua-perm-state {
+.ua-perm-row.restricted .ua-perm-state {
   color: #c13b34;
 }
 
@@ -424,6 +641,7 @@
 .ua-person-mode {
   display: flex;
   gap: 6px;
+  margin-top: 10px;
   margin-bottom: 4px;
 }
 

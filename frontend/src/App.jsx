@@ -6,12 +6,14 @@ import UserAccounts from "./modules/identity-access/pages/UserAccounts";
 import RolesPermissions from "./modules/identity-access/pages/RolesPermissions";
 import Permissions from "./modules/identity-access/pages/Permissions";
 import UserPermissions from "./modules/identity-access/pages/UserPermissions";
-import TrainingDashboard from "./modules/training/pages/TrainingDashboard";
+import TrainingRouter from "./modules/training/pages/TrainingRouter";
 import HRDashboard from "./modules/hr/pages/HRDashboard";
 import ProtectedRoute from "./components/ProtectedRoute";
 import PermissionGate from "./components/PermissionGate";
 import AppLayout from "./components/AppLayout";
 import { NAV_ITEMS } from "./config/nav";
+import EnquiryList from "./modules/training/pages/EnquiryList";
+
 
 // Route table for the whole app. Everything under AppLayout requires a
 // signed-in user (ProtectedRoute); each module route is additionally
@@ -66,14 +68,16 @@ function App() {
         />
 
         {/* Real Training dashboard, replacing the generic placeholder for this one module */}
-        <Route
-          path="/training"
-          element={
-            <PermissionGate requirement={{ type: "perm", value: "TRAINING_VIEW" }}>
-              <TrainingDashboard />
-            </PermissionGate>
-          }
-        />
+        <Route path="/training" element={
+  <PermissionGate requirement={{ type: "perm", value: "TRAINING_VIEW" }}>
+    <TrainingRouter />
+  </PermissionGate>
+} />
+<Route path="/training/enquiries" element={
+  <PermissionGate requirement={{ type: "perm", value: "TRAINING_VIEW" }}>
+    <EnquiryList />
+  </PermissionGate>
+} />
 
         {/* Real HR dashboard, replacing the generic placeholder for this one module */}
         <Route
@@ -98,7 +102,9 @@ function App() {
         ))}
       </Route>
 
+
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
+     
     </Routes>
   );
 }

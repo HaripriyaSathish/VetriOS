@@ -16,7 +16,7 @@
 
 .uperm-head p {
   font-size: 13px;
-  color: #8a93a6;
+  color: #3a4152;
   margin: 0;
 }
 
@@ -30,7 +30,7 @@
 }
 
 .uperm-empty {
-  color: #8a93a6;
+  color: #3a4152;
   font-size: 13px;
 }
 
@@ -72,13 +72,13 @@
 
 .uperm-user-sub {
   font-size: 11px;
-  color: #8a93a6;
+  color: #3a4152;
 }
 
 .uperm-user-count {
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 11px;
-  color: #8a93a6;
+  color: #3a4152;
   margin-top: 4px;
 }
 
@@ -100,7 +100,7 @@
 
 .uperm-hint {
   font-size: 11px;
-  color: #8a93a6;
+  color: #3a4152;
 }
 
 .uperm-module-tabs {
@@ -120,11 +120,11 @@
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 12.5px;
   font-weight: 600;
-  color: #8a93a6;
+  color: #3a4152;
 }
 
 .uperm-module-tab:hover {
-  color: #5b6478;
+  color: #3a4152;
 }
 
 .uperm-module-tab.active {
@@ -153,7 +153,7 @@
   text-align: left;
   padding: 9px 16px;
   background: #eaeef4;
-  color: #5b6478;
+  color: #3a4152;
   font-size: 10.5px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -199,7 +199,7 @@
 
 .uperm-pill.off {
   background: #f5f7fa;
-  color: #8a93a6;
+  color: #3a4152;
 }
 
 .uperm-toggle {
@@ -215,7 +215,7 @@
 
 .uperm-toggle.none {
   background: #f5f7fa;
-  color: #8a93a6;
+  color: #3a4152;
 }
 
 .uperm-toggle.none:hover {

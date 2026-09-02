@@ -21,7 +21,7 @@
 
 .ua-head p {
   font-size: 13px;
-  color: #8a93a6;
+  color: #3a4152;
   margin: 0;
 }
 
@@ -55,7 +55,7 @@
 
 .ua-empty {
   padding: 24px;
-  color: #8a93a6;
+  color: #3a4152;
   font-size: 13px;
   margin: 0;
 }
@@ -74,7 +74,7 @@
   text-align: left;
   padding: 9px 16px;
   background: #eaeef4;
-  color: #5b6478;
+  color: #3a4152;
   font-size: 10.5px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -117,13 +117,13 @@
 
 .ua-sub {
   font-size: 11px;
-  color: #8a93a6;
+  color: #3a4152;
 }
 
 .ua-mono {
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 12px;
-  color: #5b6478;
+  color: #3a4152;
   white-space: nowrap;
 }
 
@@ -172,7 +172,7 @@
 .ua-btn-sm {
   border: 1px solid #c2cad8;
   background: #fff;
-  color: #5b6478;
+  color: #3a4152;
   font-size: 12px;
   font-weight: 600;
   padding: 6px 10px;
@@ -251,7 +251,7 @@
 .ua-modal label {
   font-size: 12px;
   font-weight: 600;
-  color: #5b6478;
+  color: #3a4152;
   margin-top: 10px;
 }
 
@@ -293,7 +293,7 @@
 
 .ua-confirm p {
   font-size: 13px;
-  color: #5b6478;
+  color: #3a4152;
   margin: 0;
 }
 
@@ -310,7 +310,7 @@
 
 .ua-perm-hint {
   font-size: 11.5px;
-  color: #8a93a6;
+  color: #3a4152;
   margin: 0 0 14px;
 }
 
@@ -325,11 +325,18 @@
 .ua-perm-group-name {
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-weight: 700;
-  font-size: 11px;
-  color: #8a93a6;
+  font-size: 12.5px;
+  color: #161a26;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   margin-bottom: 6px;
+}
+
+.ua-perm-total-count {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 14px;
+  font-weight: 700;
+  color: #161a26;
 }
 
 .ua-perm-row {
@@ -362,14 +369,15 @@
 
 .ua-perm-code {
   font-family: "IBM Plex Mono", ui-monospace, monospace;
-  font-size: 12px;
-  color: #235777;
+  font-size: 13px;
+  font-weight: 600;
+  color: #161a26;
 }
 
 .ua-perm-state {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
-  color: #8a93a6;
+  color: #161a26;
 }
 
 .ua-perm-row.allow .ua-perm-state {
@@ -423,7 +431,7 @@
   flex: 1;
   border: 1px solid #c2cad8;
   background: #fff;
-  color: #5b6478;
+  color: #3a4152;
   font-size: 11.5px;
   font-weight: 600;
   padding: 7px 8px;
@@ -440,4 +448,63 @@
   background: #235777;
   border-color: #235777;
   color: #fff;
+}
+
+.ua-person-label-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.ua-person-clear {
+  border: none;
+  background: transparent;
+  color: #235777;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.ua-person-clear:hover {
+  text-decoration: underline;
+}
+
+.ua-person-search {
+  margin-top: 5px;
+  margin-bottom: 6px;
+}
+
+.ua-person-select {
+  flex-shrink: 0;
+  height: auto;
+  min-height: 130px;
+  padding: 4px;
+}
+
+.ua-password-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.ua-password-field input {
+  flex: 1;
+  padding-right: 38px;
+}
+
+.ua-password-toggle {
+  position: absolute;
+  right: 6px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 15px;
+  padding: 4px 6px;
+  line-height: 1;
+  border-radius: 6px;
+}
+
+.ua-password-toggle:hover {
+  background: #eaeef4;
 }

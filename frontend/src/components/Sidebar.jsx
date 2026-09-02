@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import "./Sidebar.css";
+import "../components-styles/Sidebar.css";
 
 // Left nav — module list is deliberately left out for now until those
 // modules have real pages; only Dashboard is linked.
@@ -19,6 +19,13 @@ function Sidebar() {
       </NavLink>
 
       <NavLink
+        to="/identity/users"
+        className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
+      >
+        <span className="nav-icon">👤</span> User & Accounts
+      </NavLink>
+
+      <NavLink
         to="/identity/roles"
         className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
       >
@@ -31,6 +38,7 @@ function Sidebar() {
       >
         <span className="nav-icon">🛡️</span> Permissions
       </NavLink>
+
     </aside>
   );
 }

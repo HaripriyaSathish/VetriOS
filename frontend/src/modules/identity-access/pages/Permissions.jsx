@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import client from "../api/client";
-import "./Permissions.css";
+import client from "../../../api/client";
+import "../styles/Permissions.css";
 
 // The permission table has no category/module column — VetriOSDB's
 // handover materials don't define "relevant" permissions per role

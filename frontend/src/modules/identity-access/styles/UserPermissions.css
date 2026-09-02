@@ -1,0 +1,246 @@
+.uperm-screen {
+  font-family: "Manrope", ui-sans-serif, system-ui, sans-serif;
+}
+
+.uperm-head {
+  margin-bottom: 20px;
+}
+
+.uperm-head h1 {
+  font-family: "Sora", sans-serif;
+  font-size: 24px;
+  font-weight: 700;
+  color: #161a26;
+  margin: 0 0 4px;
+}
+
+.uperm-head p {
+  font-size: 13px;
+  color: #8a93a6;
+  margin: 0;
+}
+
+.uperm-error {
+  background: #fbe7e5;
+  color: #96271f;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12.5px;
+  margin: 0 0 16px;
+}
+
+.uperm-empty {
+  color: #8a93a6;
+  font-size: 13px;
+}
+
+.uperm-user-tabs {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.uperm-user-card {
+  background: #fff;
+  border: 1px solid #d9dfe8;
+  border-radius: 10px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+}
+
+.uperm-user-card:hover {
+  border-color: #c2cad8;
+}
+
+.uperm-user-card.active {
+  border-color: #235777;
+  box-shadow: 0 0 0 2px #e4eef3;
+}
+
+.uperm-user-name {
+  font-family: "Sora", sans-serif;
+  font-weight: 700;
+  font-size: 13.5px;
+  color: #161a26;
+}
+
+.uperm-user-sub {
+  font-size: 11px;
+  color: #8a93a6;
+}
+
+.uperm-user-count {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 11px;
+  color: #8a93a6;
+  margin-top: 4px;
+}
+
+.uperm-groups-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.uperm-groups-head h3 {
+  margin: 0;
+  font-size: 15px;
+  font-family: "Sora", sans-serif;
+  color: #161a26;
+}
+
+.uperm-hint {
+  font-size: 11px;
+  color: #8a93a6;
+}
+
+.uperm-module-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  border-bottom: 1px solid #d9dfe8;
+}
+
+.uperm-module-tab {
+  padding: 9px 14px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  cursor: pointer;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #8a93a6;
+}
+
+.uperm-module-tab:hover {
+  color: #5b6478;
+}
+
+.uperm-module-tab.active {
+  color: #235777;
+  border-bottom-color: #235777;
+}
+
+.uperm-panel {
+  background: #fff;
+  border: 1px solid #d9dfe8;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.uperm-table-scroll {
+  overflow-x: auto;
+}
+
+.uperm-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.uperm-table th {
+  text-align: left;
+  padding: 9px 16px;
+  background: #eaeef4;
+  color: #5b6478;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.uperm-table td {
+  padding: 10px 16px;
+  border-top: 1px solid #d9dfe8;
+  vertical-align: middle;
+}
+
+.uperm-code {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 12px;
+  font-weight: 600;
+  color: #235777;
+  white-space: nowrap;
+}
+
+.uperm-name {
+  font-weight: 600;
+  color: #161a26;
+  white-space: nowrap;
+}
+
+.uperm-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.uperm-pill.on {
+  background: #e3f5e9;
+  color: #1f6837;
+}
+
+.uperm-pill.off {
+  background: #f5f7fa;
+  color: #8a93a6;
+}
+
+.uperm-toggle {
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 5px 14px;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  min-width: 56px;
+}
+
+.uperm-toggle.none {
+  background: #f5f7fa;
+  color: #8a93a6;
+}
+
+.uperm-toggle.none:hover {
+  background: #eaeef4;
+}
+
+.uperm-toggle.allow {
+  background: #e3f5e9;
+  color: #1f6837;
+}
+
+.uperm-toggle.allow:hover {
+  background: #c7ebd3;
+}
+
+.uperm-toggle.deny {
+  background: #fbe7e5;
+  color: #c13b34;
+}
+
+.uperm-toggle.deny:hover {
+  background: #f7d2ce;
+}
+
+.uperm-toggle:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

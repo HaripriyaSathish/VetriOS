@@ -1,6 +1,6 @@
 import { Outlet, useNavigate } from "react-router-dom";
 import Sidebar from "./Sidebar";
-import "./AppLayout.css";
+import "../components-styles/AppLayout.css";
 
 // Shell for every signed-in page — sidebar on the left, topbar + routed
 // page content on the right. Reads "user" once here so Sidebar and the

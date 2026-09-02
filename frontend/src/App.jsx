@@ -1,10 +1,11 @@
 import { Navigate, Route, Routes } from "react-router-dom";
-import Login from "./pages/Login";
+import Login from "./modules/identity-access/pages/Login";
 import Dashboard from "./pages/Dashboard";
 import ModulePlaceholder from "./pages/ModulePlaceholder";
-import UserAccounts from "./pages/UserAccounts";
-import RolesPermissions from "./pages/RolesPermissions";
-import Permissions from "./pages/Permissions";
+import UserAccounts from "./modules/identity-access/pages/UserAccounts";
+import RolesPermissions from "./modules/identity-access/pages/RolesPermissions";
+import Permissions from "./modules/identity-access/pages/Permissions";
+import UserPermissions from "./modules/identity-access/pages/UserPermissions";
 import ProtectedRoute from "./components/ProtectedRoute";
 import PermissionGate from "./components/PermissionGate";
 import AppLayout from "./components/AppLayout";
@@ -50,6 +51,14 @@ function App() {
           element={
             <PermissionGate requirement={{ type: "role", value: "System Administrator" }}>
               <Permissions />
+            </PermissionGate>
+          }
+        />
+        <Route
+          path="/identity/user-permissions"
+          element={
+            <PermissionGate requirement={{ type: "role", value: "System Administrator" }}>
+              <UserPermissions />
             </PermissionGate>
           }
         />

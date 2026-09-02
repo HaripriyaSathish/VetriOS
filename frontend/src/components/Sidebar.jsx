@@ -6,6 +6,7 @@ function Sidebar() {
   const user = JSON.parse(localStorage.getItem("user") || "null");
 
   const identityRequirement = { type: "role", value: "System Administrator" };
+  const businessTeamRequirement = { type: "role", value: "Business Team" };
   const trainingItem = NAV_ITEMS.find((item) => item.id === "training");
   const hrItem = NAV_ITEMS.find((item) => item.id === "hr");
 
@@ -66,6 +67,15 @@ function Sidebar() {
           className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
         >
           <span className="nav-icon">🎓</span> Training
+        </NavLink>
+      )}
+
+      {hasAccess(businessTeamRequirement, user) && (
+        <NavLink
+          to="/training/enquiries"
+          className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
+        >
+          <span className="nav-icon">📋</span> Enquiries
         </NavLink>
       )}
     </aside>

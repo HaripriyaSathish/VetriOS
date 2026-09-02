@@ -16,7 +16,7 @@ export const NAV_ITEMS = [
     icon: "🧑‍💼",
     name: "HR",
     path: "/hr",
-    requirement: { type: "perm", value: "EMPLOYEE_VIEW" },
+    requirement: { type: "role", value: ["HR Administrator", "System Administrator"] },
   },
   {
     id: "training",
@@ -78,7 +78,10 @@ export function hasAccess(requirement, user) {
     if (requirement.value === "ANY") {
       return (user.roles || []).length > 0;
     }
-    return (user.roles || []).includes(requirement.value);
+    // A role requirement can name a single role or a list — a list means
+    // "any one of these", e.g. HR gating on ["HR Administrator", "System Administrator"].
+    const wanted = Array.isArray(requirement.value) ? requirement.value : [requirement.value];
+    return wanted.some((role) => (user.roles || []).includes(role));
   }
 
   if (requirement.type === "perm") {

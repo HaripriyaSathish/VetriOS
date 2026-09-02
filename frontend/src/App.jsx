@@ -7,6 +7,7 @@ import RolesPermissions from "./modules/identity-access/pages/RolesPermissions";
 import Permissions from "./modules/identity-access/pages/Permissions";
 import UserPermissions from "./modules/identity-access/pages/UserPermissions";
 import TrainingDashboard from "./modules/training/pages/TrainingDashboard";
+import HRDashboard from "./modules/hr/pages/HRDashboard";
 import ProtectedRoute from "./components/ProtectedRoute";
 import PermissionGate from "./components/PermissionGate";
 import AppLayout from "./components/AppLayout";
@@ -74,7 +75,17 @@ function App() {
           }
         />
 
-        {NAV_ITEMS.filter((item) => item.id !== "training").map((item) => (
+        {/* Real HR dashboard, replacing the generic placeholder for this one module */}
+        <Route
+          path="/hr"
+          element={
+            <PermissionGate requirement={{ type: "role", value: ["HR Administrator", "System Administrator"] }}>
+              <HRDashboard />
+            </PermissionGate>
+          }
+        />
+
+        {NAV_ITEMS.filter((item) => item.id !== "training" && item.id !== "hr").map((item) => (
           <Route
             key={item.id}
             path={item.path}

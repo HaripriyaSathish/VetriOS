@@ -196,6 +196,31 @@
   color: #3a4152;
 }
 
+.perm-search {
+  border: 1px solid #c2cad8;
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-size: 13px;
+  font-family: inherit;
+  color: #161a26;
+  min-width: 260px;
+  flex: 1;
+  max-width: 360px;
+}
+
+.perm-search:focus {
+  outline: 2px solid #235777;
+  outline-offset: 1px;
+  border-color: #235777;
+}
+
+.perm-empty-row {
+  padding: 20px 16px;
+  text-align: center;
+  color: #3a4152;
+  font-size: 13px;
+}
+
 .perm-table-scroll {
   overflow-x: auto;
 }

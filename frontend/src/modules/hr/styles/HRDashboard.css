@@ -1,8 +1,8 @@
-.rp-screen {
+.hr-screen {
   font-family: "Manrope", ui-sans-serif, system-ui, sans-serif;
 }
 
-.rp-head {
+.hr-head {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
@@ -11,7 +11,7 @@
   margin-bottom: 20px;
 }
 
-.rp-head h1 {
+.hr-head h1 {
   font-family: "Sora", sans-serif;
   font-size: 24px;
   font-weight: 700;
@@ -19,13 +19,13 @@
   margin: 0 0 4px;
 }
 
-.rp-head p {
+.hr-head p {
   font-size: 13px;
   color: #3a4152;
   margin: 0;
 }
 
-.rp-error {
+.hr-error {
   background: #fbe7e5;
   color: #96271f;
   border-radius: 8px;
@@ -34,26 +34,43 @@
   margin: 0 0 16px;
 }
 
-.rp-empty {
+.hr-panel {
+  background: #fff;
+  border: 1px solid #d9dfe8;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.hr-panel-head {
+  padding: 14px 18px;
+  border-bottom: 1px solid #d9dfe8;
+}
+
+.hr-panel-head h3 {
+  margin: 0;
+  font-size: 14px;
+  font-family: "Sora", sans-serif;
+  color: #161a26;
+}
+
+.hr-empty {
+  padding: 24px;
   color: #3a4152;
   font-size: 13px;
+  margin: 0;
 }
 
-.rp-roles-panel {
-  margin-bottom: 22px;
-}
-
-.rp-table-scroll {
+.hr-table-scroll {
   overflow-x: auto;
 }
 
-.rp-role-table {
+.hr-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
 }
 
-.rp-role-table th {
+.hr-table th {
   text-align: left;
   padding: 9px 16px;
   background: #eaeef4;
@@ -65,30 +82,52 @@
   white-space: nowrap;
 }
 
-.rp-role-table td {
+.hr-table td {
   padding: 10px 16px;
   border-top: 1px solid #d9dfe8;
   vertical-align: middle;
 }
 
-.rp-role-name {
+.hr-cell-user {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.hr-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #e4eef3;
+  color: #235777;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Sora", sans-serif;
+  font-weight: 700;
+  font-size: 11px;
+  flex: none;
+}
+
+.hr-name {
   font-weight: 600;
+  font-size: 13px;
   color: #161a26;
 }
 
-.rp-sub {
-  font-size: 12px;
+.hr-sub {
+  font-size: 11px;
   color: #3a4152;
 }
 
-.rp-mono {
+.hr-mono {
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 12px;
   color: #3a4152;
   white-space: nowrap;
 }
 
-.rp-pill {
+.hr-pill {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -98,70 +137,17 @@
   font-weight: 600;
 }
 
-.rp-pill.on {
+.hr-pill.on {
   background: #e3f5e9;
   color: #1f6837;
 }
 
-.rp-pill.off {
+.hr-pill.off {
   background: #fbe7e5;
   color: #96271f;
 }
 
-.rp-panel {
-  background: #fff;
-  border: 1px solid #d9dfe8;
-  border-radius: 10px;
-  overflow: hidden;
-}
-
-.rp-panel-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 14px 18px;
-  border-bottom: 1px solid #d9dfe8;
-}
-
-.rp-panel-head h3 {
-  margin: 0;
-  font-size: 14px;
-  font-family: "Sora", sans-serif;
-  color: #161a26;
-}
-
-.rp-hint {
-  font-size: 11px;
-  color: #3a4152;
-}
-
-.rp-search {
-  border: 1px solid #c2cad8;
-  border-radius: 8px;
-  padding: 7px 12px;
-  font-size: 13px;
-  font-family: inherit;
-  color: #161a26;
-  min-width: 240px;
-  flex: 1;
-  max-width: 320px;
-}
-
-.rp-search:focus {
-  outline: 2px solid #235777;
-  outline-offset: 1px;
-  border-color: #235777;
-}
-
-.rp-actions {
-  display: flex;
-  gap: 6px;
-  white-space: nowrap;
-}
-
-.rp-btn-sm {
+.hr-btn-sm {
   border: 1px solid #c2cad8;
   background: #fff;
   color: #3a4152;
@@ -172,20 +158,11 @@
   cursor: pointer;
 }
 
-.rp-btn-sm:hover {
+.hr-btn-sm:hover {
   background: #eaeef4;
 }
 
-.rp-btn-danger {
-  color: #96271f;
-  border-color: #e3a8a3;
-}
-
-.rp-btn-danger:hover {
-  background: #fbe7e5;
-}
-
-.rp-btn-accent {
+.hr-btn-accent {
   background: #d98c2b;
   border: 1px solid #d98c2b;
   color: #241505;
@@ -196,19 +173,19 @@
   cursor: pointer;
 }
 
-.rp-btn-accent:hover {
+.hr-btn-accent:hover {
   background: #b06f1c;
   border-color: #b06f1c;
   color: #fff;
 }
 
-.rp-btn-accent:disabled {
+.hr-btn-accent:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
 
-/* Modals */
-.rp-modal-backdrop {
+/* Modal */
+.hr-modal-backdrop {
   position: fixed;
   inset: 0;
   background: rgba(22, 26, 38, 0.45);
@@ -219,10 +196,10 @@
   z-index: 50;
 }
 
-.rp-modal {
+.hr-modal {
   position: relative;
   width: 100%;
-  max-width: 560px;
+  max-width: 480px;
   max-height: 90vh;
   overflow-y: auto;
   background: #fff;
@@ -233,17 +210,17 @@
   gap: 4px;
 }
 
-.rp-modal-x {
+.hr-modal-x {
   position: absolute;
-  top: 14px;
-  right: 14px;
-  width: 28px;
-  height: 28px;
+  top: 16px;
+  right: 16px;
+  width: 32px;
+  height: 32px;
   border: none;
   background: #eaeef4;
   color: #3a4152;
   border-radius: 50%;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
   display: flex;
@@ -252,97 +229,60 @@
   line-height: 1;
 }
 
-.rp-modal-x:hover {
+.hr-modal-x:hover {
   background: #d9dfe8;
   color: #161a26;
 }
 
-.rp-modal h2 {
+.hr-modal h2 {
   font-family: "Sora", sans-serif;
   font-size: 18px;
   font-weight: 700;
   color: #161a26;
-  margin: 0 28px 14px 0;
+  margin: 0 28px 4px 0;
 }
 
-.rp-modal label {
+.hr-hint {
+  font-size: 11.5px;
+  color: #3a4152;
+  margin: 0 0 14px;
+}
+
+.hr-modal label {
   font-size: 12px;
   font-weight: 600;
   color: #3a4152;
   margin-top: 10px;
 }
 
-.rp-modal input,
-.rp-modal textarea {
+.hr-modal input,
+.hr-modal select {
   border: 1px solid #c2cad8;
   border-radius: 8px;
   padding: 9px 11px;
   font-size: 13.5px;
   margin-top: 5px;
   font-family: inherit;
-  resize: vertical;
+  width: 100%;
+  box-sizing: border-box;
 }
 
-.rp-modal input:focus,
-.rp-modal textarea:focus {
+.hr-modal input:focus,
+.hr-modal select:focus {
   outline: 2px solid #235777;
   outline-offset: 1px;
   border-color: #235777;
 }
 
-.rp-checkbox {
-  display: flex !important;
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
-  margin-top: 14px;
+.hr-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
 }
 
-.rp-checkbox input {
-  margin: 0;
-  width: auto;
-}
-
-.rp-modal-actions {
+.hr-modal-actions {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
   margin-top: 20px;
 }
-
-.rp-confirm p {
-  font-size: 13px;
-  color: #3a4152;
-  margin: 0;
-}
-
-.rp-view-desc {
-  font-size: 13px;
-  color: #3a4152;
-  margin: 0 0 10px;
-}
-
-.rp-view-subhead {
-  font-family: "Sora", sans-serif;
-  font-size: 13px;
-  font-weight: 700;
-  color: #161a26;
-  margin: 18px 0 10px;
-}
-
-.rp-view-perms {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.rp-perm-pill {
-  background: #e4eef3;
-  color: #235777;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 4px 9px;
-  border-radius: 999px;
-  font-family: "IBM Plex Mono", ui-monospace, monospace;
-}
-

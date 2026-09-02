@@ -1,4 +1,4 @@
-import "./Pagination.css";
+import "../components-styles/Pagination.css";
 
 const PAGE_SIZE = 10;
 

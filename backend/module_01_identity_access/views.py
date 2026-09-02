@@ -1,3 +1,4 @@
+from django.db import models
 from django.utils import timezone
 from rest_framework import generics, status
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -5,12 +6,13 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .models import Permission, Role, RolePermission, UserAccount
+from .models import Permission, Person, Role, RolePermission, UserAccount, UserPermission, UserRole
 from .permissions import IsSystemAdministrator
 from .serializers import (
     LoginSerializer,
     MeSerializer,
     PermissionSerializer,
+    PersonSerializer,
     RoleCardSerializer,
     RoleDetailSerializer,
     RoleSerializer,
@@ -120,6 +122,18 @@ class UserAccountDetailView(generics.RetrieveUpdateDestroyAPIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
+# Feeds the "link an existing person" mode of the "+ New account" modal
+# — person rows with no user_account yet, i.e. people known to the
+# system (HR-entered, imported, etc.) who don't have login access.
+class UnlinkedPersonListView(generics.ListAPIView):
+    permission_classes = [IsAuthenticated, IsSystemAdministrator]
+    serializer_class = PersonSerializer
+
+    def get_queryset(self):
+        linked_ids = UserAccount.objects.values_list("person_id", flat=True)
+        return Person.objects.exclude(pk__in=linked_ids).order_by("first_name", "last_name")
+
+
 # Feeds the role dropdown on the User & Accounts create/edit form.
 class RoleListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated, IsSystemAdministrator]
@@ -198,9 +212,136 @@ class RolePermissionToggleView(APIView):
     permission_classes = [IsAuthenticated, IsSystemAdministrator]
 
     def put(self, request, role_id, permission_id):
-        RolePermission.objects.get_or_create(role_id=role_id, permission_id=permission_id)
+        _, created = RolePermission.objects.get_or_create(role_id=role_id, permission_id=permission_id)
+        if created:
+            Role.objects.filter(pk=role_id).update(updated_at=timezone.now())
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     def delete(self, request, role_id, permission_id):
-        RolePermission.objects.filter(role_id=role_id, permission_id=permission_id).delete()
+        deleted, _ = RolePermission.objects.filter(role_id=role_id, permission_id=permission_id).delete()
+        if deleted:
+            Role.objects.filter(pk=role_id).update(updated_at=timezone.now())
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+# Toggles one user's role assignment: grant (PUT) or revoke (DELETE) a
+# single role for a single user. A user can hold multiple roles at once —
+# each call only touches the one (user_id, role_id) pair, unlike
+# UserAccountWriteSerializer's role_id field which used to replace the
+# user's entire role set with a single one.
+class UserRoleToggleView(APIView):
+    permission_classes = [IsAuthenticated, IsSystemAdministrator]
+
+    def put(self, request, user_id, role_id):
+        today = timezone.localdate()
+        existing = UserRole.objects.filter(
+            user_id=user_id, role_id=role_id, is_active=True,
+        ).filter(
+            models.Q(effective_to__isnull=True) | models.Q(effective_to__gte=today)
+        ).first()
+        if not existing:
+            UserRole.objects.create(
+                user_id=user_id,
+                role_id=role_id,
+                effective_from=today,
+                effective_to=None,
+                is_active=True,
+                created_at=timezone.now(),
+            )
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    def delete(self, request, user_id, role_id):
+        today = timezone.localdate()
+        yesterday = today - timezone.timedelta(days=1)
+        active = UserRole.objects.filter(
+            user_id=user_id, role_id=role_id, is_active=True,
+        ).filter(
+            models.Q(effective_to__isnull=True) | models.Q(effective_to__gte=today)
+        )
+        active.filter(effective_from=today).update(is_active=False, effective_to=today)
+        active.filter(effective_from__lt=today).update(is_active=False, effective_to=yesterday)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+# User Permissions screen — each active user's role assignments, as flat
+# (user_id, role_id) pairs. Combined client-side with role-permissions to
+# work out each user's role-granted baseline before overrides are applied.
+class UserRoleMatrixView(APIView):
+    permission_classes = [IsAuthenticated, IsSystemAdministrator]
+
+    def get(self, request):
+        today = timezone.localdate()
+        pairs = UserRole.objects.filter(
+            is_active=True,
+            effective_from__lte=today,
+        ).filter(
+            models.Q(effective_to__isnull=True) | models.Q(effective_to__gte=today)
+        ).values_list("user_id", "role_id")
+        return Response([{"user_id": u, "role_id": r} for u, r in pairs])
+
+
+# Every currently-active individual override, as flat
+# (user_id, permission_id, effect) triples.
+class UserPermissionMatrixView(APIView):
+    permission_classes = [IsAuthenticated, IsSystemAdministrator]
+
+    def get(self, request):
+        today = timezone.localdate()
+        rows = UserPermission.objects.filter(
+            effective_from__lte=today,
+        ).filter(
+            models.Q(effective_to__isnull=True) | models.Q(effective_to__gte=today)
+        ).values_list("user_id", "permission_id", "effect")
+        return Response([{"user_id": u, "permission_id": p, "effect": e} for u, p, e in rows])
+
+
+# Sets or clears one individual override. PUT with {"effect": "ALLOW"|"DENY"}
+# creates or updates it; DELETE closes it out (effective_to = today, same
+# pattern UserAccountWriteSerializer uses when a role assignment changes —
+# not a hard delete, so the history stays).
+class UserPermissionToggleView(APIView):
+    permission_classes = [IsAuthenticated, IsSystemAdministrator]
+
+    def put(self, request, user_id, permission_id):
+        effect = request.data.get("effect")
+        if effect not in ("ALLOW", "DENY"):
+            return Response({"effect": ["Must be ALLOW or DENY."]}, status=status.HTTP_400_BAD_REQUEST)
+
+        today = timezone.localdate()
+        existing = UserPermission.objects.filter(
+            user_id=user_id, permission_id=permission_id,
+        ).filter(
+            models.Q(effective_to__isnull=True) | models.Q(effective_to__gte=today)
+        ).first()
+
+        if existing:
+            existing.effect = effect
+            existing.save(update_fields=["effect"])
+        else:
+            UserPermission.objects.create(
+                user_id=user_id,
+                permission_id=permission_id,
+                effect=effect,
+                effective_from=today,
+                created_at=timezone.now(),
+            )
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    def delete(self, request, user_id, permission_id):
+        # effective_to is inclusive (see active_user_permission_overrides'
+        # effective_to__gte=today), so closing out "as of yesterday" is
+        # what actually makes the override stop applying today rather
+        # than tomorrow. But the DB enforces effective_to >= effective_from
+        # (chk_user_permission_dates), so a row created today can't be
+        # closed to yesterday — there's no history worth keeping for a
+        # same-day override anyway, so those get hard-deleted instead.
+        today = timezone.localdate()
+        yesterday = today - timezone.timedelta(days=1)
+        active = UserPermission.objects.filter(
+            user_id=user_id, permission_id=permission_id,
+        ).filter(
+            models.Q(effective_to__isnull=True) | models.Q(effective_to__gte=today)
+        )
+        active.filter(effective_from=today).delete()
+        active.filter(effective_from__lt=today).update(effective_to=yesterday)
         return Response(status=status.HTTP_204_NO_CONTENT)

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import client from "../api/client";
-import Pagination, { paginate } from "../components/Pagination";
-import "./RolesPermissions.css";
+import client from "../../../api/client";
+import Pagination, { paginate } from "../../../components/Pagination";
+import "../styles/RolesPermissions.css";
 
 const EMPTY_FORM = { role_name: "", description: "", is_active: true };
 

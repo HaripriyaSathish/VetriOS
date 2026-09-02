@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import client from "../api/client";
-import "./Login.css";
+import client from "../../../api/client";
+import "../styles/Login.css";
 
 // Sign-in form: POSTs to /api/identity/login/, stores the returned JWT
 // pair, then sends the user on to the dashboard.

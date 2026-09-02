@@ -4,6 +4,19 @@ from rest_framework import serializers
 from .models import Permission, Person, Role, RolePermission, UserAccount, UserRole
 
 
+# Row shape for "existing person, no login yet" — feeds the "+ New
+# account" modal's "link an existing person" mode.
+class PersonSerializer(serializers.ModelSerializer):
+    full_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Person
+        fields = ["person_id", "full_name", "email", "phone"]
+
+    def get_full_name(self, obj):
+        return str(obj)
+
+
 # Validates username + password against user_account directly — not a
 # ModelSerializer, since this never creates/updates a UserAccount row.
 class LoginSerializer(serializers.Serializer):
@@ -47,7 +60,7 @@ class RoleCardSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Role
-        fields = ["role_id", "role_name", "description", "is_active", "created_at", "permission_count"]
+        fields = ["role_id", "role_name", "description", "is_active", "created_at", "updated_at", "permission_count"]
 
     def get_permission_count(self, obj):
         return RolePermission.objects.filter(role=obj).count()
@@ -159,10 +172,17 @@ class UserAccountWriteSerializer(serializers.Serializer):
         required=False, allow_blank=True, trim_whitespace=False, write_only=True
     )
     is_active = serializers.BooleanField(required=False, default=True)
-    first_name = serializers.CharField(max_length=100)
+    # Only used when linking a brand-new person (person_id not given) —
+    # not required otherwise, since an existing person already has these.
+    first_name = serializers.CharField(max_length=100, required=False, allow_blank=True)
     last_name = serializers.CharField(max_length=100, required=False, allow_blank=True)
     email = serializers.CharField(max_length=255, required=False, allow_blank=True)
     phone = serializers.CharField(max_length=30, required=False, allow_blank=True)
+    # Set this to attach the new login to an existing person row instead
+    # of creating a new one — the "this person already exists, now give
+    # them access" case. Only accepted on create (self.instance is None);
+    # on update, the account is already linked to its person.
+    person_id = serializers.IntegerField(required=False, allow_null=True)
     # The one role this screen assigns at a time — matches the mockup's
     # "role assignments" drawer, which showed a single active role per user
     # for every seeded account.
@@ -181,16 +201,34 @@ class UserAccountWriteSerializer(serializers.Serializer):
             raise serializers.ValidationError("Unknown role.")
         return value
 
+    def validate_person_id(self, value):
+        if value is None:
+            return value
+        if not Person.objects.filter(pk=value).exists():
+            raise serializers.ValidationError("Unknown person.")
+        if UserAccount.objects.filter(person_id=value).exists():
+            raise serializers.ValidationError("This person already has a login.")
+        return value
+
+    def validate(self, attrs):
+        if self.instance is None and not attrs.get("person_id") and not attrs.get("first_name"):
+            raise serializers.ValidationError({"first_name": ["This field is required."]})
+        return attrs
+
     def create(self, validated_data):
         now = timezone.now()
-        person = Person.objects.create(
-            first_name=validated_data["first_name"],
-            last_name=validated_data.get("last_name") or None,
-            email=validated_data.get("email") or None,
-            phone=validated_data.get("phone") or None,
-            created_at=now,
-            updated_at=now,
-        )
+        person_id = validated_data.get("person_id")
+        if person_id:
+            person = Person.objects.get(pk=person_id)
+        else:
+            person = Person.objects.create(
+                first_name=validated_data["first_name"],
+                last_name=validated_data.get("last_name") or None,
+                email=validated_data.get("email") or None,
+                phone=validated_data.get("phone") or None,
+                created_at=now,
+                updated_at=now,
+            )
 
         user = UserAccount(
             person=person,

@@ -1,4 +1,4 @@
-import "./ModulePlaceholder.css";
+import "../styles/ModulePlaceholder.css";
 
 // Stand-in for modules that don't have a real screen yet — the route and
 // nav gating already work, only the page content is still to be built.

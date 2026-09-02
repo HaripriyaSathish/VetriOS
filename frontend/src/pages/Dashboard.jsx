@@ -1,5 +1,5 @@
 import { useOutletContext } from "react-router-dom";
-import "./Dashboard.css";
+import "../styles/Dashboard.css";
 
 // Landing page after login — proves the token/role data made it through.
 // Real module dashboards replace this later; AppLayout owns the

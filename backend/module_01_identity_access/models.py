@@ -129,13 +129,34 @@ class UserAccount(AbstractBaseUser):
         # Convenience wrapper: just the plain role names, e.g. for API responses.
         return set(self.active_roles().values_list("role_name", flat=True))
 
+    def active_user_permission_overrides(self):
+        """This user's currently-in-effect individual overrides — same
+        date-bound pattern as active_roles(). effect is 'ALLOW' or 'DENY'
+        (DB-enforced via chk_user_permission_effect)."""
+        today = timezone.localdate()
+        return UserPermission.objects.filter(
+            user_id=self.pk,
+            effective_from__lte=today,
+        ).filter(
+            models.Q(effective_to__isnull=True) | models.Q(effective_to__gte=today)
+        )
+
     def active_permission_codes(self):
-        # Union of every permission granted by any of this user's active
-        # roles (a user with two roles gets the combined permission set).
-        return set(
+        # Baseline: union of every permission granted by any of this
+        # user's active roles. Individual overrides then layer on top —
+        # an ALLOW override adds a permission the role(s) don't grant; a
+        # DENY override removes one even if a role would otherwise grant
+        # it. DENY always wins over ALLOW/role-grant for the same code.
+        codes = set(
             RolePermission.objects.filter(role__in=self.active_roles())
             .values_list("permission__permission_code", flat=True)
         )
+
+        overrides = self.active_user_permission_overrides().select_related("permission")
+        allowed = {o.permission.permission_code for o in overrides if o.effect == "ALLOW"}
+        denied = {o.permission.permission_code for o in overrides if o.effect == "DENY"}
+
+        return (codes | allowed) - denied
 
     def has_permission(self, code):
         # Single permission check, e.g. has_permission("DOCUMENT_CREATE").
@@ -159,7 +180,9 @@ class UserRole(models.Model):
 
 
 # A one-off permission grant/override tied directly to a user, outside
-# their roles — not currently read by active_permission_codes() above.
+# their roles. Read by UserAccount.active_permission_codes() above:
+# effect='ALLOW' adds a permission on top of the user's roles,
+# effect='DENY' removes one even if a role would otherwise grant it.
 class UserPermission(models.Model):
     user_permission_id = models.BigAutoField(primary_key=True)
     user_id = models.BigIntegerField()

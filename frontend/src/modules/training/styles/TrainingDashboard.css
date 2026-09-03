@@ -141,3 +141,10 @@
   font-size: 14.5px;
   padding: 18px 20px;
 }
+.td-row-clickable {
+  cursor: pointer;
+}
+
+.td-row-clickable:hover {
+  background: #f9fafb;
+}

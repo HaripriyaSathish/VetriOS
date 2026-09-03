@@ -1,8 +1,10 @@
 ﻿import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import client from "../../../api/client";
 import "../styles/TrainingDashboard.css";
 
 function TrainingDashboard() {
+  const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -60,7 +62,11 @@ function TrainingDashboard() {
                 </tr>
               ) : (
                 data.batches.map((b) => (
-                  <tr key={b.batch_id}>
+                  <tr
+                    key={b.batch_id}
+                    className="td-row-clickable"
+                    onClick={() => navigate(`/training/batches/${b.batch_id}`)}
+                  >
                     <td className="td-name">{b.batch_name}</td>
                     <td className="td-sub">{b.course_name}</td>
                     <td className="td-mono">{b.start_date}</td>

@@ -85,12 +85,45 @@ function App() {
   </PermissionGate>
 } />
 
-        {/* Real HR dashboard, replacing the generic placeholder for this one module */}
+        {/* Workspace (HR) group — HR Dashboard is still a placeholder;
+            Employee is the one real page so far. */}
         <Route
           path="/hr"
           element={
             <PermissionGate requirement={{ type: "role", value: ["HR Administrator", "System Administrator"] }}>
+              <ModulePlaceholder name="HR Dashboard" />
+            </PermissionGate>
+          }
+        />
+        <Route
+          path="/hr/employees"
+          element={
+            <PermissionGate requirement={{ type: "role", value: ["HR Administrator", "System Administrator"] }}>
               <HRDashboard />
+            </PermissionGate>
+          }
+        />
+        <Route
+          path="/hr/attendance"
+          element={
+            <PermissionGate requirement={{ type: "role", value: ["HR Administrator", "System Administrator"] }}>
+              <ModulePlaceholder name="Attendance" />
+            </PermissionGate>
+          }
+        />
+        <Route
+          path="/hr/leave"
+          element={
+            <PermissionGate requirement={{ type: "role", value: ["HR Administrator", "System Administrator"] }}>
+              <ModulePlaceholder name="Leave" />
+            </PermissionGate>
+          }
+        />
+        <Route
+          path="/hr/worklogs"
+          element={
+            <PermissionGate requirement={{ type: "role", value: ["HR Administrator", "System Administrator"] }}>
+              <ModulePlaceholder name="Worklogs" />
             </PermissionGate>
           }
         />

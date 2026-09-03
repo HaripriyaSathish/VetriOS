@@ -132,3 +132,17 @@
   background: #235777;
   color: #fff;
 }
+
+.sidebar .nav-subitem.nav-group-toggle {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.nav-subgroup-nested {
+  margin: 2px 0 4px 12px;
+  padding-left: 12px;
+}
+
+.sidebar .nav-subgroup-nested .nav-subitem {
+  font-size: 13px;
+}

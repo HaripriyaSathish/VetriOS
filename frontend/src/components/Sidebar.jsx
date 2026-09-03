@@ -7,11 +7,16 @@ import {
   Users,
   Lock,
   ChevronDown,
+  Briefcase,
+  CalendarCheck,
+  Palmtree,
+  ClipboardList,
 } from "lucide-react";
 import { NAV_ITEMS, hasAccess } from "../config/nav";
 import "../components-styles/Sidebar.css";
 
 const SYSADMIN_PATHS = ["/dashboard", "/identity/users", "/identity/roles", "/identity/permissions"];
+const HR_PATHS = ["/hr"];
 
 function Sidebar() {
   const user = JSON.parse(localStorage.getItem("user") || "null");
@@ -25,6 +30,11 @@ function Sidebar() {
   const isSystemAdministrator = hasAccess(identityRequirement, user);
   const isOnSysAdminPage = SYSADMIN_PATHS.some((path) => location.pathname.startsWith(path));
   const [sysAdminOpen, setSysAdminOpen] = useState(isOnSysAdminPage);
+
+  const canSeeHR = hrItem && hasAccess(hrItem.requirement, user);
+  const isOnHRPage = HR_PATHS.some((path) => location.pathname.startsWith(path));
+  const [hrOpen, setHrOpen] = useState(isOnHRPage);
+  const [workspaceOpen, setWorkspaceOpen] = useState(isOnHRPage);
 
   return (
     <aside className="sidebar">
@@ -110,13 +120,95 @@ function Sidebar() {
         </>
       )}
 
-      {hrItem && hasAccess(hrItem.requirement, user) && (
-        <NavLink
-          to="/hr"
-          className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
-        >
-          <span className="nav-icon">🧑‍💼</span> HR
-        </NavLink>
+      {canSeeHR && (
+        <>
+          <button
+            type="button"
+            className={"nav-item nav-group-toggle" + (hrOpen ? " open" : "")}
+            onClick={() => setHrOpen((prev) => !prev)}
+          >
+            <span className="nav-icon">
+              <Briefcase size={16} />
+            </span>
+            HR
+            <span className="nav-chevron">
+              <ChevronDown size={14} />
+            </span>
+          </button>
+
+          {hrOpen && (
+            <div className="nav-subgroup">
+              <button
+                type="button"
+                className={"nav-item nav-subitem nav-group-toggle" + (workspaceOpen ? " open" : "")}
+                onClick={() => setWorkspaceOpen((prev) => !prev)}
+              >
+                <span className="nav-icon">
+                  <LayoutDashboard size={14} />
+                </span>
+                Workspace
+                <span className="nav-chevron">
+                  <ChevronDown size={13} />
+                </span>
+              </button>
+
+              {workspaceOpen && (
+                <div className="nav-subgroup nav-subgroup-nested">
+                  <NavLink
+                    to="/hr"
+                    end
+                    className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
+                  >
+                    <span className="nav-icon">
+                      <LayoutDashboard size={13} />
+                    </span>
+                    HR Dashboard
+                  </NavLink>
+
+                  <NavLink
+                    to="/hr/employees"
+                    className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
+                  >
+                    <span className="nav-icon">
+                      <Users size={13} />
+                    </span>
+                    Employees
+                  </NavLink>
+
+                  <NavLink
+                    to="/hr/attendance"
+                    className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
+                  >
+                    <span className="nav-icon">
+                      <CalendarCheck size={13} />
+                    </span>
+                    Attendance
+                  </NavLink>
+
+                  <NavLink
+                    to="/hr/leave"
+                    className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
+                  >
+                    <span className="nav-icon">
+                      <Palmtree size={13} />
+                    </span>
+                    Leave
+                  </NavLink>
+
+                  <NavLink
+                    to="/hr/worklogs"
+                    className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
+                  >
+                    <span className="nav-icon">
+                      <ClipboardList size={13} />
+                    </span>
+                    Worklogs
+                  </NavLink>
+                </div>
+              )}
+            </div>
+          )}
+        </>
       )}
 
       {trainingItem && hasAccess(trainingItem.requirement, user) && (

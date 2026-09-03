@@ -13,6 +13,7 @@ import PermissionGate from "./components/PermissionGate";
 import AppLayout from "./components/AppLayout";
 import { NAV_ITEMS } from "./config/nav";
 import EnquiryList from "./modules/training/pages/EnquiryList";
+import BatchDetail from "./modules/training/pages/BatchDetail";
 
 
 // Route table for the whole app. Everything under AppLayout requires a
@@ -76,6 +77,11 @@ function App() {
 <Route path="/training/enquiries" element={
   <PermissionGate requirement={{ type: "perm", value: "TRAINING_VIEW" }}>
     <EnquiryList />
+  </PermissionGate>
+} />
+<Route path="/training/batches/:batchId" element={
+  <PermissionGate requirement={{ type: "perm", value: "TRAINING_VIEW" }}>
+    <BatchDetail />
   </PermissionGate>
 } />
 

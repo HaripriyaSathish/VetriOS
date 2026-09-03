@@ -1,4 +1,6 @@
 from django.db import models
+from module_03_training.models import Batch, Enrollment
+from module_01_identity_access.models import UserAccount
 
 
 class Enquiry(models.Model):
@@ -65,3 +67,77 @@ class StudentFeeInstallment(models.Model):
         managed = False
         db_table = "student_fee_installment"
         unique_together = (("student_fee_payment", "installment_number"),)
+
+# ---------------------------------------------------------------------------
+# Class Recordings (not part of the official 95 tables — DA team hasn't
+# delivered a recordings domain yet). managed=True: Django owns these.
+# ---------------------------------------------------------------------------
+
+class ClassRecording(models.Model):
+    recording_id = models.BigAutoField(primary_key=True)
+    batch = models.ForeignKey(
+        Batch, on_delete=models.CASCADE, db_column='batch_id', related_name='recordings'
+    )
+    date = models.DateField()
+    title = models.CharField(max_length=200)
+    link = models.URLField(max_length=1000, help_text="Google Drive / YouTube (unlisted) / Zoom / Teams recording link")
+    notes = models.TextField(blank=True, null=True)
+    created_by = models.ForeignKey(
+        UserAccount, on_delete=models.SET_NULL, null=True, db_column='created_by_user_id', related_name='recordings_shared'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'ext_class_recording'
+        ordering = ['-date']
+
+    def __str__(self):
+        return f"{self.title} ({self.batch.batch_name} - {self.date})"
+
+
+class RecordingView(models.Model):
+    """One row per (recording, enrollment) pair, created when the share
+    email goes out. The tracking link embedded in the email redirects
+    through `token`, so we know exactly who actually opened the recording."""
+    view_id = models.BigAutoField(primary_key=True)
+    recording = models.ForeignKey(
+        ClassRecording, on_delete=models.CASCADE, db_column='recording_id', related_name='views'
+    )
+    enrollment = models.ForeignKey(
+        Enrollment, on_delete=models.CASCADE, db_column='enrollment_id', related_name='recording_views'
+    )
+    token = models.CharField(max_length=64, unique=True)
+    sent_at = models.DateTimeField(auto_now_add=True)
+    clicked = models.BooleanField(default=False)
+    clicked_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'ext_recording_view'
+        unique_together = ('recording', 'enrollment')
+
+    def __str__(self):
+        return f"Enrollment {self.enrollment_id} - {self.recording.title} ({'Watched' if self.clicked else 'Not yet'})"
+
+
+# ---------------------------------------------------------------------------
+# Absence Notifications (not part of the official 95 — kept separate from
+# student_attendance, which is managed=False and owned by the DA team).
+# ---------------------------------------------------------------------------
+
+class AbsenceNotification(models.Model):
+    """One row per (enrollment, date) — created the moment a notify email
+    actually sends, so reloading the page shows accurate history instead
+    of re-offering to notify someone already notified."""
+    notification_id = models.BigAutoField(primary_key=True)
+    enrollment = models.ForeignKey(
+        Enrollment, on_delete=models.CASCADE, db_column='enrollment_id', related_name='absence_notifications'
+    )
+    date = models.DateField()
+    sent_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'ext_absence_notification'
+        unique_together = ('enrollment', 'date')
+
+    def __str__(self):
+        return f"Enrollment {self.enrollment_id} notified for absence on {self.date}"        

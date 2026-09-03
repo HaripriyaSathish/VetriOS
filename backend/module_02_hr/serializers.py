@@ -29,14 +29,55 @@ class EmploymentTypeSerializer(serializers.ModelSerializer):
         fields = ["employment_type_id", "employment_type_name"]
 
 
+# department isn't a direct FK on employee — it's tracked as dated
+# history (person_department_history), so "current department" means
+# whichever row has is_current=True for that person right now.
+def _current_department_history(person_id):
+    return (
+        PersonDepartmentHistory.objects.filter(person_id=person_id, is_current=True)
+        .select_related("department")
+        .first()
+    )
+
+
+# Closes out whichever department row is currently open for this person
+# (if any) and opens a new one — same "dated history" pattern as any
+# other effective-dated assignment. No-ops if they're already in that
+# department. department_id=None leaves their department untouched.
+def _set_current_department(person_id, department_id):
+    if department_id is None:
+        return
+    current = PersonDepartmentHistory.objects.filter(person_id=person_id, is_current=True).first()
+    if current and current.department_id == department_id:
+        return
+    today = timezone.now().date()
+    if current:
+        current.is_current = False
+        current.effective_to = today
+        current.save(update_fields=["is_current", "effective_to"])
+    PersonDepartmentHistory.objects.create(
+        person_id=person_id,
+        department_id=department_id,
+        effective_from=today,
+        is_current=True,
+        created_at=timezone.now(),
+    )
+
+
 # Row shape for the HR employee list — one query per list (person,
 # designation, employment_type all select_related'd by the view).
 class EmployeeListSerializer(serializers.ModelSerializer):
     person_id = serializers.IntegerField(read_only=True)
+    # Raw ids alongside the display names — the Filters panel filters by
+    # id (department_id=2), the table renders the name.
+    designation_id = serializers.IntegerField(read_only=True)
+    employment_type_id = serializers.IntegerField(read_only=True)
     full_name = serializers.SerializerMethodField()
     email = serializers.SerializerMethodField()
+    phone = serializers.SerializerMethodField()
     designation_name = serializers.SerializerMethodField()
     employment_type_name = serializers.SerializerMethodField()
+    department_id = serializers.SerializerMethodField()
     department_name = serializers.SerializerMethodField()
 
     class Meta:
@@ -47,8 +88,12 @@ class EmployeeListSerializer(serializers.ModelSerializer):
             "employee_code",
             "full_name",
             "email",
+            "phone",
+            "designation_id",
             "designation_name",
+            "employment_type_id",
             "employment_type_name",
+            "department_id",
             "department_name",
             "joining_date",
             "status",
@@ -60,20 +105,21 @@ class EmployeeListSerializer(serializers.ModelSerializer):
     def get_email(self, obj):
         return obj.person.email
 
+    def get_phone(self, obj):
+        return obj.person.phone
+
     def get_designation_name(self, obj):
         return obj.designation.designation_name if obj.designation else None
 
     def get_employment_type_name(self, obj):
         return obj.employment_type.employment_type_name if obj.employment_type else None
 
+    def get_department_id(self, obj):
+        current = _current_department_history(obj.person_id)
+        return current.department_id if current else None
+
     def get_department_name(self, obj):
-        # Not a direct FK — department is tracked as dated history, so the
-        # "current" row (is_current=True) is whichever department applies now.
-        current = (
-            PersonDepartmentHistory.objects.filter(person_id=obj.person_id, is_current=True)
-            .select_related("department")
-            .first()
-        )
+        current = _current_department_history(obj.person_id)
         return current.department.department_name if current else None
 
 
@@ -86,6 +132,8 @@ class EmployeeDetailSerializer(serializers.ModelSerializer):
     last_name = serializers.SerializerMethodField()
     email = serializers.SerializerMethodField()
     phone = serializers.SerializerMethodField()
+    date_of_birth = serializers.SerializerMethodField()
+    gender = serializers.SerializerMethodField()
     # Django gives every FK a plain "<field>_id" attribute (no extra query)
     # — declared explicitly since DRF's ModelSerializer only auto-maps the
     # FK's own field name ("designation"), not this raw-id variant.
@@ -94,6 +142,7 @@ class EmployeeDetailSerializer(serializers.ModelSerializer):
     employment_type_id = serializers.IntegerField(read_only=True)
     designation_name = serializers.SerializerMethodField()
     employment_type_name = serializers.SerializerMethodField()
+    department_id = serializers.SerializerMethodField()
     department_name = serializers.SerializerMethodField()
 
     class Meta:
@@ -107,12 +156,16 @@ class EmployeeDetailSerializer(serializers.ModelSerializer):
             "last_name",
             "email",
             "phone",
+            "date_of_birth",
+            "gender",
             "designation_id",
             "designation_name",
             "employment_type_id",
             "employment_type_name",
+            "department_id",
             "department_name",
             "joining_date",
+            "confirmation_date",
             "status",
         ]
 
@@ -131,18 +184,24 @@ class EmployeeDetailSerializer(serializers.ModelSerializer):
     def get_phone(self, obj):
         return obj.person.phone
 
+    def get_date_of_birth(self, obj):
+        return obj.person.date_of_birth
+
+    def get_gender(self, obj):
+        return obj.person.gender
+
     def get_designation_name(self, obj):
         return obj.designation.designation_name if obj.designation else None
 
     def get_employment_type_name(self, obj):
         return obj.employment_type.employment_type_name if obj.employment_type else None
 
+    def get_department_id(self, obj):
+        current = _current_department_history(obj.person_id)
+        return current.department_id if current else None
+
     def get_department_name(self, obj):
-        current = (
-            PersonDepartmentHistory.objects.filter(person_id=obj.person_id, is_current=True)
-            .select_related("department")
-            .first()
-        )
+        current = _current_department_history(obj.person_id)
         return current.department.department_name if current else None
 
 
@@ -154,10 +213,14 @@ class EmployeeWriteSerializer(serializers.Serializer):
     last_name = serializers.CharField(max_length=100, required=False, allow_blank=True)
     email = serializers.CharField(max_length=255, required=False, allow_blank=True)
     phone = serializers.CharField(max_length=30, required=False, allow_blank=True)
+    date_of_birth = serializers.DateField(required=False, allow_null=True)
+    gender = serializers.CharField(max_length=20, required=False, allow_blank=True)
     employee_code = serializers.CharField(max_length=50)
     designation_id = serializers.IntegerField()
     employment_type_id = serializers.IntegerField()
+    department_id = serializers.IntegerField(required=False, allow_null=True)
     joining_date = serializers.DateField()
+    confirmation_date = serializers.DateField(required=False, allow_null=True)
 
     def validate_employee_code(self, value):
         if Employee.objects.filter(employee_code=value).exists():
@@ -174,6 +237,11 @@ class EmployeeWriteSerializer(serializers.Serializer):
             raise serializers.ValidationError("Unknown employment type.")
         return value
 
+    def validate_department_id(self, value):
+        if value is not None and not Department.objects.filter(pk=value, is_active=True).exists():
+            raise serializers.ValidationError("Unknown department.")
+        return value
+
     def create(self, validated_data):
         now = timezone.now()
         person = Person.objects.create(
@@ -181,6 +249,8 @@ class EmployeeWriteSerializer(serializers.Serializer):
             last_name=validated_data.get("last_name") or None,
             email=validated_data.get("email") or None,
             phone=validated_data.get("phone") or None,
+            date_of_birth=validated_data.get("date_of_birth"),
+            gender=validated_data.get("gender") or None,
             created_at=now,
             updated_at=now,
         )
@@ -190,10 +260,12 @@ class EmployeeWriteSerializer(serializers.Serializer):
             designation_id=validated_data["designation_id"],
             employment_type_id=validated_data["employment_type_id"],
             joining_date=validated_data["joining_date"],
+            confirmation_date=validated_data.get("confirmation_date"),
             status="ACTIVE",
             created_at=now,
             updated_at=now,
         )
+        _set_current_department(person.person_id, validated_data.get("department_id"))
         return employee
 
 
@@ -205,10 +277,14 @@ class EmployeeUpdateSerializer(serializers.Serializer):
     last_name = serializers.CharField(max_length=100, required=False, allow_blank=True)
     email = serializers.CharField(max_length=255, required=False, allow_blank=True)
     phone = serializers.CharField(max_length=30, required=False, allow_blank=True)
+    date_of_birth = serializers.DateField(required=False, allow_null=True)
+    gender = serializers.CharField(max_length=20, required=False, allow_blank=True)
     employee_code = serializers.CharField(max_length=50, required=False)
     designation_id = serializers.IntegerField(required=False)
     employment_type_id = serializers.IntegerField(required=False)
+    department_id = serializers.IntegerField(required=False, allow_null=True)
     joining_date = serializers.DateField(required=False)
+    confirmation_date = serializers.DateField(required=False, allow_null=True)
     status = serializers.CharField(max_length=50, required=False)
 
     def validate_employee_code(self, value):
@@ -229,12 +305,17 @@ class EmployeeUpdateSerializer(serializers.Serializer):
             raise serializers.ValidationError("Unknown employment type.")
         return value
 
+    def validate_department_id(self, value):
+        if value is not None and not Department.objects.filter(pk=value, is_active=True).exists():
+            raise serializers.ValidationError("Unknown department.")
+        return value
+
     def update(self, instance, validated_data):
         now = timezone.now()
 
         person = instance.person
         person_changed = False
-        for field in ("first_name", "last_name", "email", "phone"):
+        for field in ("first_name", "last_name", "email", "phone", "date_of_birth", "gender"):
             if field in validated_data:
                 setattr(person, field, validated_data[field] or None)
                 person_changed = True
@@ -242,7 +323,17 @@ class EmployeeUpdateSerializer(serializers.Serializer):
             person.updated_at = now
             person.save()
 
-        for field in ("employee_code", "designation_id", "employment_type_id", "joining_date", "status"):
+        if "department_id" in validated_data:
+            _set_current_department(person.person_id, validated_data["department_id"])
+
+        for field in (
+            "employee_code",
+            "designation_id",
+            "employment_type_id",
+            "joining_date",
+            "confirmation_date",
+            "status",
+        ):
             if field in validated_data:
                 setattr(instance, field, validated_data[field])
         instance.updated_at = now

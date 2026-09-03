@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Search,
   SlidersHorizontal,
@@ -15,15 +15,32 @@ import client from "../../../api/client";
 import Pagination, { paginate } from "../../../components/Pagination";
 import "../styles/HRDashboard.css";
 
+const EMPTY_FILTERS = {
+  department_id: "",
+  designation_id: "",
+  employment_type_id: "",
+  status: "",
+  joined_from: "",
+  joined_to: "",
+};
+
+// Which optional columns are visible — Email/Phone/Employee code start
+// hidden to match the reference design's default compact table.
+const DEFAULT_COLUMNS = { email: false, phone: false, employee_code: false };
+
 const EMPTY_FORM = {
   first_name: "",
   last_name: "",
   email: "",
   phone: "",
+  date_of_birth: "",
+  gender: "",
   employee_code: "",
   designation_id: "",
   employment_type_id: "",
+  department_id: "",
   joining_date: "",
+  confirmation_date: "",
 };
 
 // No column/table stores this URL anywhere — it's fully deterministic
@@ -100,6 +117,13 @@ function HRDashboard() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
 
+  const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [columns, setColumns] = useState(DEFAULT_COLUMNS);
+  const [columnsOpen, setColumnsOpen] = useState(false);
+  const filtersRef = useRef(null);
+  const columnsRef = useRef(null);
+
   const [modalOpen, setModalOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -150,6 +174,15 @@ function HRDashboard() {
     loadData();
   }, []);
 
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (filtersRef.current && !filtersRef.current.contains(event.target)) setFiltersOpen(false);
+      if (columnsRef.current && !columnsRef.current.contains(event.target)) setColumnsOpen(false);
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   const openCreate = () => {
     setEditingEmployee(null);
     setForm(EMPTY_FORM);
@@ -172,10 +205,14 @@ function HRDashboard() {
         last_name: data.last_name || "",
         email: data.email || "",
         phone: data.phone || "",
+        date_of_birth: data.date_of_birth || "",
+        gender: data.gender || "",
         employee_code: data.employee_code || "",
         designation_id: data.designation_id || "",
         employment_type_id: data.employment_type_id || "",
+        department_id: data.department_id || "",
         joining_date: data.joining_date || "",
+        confirmation_date: data.confirmation_date || "",
       });
     } catch (err) {
       setFormError("Couldn't load this employee's details.");
@@ -206,11 +243,21 @@ function HRDashboard() {
     setSubmitting(true);
     setFormError("");
     try {
+      // Optional select/date fields — an empty string isn't a valid
+      // integer/date for the backend, so blanks go through as null
+      // (department_id=null means "don't change it"; the date fields
+      // just leave that value unset).
+      const payload = {
+        ...form,
+        department_id: form.department_id === "" ? null : Number(form.department_id),
+        date_of_birth: form.date_of_birth || null,
+        confirmation_date: form.confirmation_date || null,
+      };
       let employeeId = editingEmployee?.employee_id;
       if (editingEmployee) {
-        await client.patch(`/api/hr/employees/${editingEmployee.employee_id}/`, form);
+        await client.patch(`/api/hr/employees/${editingEmployee.employee_id}/`, payload);
       } else {
-        const { data } = await client.post("/api/hr/employees/", form);
+        const { data } = await client.post("/api/hr/employees/", payload);
         employeeId = data.employee_id;
       }
       if (avatarFile && employeeId) {
@@ -284,15 +331,33 @@ function HRDashboard() {
     }
   };
 
+  const activeFilterCount = Object.values(filters).filter(Boolean).length;
+
+  const clearFilters = () => setFilters(EMPTY_FILTERS);
+
+  useEffect(() => {
+    setPage(1);
+  }, [filters]);
+
   const filteredEmployees = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return employees;
-    return employees.filter((emp) =>
-      [emp.full_name, emp.email, emp.employee_code, emp.designation_name, emp.department_name]
-        .filter(Boolean)
-        .some((v) => v.toLowerCase().includes(q))
-    );
-  }, [employees, search]);
+    return employees.filter((emp) => {
+      if (q) {
+        const matchesSearch = [emp.full_name, emp.email, emp.employee_code, emp.designation_name, emp.department_name]
+          .filter(Boolean)
+          .some((v) => v.toLowerCase().includes(q));
+        if (!matchesSearch) return false;
+      }
+      if (filters.department_id && String(emp.department_id ?? "") !== filters.department_id) return false;
+      if (filters.designation_id && String(emp.designation_id ?? "") !== filters.designation_id) return false;
+      if (filters.employment_type_id && String(emp.employment_type_id ?? "") !== filters.employment_type_id)
+        return false;
+      if (filters.status && emp.status !== filters.status) return false;
+      if (filters.joined_from && (!emp.joining_date || emp.joining_date < filters.joined_from)) return false;
+      if (filters.joined_to && (!emp.joining_date || emp.joining_date > filters.joined_to)) return false;
+      return true;
+    });
+  }, [employees, search, filters]);
 
   const handleExport = () => downloadCsv(toCsv(filteredEmployees), "employees.csv");
 
@@ -345,12 +410,126 @@ function HRDashboard() {
                 }}
               />
             </div>
-            <button type="button" className="hr-btn-sm" title="Coming soon">
-              <SlidersHorizontal size={14} /> Filters
-            </button>
-            <button type="button" className="hr-btn-sm" title="Coming soon">
-              <Columns3 size={14} /> Columns
-            </button>
+            <div className="hr-popover-anchor" ref={filtersRef}>
+              <button
+                type="button"
+                className={"hr-btn-sm" + (activeFilterCount ? " hr-btn-sm-active" : "")}
+                onClick={() => {
+                  setFiltersOpen((v) => !v);
+                  setColumnsOpen(false);
+                }}
+              >
+                <SlidersHorizontal size={14} /> Filters
+                {activeFilterCount > 0 && <span className="hr-tab-count">{activeFilterCount}</span>}
+              </button>
+              {filtersOpen && (
+                <div className="hr-popover">
+                  <div className="hr-popover-head">
+                    <span>Filters</span>
+                    {activeFilterCount > 0 && (
+                      <button type="button" className="hr-popover-clear" onClick={clearFilters}>
+                        Clear all
+                      </button>
+                    )}
+                  </div>
+
+                  <label>Department</label>
+                  <select
+                    value={filters.department_id}
+                    onChange={(e) => setFilters({ ...filters, department_id: e.target.value })}
+                  >
+                    <option value="">All</option>
+                    {departments.map((d) => (
+                      <option key={d.department_id} value={d.department_id}>
+                        {d.department_name}
+                      </option>
+                    ))}
+                  </select>
+
+                  <label>Designation</label>
+                  <select
+                    value={filters.designation_id}
+                    onChange={(e) => setFilters({ ...filters, designation_id: e.target.value })}
+                  >
+                    <option value="">All</option>
+                    {designations.map((d) => (
+                      <option key={d.designation_id} value={d.designation_id}>
+                        {d.designation_name}
+                      </option>
+                    ))}
+                  </select>
+
+                  <label>Employment type</label>
+                  <select
+                    value={filters.employment_type_id}
+                    onChange={(e) => setFilters({ ...filters, employment_type_id: e.target.value })}
+                  >
+                    <option value="">All</option>
+                    {employmentTypes.map((t) => (
+                      <option key={t.employment_type_id} value={t.employment_type_id}>
+                        {t.employment_type_name}
+                      </option>
+                    ))}
+                  </select>
+
+                  <label>Status</label>
+                  <select value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}>
+                    <option value="">All</option>
+                    <option value="ACTIVE">Active</option>
+                    <option value="INACTIVE">Inactive</option>
+                  </select>
+
+                  <label>Joined between</label>
+                  <div className="hr-form-row">
+                    <input
+                      type="date"
+                      value={filters.joined_from}
+                      onChange={(e) => setFilters({ ...filters, joined_from: e.target.value })}
+                    />
+                    <input
+                      type="date"
+                      value={filters.joined_to}
+                      onChange={(e) => setFilters({ ...filters, joined_to: e.target.value })}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="hr-popover-anchor" ref={columnsRef}>
+              <button
+                type="button"
+                className="hr-btn-sm"
+                onClick={() => {
+                  setColumnsOpen((v) => !v);
+                  setFiltersOpen(false);
+                }}
+              >
+                <Columns3 size={14} /> Columns
+              </button>
+              {columnsOpen && (
+                <div className="hr-popover hr-popover-narrow">
+                  <div className="hr-popover-head">
+                    <span>Columns</span>
+                  </div>
+                  {[
+                    ["email", "Email"],
+                    ["phone", "Phone"],
+                    ["employee_code", "Employee code"],
+                  ].map(([key, label]) => (
+                    <label key={key} className="hr-checkbox-row">
+                      <input
+                        type="checkbox"
+                        checked={columns[key]}
+                        onChange={(e) => setColumns({ ...columns, [key]: e.target.checked })}
+                      />
+                      {label}
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <button type="button" className="hr-btn-sm" onClick={handleExport}>
               <Download size={14} /> Export
             </button>
@@ -360,7 +539,11 @@ function HRDashboard() {
             <p className="hr-empty">Loading…</p>
           ) : filteredEmployees.length === 0 ? (
             <p className="hr-empty">
-              {employees.length === 0 ? "No employees yet — add the first one." : `No employees match "${search}".`}
+              {employees.length === 0
+                ? "No employees yet — add the first one."
+                : search
+                ? `No employees match "${search}".`
+                : "No employees match the current filters."}
             </p>
           ) : (
             <>
@@ -369,6 +552,9 @@ function HRDashboard() {
                   <thead>
                     <tr>
                       <th>Employee</th>
+                      {columns.employee_code && <th>Code</th>}
+                      {columns.email && <th>Email</th>}
+                      {columns.phone && <th>Phone</th>}
                       <th>Department</th>
                       <th>Employment Type</th>
                       <th>Joined</th>
@@ -389,6 +575,9 @@ function HRDashboard() {
                               </div>
                             </div>
                           </td>
+                          {columns.employee_code && <td className="hr-mono">{emp.employee_code}</td>}
+                          {columns.email && <td>{emp.email || "—"}</td>}
+                          {columns.phone && <td>{emp.phone || "—"}</td>}
                           <td>{emp.department_name || "—"}</td>
                           <td>{emp.employment_type_name || "—"}</td>
                           <td className="hr-mono">{emp.joining_date || "—"}</td>
@@ -572,6 +761,26 @@ function HRDashboard() {
             <label>Phone</label>
             <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
 
+            <div className="hr-form-row">
+              <div>
+                <label>Date of birth</label>
+                <input
+                  type="date"
+                  value={form.date_of_birth}
+                  onChange={(e) => setForm({ ...form, date_of_birth: e.target.value })}
+                />
+              </div>
+              <div>
+                <label>Gender</label>
+                <select value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value })}>
+                  <option value="">Select…</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+            </div>
+
             <label>Employee code</label>
             <input
               value={form.employee_code}
@@ -612,13 +821,38 @@ function HRDashboard() {
               </div>
             </div>
 
-            <label>Joining date</label>
-            <input
-              type="date"
-              value={form.joining_date}
-              onChange={(e) => setForm({ ...form, joining_date: e.target.value })}
-              required
-            />
+            <label>Department</label>
+            <select
+              value={form.department_id}
+              onChange={(e) => setForm({ ...form, department_id: e.target.value })}
+            >
+              <option value="">Unassigned</option>
+              {departments.map((d) => (
+                <option key={d.department_id} value={d.department_id}>
+                  {d.department_name}
+                </option>
+              ))}
+            </select>
+
+            <div className="hr-form-row">
+              <div>
+                <label>Joining date</label>
+                <input
+                  type="date"
+                  value={form.joining_date}
+                  onChange={(e) => setForm({ ...form, joining_date: e.target.value })}
+                  required
+                />
+              </div>
+              <div>
+                <label>Confirmation date</label>
+                <input
+                  type="date"
+                  value={form.confirmation_date}
+                  onChange={(e) => setForm({ ...form, confirmation_date: e.target.value })}
+                />
+              </div>
+            </div>
 
             {formError && <p className="hr-error">{formError}</p>}
 
@@ -671,6 +905,14 @@ function HRDashboard() {
                   <span className="hr-view-value">{viewEmployee.phone || "—"}</span>
                 </div>
                 <div>
+                  <span className="hr-view-label">Date of birth</span>
+                  <span className="hr-view-value">{viewEmployee.date_of_birth || "—"}</span>
+                </div>
+                <div>
+                  <span className="hr-view-label">Gender</span>
+                  <span className="hr-view-value">{viewEmployee.gender || "—"}</span>
+                </div>
+                <div>
                   <span className="hr-view-label">Designation</span>
                   <span className="hr-view-value">{viewEmployee.designation_name || "—"}</span>
                 </div>
@@ -685,6 +927,10 @@ function HRDashboard() {
                 <div>
                   <span className="hr-view-label">Joining date</span>
                   <span className="hr-view-value">{viewEmployee.joining_date || "—"}</span>
+                </div>
+                <div>
+                  <span className="hr-view-label">Confirmation date</span>
+                  <span className="hr-view-value">{viewEmployee.confirmation_date || "—"}</span>
                 </div>
                 <div>
                   <span className="hr-view-label">Status</span>

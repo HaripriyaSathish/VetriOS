@@ -25,10 +25,26 @@ class Person(models.Model):
         return f"{self.first_name} {self.last_name or ''}".strip()
 
 
-# HR-owned tables (designation, employee) — mapped read-only here since
-# Identity & Access screens need to show a person's job title alongside
-# their RBAC role(s). designation is a real job title (e.g. "Manager"),
-# distinct from — and unrelated to — a same-named RBAC role.
+# HR-owned tables (department, designation, employee) — mapped read-only
+# here since Identity & Access screens need to show a person's job title
+# alongside their RBAC role(s). designation is a real job title (e.g.
+# "Manager"), distinct from — and unrelated to — a same-named RBAC role.
+class Department(models.Model):
+    department_id = models.BigAutoField(primary_key=True)
+    department_name = models.CharField(max_length=150)
+    description = models.TextField(blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(blank=True, null=True)
+    updated_at = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = "department"
+
+    def __str__(self):
+        return self.department_name
+
+
 class Designation(models.Model):
     designation_id = models.BigAutoField(primary_key=True)
     designation_code = models.CharField(max_length=50, blank=True, null=True)
@@ -83,6 +99,23 @@ class Employee(models.Model):
     class Meta:
         managed = False
         db_table = "employee"
+
+
+# A person's department isn't a direct FK on employee — it's tracked
+# here as a dated history, with is_current marking the active row, so
+# department moves keep their own record over time.
+class PersonDepartmentHistory(models.Model):
+    department_history_id = models.BigAutoField(primary_key=True)
+    person = models.ForeignKey(Person, on_delete=models.DO_NOTHING, db_column="person_id")
+    department = models.ForeignKey(Department, on_delete=models.DO_NOTHING, db_column="department_id")
+    effective_from = models.DateField()
+    effective_to = models.DateField(blank=True, null=True)
+    is_current = models.BooleanField(default=True)
+    created_at = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = "person_department_history"
 
 
 # One of the 5 confirmed RBAC roles (System Administrator, HR

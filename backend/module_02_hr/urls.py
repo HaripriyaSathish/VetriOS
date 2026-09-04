@@ -4,7 +4,9 @@ from .views import (
     AttendanceCheckInView,
     AttendanceCheckOutView,
     AttendanceTodayView,
+    DepartmentDetailView,
     DepartmentListView,
+    DesignationDetailView,
     DesignationListView,
     EmployeeAvatarUploadView,
     EmployeeDetailView,
@@ -16,6 +18,7 @@ from .views import (
     LeaveSummaryView,
     LeaveTypeListView,
     MyAttendanceView,
+    MyLeaveView,
 )
 
 urlpatterns = [
@@ -23,7 +26,9 @@ urlpatterns = [
     path("employees/<int:pk>/", EmployeeDetailView.as_view(), name="employee-detail"),
     path("employees/<int:pk>/avatar/", EmployeeAvatarUploadView.as_view(), name="employee-avatar-upload"),
     path("departments/", DepartmentListView.as_view(), name="department-list"),
+    path("departments/<int:pk>/", DepartmentDetailView.as_view(), name="department-detail"),
     path("designations/", DesignationListView.as_view(), name="designation-list"),
+    path("designations/<int:pk>/", DesignationDetailView.as_view(), name="designation-detail"),
     path("employment-types/", EmploymentTypeListView.as_view(), name="employment-type-list"),
     path("attendance/today/", AttendanceTodayView.as_view(), name="attendance-today"),
     path("attendance/check-in/", AttendanceCheckInView.as_view(), name="attendance-check-in"),
@@ -34,4 +39,5 @@ urlpatterns = [
     path("leave/requests/", LeaveRequestListCreateView.as_view(), name="leave-request-list-create"),
     path("leave/requests/<int:pk>/approve/", LeaveRequestApproveView.as_view(), name="leave-request-approve"),
     path("leave/requests/<int:pk>/reject/", LeaveRequestRejectView.as_view(), name="leave-request-reject"),
+    path("leave/me/", MyLeaveView.as_view(), name="leave-me"),
 ]

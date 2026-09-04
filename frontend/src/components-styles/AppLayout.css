@@ -18,7 +18,7 @@
   z-index: 20;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: 16px;
   padding: 14px 28px;
   background: #fff;
@@ -26,10 +26,107 @@
   font-family: "Manrope", ui-sans-serif, system-ui, sans-serif;
 }
 
+.app-topbar-empcode {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 12px;
+  font-weight: 700;
+  color: #235777;
+  background: #eef3f7;
+  padding: 5px 10px;
+  border-radius: 6px;
+  letter-spacing: 0.02em;
+}
+
+.app-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+
+.app-user-menu {
+  position: relative;
+}
+
+.app-user-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  background: none;
+  padding: 6px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.app-user-trigger:hover {
+  background: #f5f7fa;
+  border-color: #e2e6ed;
+}
+
+.app-topbar-identity {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.25;
+}
+
 .app-topbar-user {
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
+  color: #161a26;
+}
+
+.app-topbar-designation {
+  font-size: 11px;
+  font-weight: 500;
+  color: #8a93a6;
+}
+
+.app-user-chevron {
+  color: #8a93a6;
+  transition: transform 0.15s ease;
+}
+
+.app-user-chevron.open {
+  transform: rotate(180deg);
+}
+
+.app-user-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  width: 170px;
+  background: #fff;
+  border: 1px solid #e2e6ed;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(22, 26, 38, 0.12);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-user-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: none;
+  background: none;
   color: #3a4152;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 9px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+}
+
+.app-user-dropdown-item:hover {
+  background: #f5f7fa;
+  color: #161a26;
 }
 
 .app-logout {

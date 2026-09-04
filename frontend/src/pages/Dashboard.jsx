@@ -1,20 +1,27 @@
 import { useOutletContext } from "react-router-dom";
-import EmployeeDashboard from "../modules/hr/pages/EmployeeDashboard";
 import "../styles/Dashboard.css";
 
 const ADMIN_ROLES = new Set(["HR Administrator", "System Administrator"]);
 
 // Landing page after login. HR Administrator / System Administrator see
-// this generic roles/permissions summary (they have the full HR module
-// for anything more); everyone else — Employee, Manager, Viewer — lands
-// on EmployeeDashboard instead, since they have no other way to check
-// themselves in (the rest of /hr/* is admin-gated).
+// the roles/permissions summary below (they have the full HR module for
+// anything more); everyone else — Employee, Manager, Viewer — gets a
+// light welcome, since their real workspace is the Attendance/Apply
+// Leave sidebar items (see Sidebar.jsx), not this page.
 function Dashboard() {
   const { user } = useOutletContext();
 
   const isAdmin = (user.roles || []).some((role) => ADMIN_ROLES.has(role));
   if (!isAdmin) {
-    return <EmployeeDashboard user={user} />;
+    return (
+      <div className="dash-body">
+        <h1 className="dash-welcome">Welcome, {user.full_name}</h1>
+        <p className="dash-subtitle">
+          {user.designation ? `${user.designation} · ` : ""}
+          Use Attendance to check in/out, or Apply Leave to request time off.
+        </p>
+      </div>
+    );
   }
 
   return (

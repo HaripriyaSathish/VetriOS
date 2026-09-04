@@ -10,6 +10,8 @@ import TrainingRouter from "./modules/training/pages/TrainingRouter";
 import HRDashboard from "./modules/hr/pages/HRDashboard";
 import Attendance from "./modules/hr/pages/Attendance";
 import Leave from "./modules/hr/pages/Leave";
+import MyAttendance from "./modules/hr/pages/MyAttendance";
+import MyLeave from "./modules/hr/pages/MyLeave";
 import ProtectedRoute from "./components/ProtectedRoute";
 import PermissionGate from "./components/PermissionGate";
 import AppLayout from "./components/AppLayout";
@@ -36,6 +38,10 @@ function App() {
         }
       >
         <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/profile" element={<ModulePlaceholder name="Profile" />} />
+        <Route path="/settings" element={<ModulePlaceholder name="Settings" />} />
+        <Route path="/my/attendance" element={<MyAttendance />} />
+        <Route path="/my/leave" element={<MyLeave />} />
 
         <Route
           path="/identity/users"

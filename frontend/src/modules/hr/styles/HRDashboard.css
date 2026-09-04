@@ -514,6 +514,15 @@
   cursor: not-allowed;
 }
 
+.hr-btn-accent-sm {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  padding: 7px 12px;
+  margin-left: auto;
+}
+
 /* Modal */
 .hr-modal-backdrop {
   position: fixed;
@@ -586,7 +595,8 @@
 }
 
 .hr-modal input,
-.hr-modal select {
+.hr-modal select,
+.hr-textarea {
   border: 1px solid #c2cad8;
   border-radius: 8px;
   padding: 9px 11px;
@@ -595,6 +605,10 @@
   font-family: inherit;
   width: 100%;
   box-sizing: border-box;
+}
+
+.hr-textarea {
+  resize: vertical;
 }
 
 .hr-modal input:focus,

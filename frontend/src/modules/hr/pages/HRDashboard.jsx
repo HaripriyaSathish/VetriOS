@@ -10,6 +10,7 @@ import {
   RotateCcw,
   CircleUserRound,
   Camera,
+  Plus,
 } from "lucide-react";
 import client from "../../../api/client";
 import Pagination, { paginate } from "../../../components/Pagination";
@@ -43,6 +44,9 @@ const EMPTY_FORM = {
   joining_date: "",
   confirmation_date: "",
 };
+
+const EMPTY_DEPT_FORM = { department_name: "", description: "" };
+const EMPTY_DESIG_FORM = { designation_code: "", designation_name: "", description: "", level_number: "" };
 
 // Nothing in the UI otherwise shows which employee codes are already
 // taken, so guessing the next one (EMP005? EMP006?) isn't really
@@ -126,6 +130,27 @@ function HRDashboard() {
 
   const [confirmTarget, setConfirmTarget] = useState(null);
   const [confirming, setConfirming] = useState(false);
+
+  // Departments tab — search + CRUD, same shape as the Employees tab's
+  // create/edit/confirm state, just for department instead.
+  const [deptSearch, setDeptSearch] = useState("");
+  const [deptModalOpen, setDeptModalOpen] = useState(false);
+  const [editingDept, setEditingDept] = useState(null);
+  const [deptForm, setDeptForm] = useState(EMPTY_DEPT_FORM);
+  const [deptFormError, setDeptFormError] = useState("");
+  const [deptSubmitting, setDeptSubmitting] = useState(false);
+  const [deptConfirmTarget, setDeptConfirmTarget] = useState(null);
+  const [deptConfirming, setDeptConfirming] = useState(false);
+
+  // Designations tab — same pattern.
+  const [desigSearch, setDesigSearch] = useState("");
+  const [desigModalOpen, setDesigModalOpen] = useState(false);
+  const [editingDesig, setEditingDesig] = useState(null);
+  const [desigForm, setDesigForm] = useState(EMPTY_DESIG_FORM);
+  const [desigFormError, setDesigFormError] = useState("");
+  const [desigSubmitting, setDesigSubmitting] = useState(false);
+  const [desigConfirmTarget, setDesigConfirmTarget] = useState(null);
+  const [desigConfirming, setDesigConfirming] = useState(false);
 
   // Bumped after every successful avatar upload — folded into the
   // Cloudinary URL as ?v= so the browser re-fetches instead of showing
@@ -319,6 +344,152 @@ function HRDashboard() {
   const activeFilterCount = Object.values(filters).filter(Boolean).length;
 
   const clearFilters = () => setFilters(EMPTY_FILTERS);
+
+  // --- Departments CRUD ---
+  const openCreateDept = () => {
+    setEditingDept(null);
+    setDeptForm(EMPTY_DEPT_FORM);
+    setDeptFormError("");
+    setDeptModalOpen(true);
+  };
+
+  const openEditDept = (d) => {
+    setEditingDept(d);
+    setDeptForm({ department_name: d.department_name, description: d.description || "" });
+    setDeptFormError("");
+    setDeptModalOpen(true);
+  };
+
+  const closeDeptModal = () => setDeptModalOpen(false);
+
+  const handleDeptSubmit = async (event) => {
+    event.preventDefault();
+    setDeptSubmitting(true);
+    setDeptFormError("");
+    try {
+      if (editingDept) {
+        await client.patch(`/api/hr/departments/${editingDept.department_id}/`, deptForm);
+      } else {
+        await client.post("/api/hr/departments/", deptForm);
+      }
+      setDeptModalOpen(false);
+      await loadData();
+    } catch (err) {
+      const data = err.response?.data;
+      const firstError = data && Object.values(data)[0];
+      setDeptFormError(Array.isArray(firstError) ? firstError[0] : "Something went wrong.");
+    } finally {
+      setDeptSubmitting(false);
+    }
+  };
+
+  const requestToggleDept = (d) => setDeptConfirmTarget(d);
+  const cancelToggleDept = () => setDeptConfirmTarget(null);
+
+  const confirmToggleDept = async () => {
+    const d = deptConfirmTarget;
+    setDeptConfirming(true);
+    try {
+      if (d.is_active) {
+        await client.delete(`/api/hr/departments/${d.department_id}/`);
+      } else {
+        await client.patch(`/api/hr/departments/${d.department_id}/`, { is_active: true });
+      }
+      setDeptConfirmTarget(null);
+      await loadData();
+    } catch (err) {
+      setError("Couldn't update that department.");
+    } finally {
+      setDeptConfirming(false);
+    }
+  };
+
+  const filteredDepartments = useMemo(() => {
+    const q = deptSearch.trim().toLowerCase();
+    if (!q) return departments;
+    return departments.filter((d) =>
+      [d.department_name, d.description].filter(Boolean).some((v) => v.toLowerCase().includes(q))
+    );
+  }, [departments, deptSearch]);
+
+  // --- Designations CRUD ---
+  const openCreateDesig = () => {
+    setEditingDesig(null);
+    setDesigForm(EMPTY_DESIG_FORM);
+    setDesigFormError("");
+    setDesigModalOpen(true);
+  };
+
+  const openEditDesig = (d) => {
+    setEditingDesig(d);
+    setDesigForm({
+      designation_code: d.designation_code || "",
+      designation_name: d.designation_name,
+      description: d.description || "",
+      level_number: d.level_number ?? "",
+    });
+    setDesigFormError("");
+    setDesigModalOpen(true);
+  };
+
+  const closeDesigModal = () => setDesigModalOpen(false);
+
+  const handleDesigSubmit = async (event) => {
+    event.preventDefault();
+    setDesigSubmitting(true);
+    setDesigFormError("");
+    try {
+      const payload = { ...desigForm, level_number: desigForm.level_number === "" ? null : Number(desigForm.level_number) };
+      if (editingDesig) {
+        // designation_code is immutable on edit — omit it so the PATCH
+        // can't collide with itself on the unique constraint.
+        const { designation_code, ...rest } = payload;
+        await client.patch(`/api/hr/designations/${editingDesig.designation_id}/`, rest);
+      } else {
+        await client.post("/api/hr/designations/", payload);
+      }
+      setDesigModalOpen(false);
+      await loadData();
+    } catch (err) {
+      const data = err.response?.data;
+      const firstError = data && Object.values(data)[0];
+      setDesigFormError(Array.isArray(firstError) ? firstError[0] : "Something went wrong.");
+    } finally {
+      setDesigSubmitting(false);
+    }
+  };
+
+  const requestToggleDesig = (d) => setDesigConfirmTarget(d);
+  const cancelToggleDesig = () => setDesigConfirmTarget(null);
+
+  const confirmToggleDesig = async () => {
+    const d = desigConfirmTarget;
+    setDesigConfirming(true);
+    try {
+      if (d.is_active) {
+        await client.delete(`/api/hr/designations/${d.designation_id}/`);
+      } else {
+        await client.patch(`/api/hr/designations/${d.designation_id}/`, { is_active: true });
+      }
+      setDesigConfirmTarget(null);
+      await loadData();
+    } catch (err) {
+      setError("Couldn't update that designation.");
+    } finally {
+      setDesigConfirming(false);
+    }
+  };
+
+  const filteredDesignations = useMemo(() => {
+    const q = desigSearch.trim().toLowerCase();
+    if (!q) return designations;
+    return designations.filter((d) =>
+      [d.designation_name, d.description, d.designation_code].filter(Boolean).some((v) => v.toLowerCase().includes(q))
+    );
+  }, [designations, desigSearch]);
+
+  const activeDepartments = useMemo(() => departments.filter((d) => d.is_active), [departments]);
+  const activeDesignations = useMemo(() => designations.filter((d) => d.is_active), [designations]);
 
   useEffect(() => {
     setPage(1);
@@ -618,10 +789,28 @@ function HRDashboard() {
 
       {tab === "departments" && (
         <div className="hr-panel">
+          <div className="hr-toolbar">
+            <div className="hr-search">
+              <Search size={15} />
+              <input
+                placeholder="Search departments…"
+                value={deptSearch}
+                onChange={(e) => setDeptSearch(e.target.value)}
+              />
+            </div>
+            <button type="button" className="hr-btn-accent hr-btn-accent-sm" onClick={openCreateDept}>
+              <Plus size={14} /> New department
+            </button>
+          </div>
+
           {loading ? (
             <p className="hr-empty">Loading…</p>
-          ) : departments.length === 0 ? (
-            <p className="hr-empty">No departments found.</p>
+          ) : filteredDepartments.length === 0 ? (
+            <p className="hr-empty">
+              {departments.length === 0
+                ? "No departments yet — add the first one."
+                : `No departments match "${deptSearch}".`}
+            </p>
           ) : (
             <div className="hr-table-scroll">
               <table className="hr-table">
@@ -630,10 +819,11 @@ function HRDashboard() {
                     <th>Department</th>
                     <th>Description</th>
                     <th>Status</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {departments.map((d) => (
+                  {filteredDepartments.map((d) => (
                     <tr key={d.department_id}>
                       <td className="hr-name">{d.department_name}</td>
                       <td className="hr-sub">{d.description || "—"}</td>
@@ -641,6 +831,28 @@ function HRDashboard() {
                         <span className={"hr-pill " + (d.is_active ? "on" : "off")}>
                           {d.is_active ? "Active" : "Inactive"}
                         </span>
+                      </td>
+                      <td>
+                        <div className="hr-row-actions">
+                          <button
+                            type="button"
+                            className="hr-icon-btn"
+                            title="Edit"
+                            aria-label={`Edit ${d.department_name}`}
+                            onClick={() => openEditDept(d)}
+                          >
+                            <SquarePen size={15} />
+                          </button>
+                          <button
+                            type="button"
+                            className={"hr-icon-btn" + (d.is_active ? " danger" : "")}
+                            title={d.is_active ? "Deactivate" : "Reactivate"}
+                            aria-label={(d.is_active ? "Deactivate " : "Reactivate ") + d.department_name}
+                            onClick={() => requestToggleDept(d)}
+                          >
+                            {d.is_active ? <Ban size={15} /> : <RotateCcw size={15} />}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -653,10 +865,28 @@ function HRDashboard() {
 
       {tab === "designations" && (
         <div className="hr-panel">
+          <div className="hr-toolbar">
+            <div className="hr-search">
+              <Search size={15} />
+              <input
+                placeholder="Search designations…"
+                value={desigSearch}
+                onChange={(e) => setDesigSearch(e.target.value)}
+              />
+            </div>
+            <button type="button" className="hr-btn-accent hr-btn-accent-sm" onClick={openCreateDesig}>
+              <Plus size={14} /> New designation
+            </button>
+          </div>
+
           {loading ? (
             <p className="hr-empty">Loading…</p>
-          ) : designations.length === 0 ? (
-            <p className="hr-empty">No designations found.</p>
+          ) : filteredDesignations.length === 0 ? (
+            <p className="hr-empty">
+              {designations.length === 0
+                ? "No designations yet — add the first one."
+                : `No designations match "${desigSearch}".`}
+            </p>
           ) : (
             <div className="hr-table-scroll">
               <table className="hr-table">
@@ -666,10 +896,11 @@ function HRDashboard() {
                     <th>Description</th>
                     <th>Level</th>
                     <th>Status</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {designations.map((d) => (
+                  {filteredDesignations.map((d) => (
                     <tr key={d.designation_id}>
                       <td className="hr-name">{d.designation_name}</td>
                       <td className="hr-sub">{d.description || "—"}</td>
@@ -678,6 +909,28 @@ function HRDashboard() {
                         <span className={"hr-pill " + (d.is_active ? "on" : "off")}>
                           {d.is_active ? "Active" : "Inactive"}
                         </span>
+                      </td>
+                      <td>
+                        <div className="hr-row-actions">
+                          <button
+                            type="button"
+                            className="hr-icon-btn"
+                            title="Edit"
+                            aria-label={`Edit ${d.designation_name}`}
+                            onClick={() => openEditDesig(d)}
+                          >
+                            <SquarePen size={15} />
+                          </button>
+                          <button
+                            type="button"
+                            className={"hr-icon-btn" + (d.is_active ? " danger" : "")}
+                            title={d.is_active ? "Deactivate" : "Reactivate"}
+                            aria-label={(d.is_active ? "Deactivate " : "Reactivate ") + d.designation_name}
+                            onClick={() => requestToggleDesig(d)}
+                          >
+                            {d.is_active ? <Ban size={15} /> : <RotateCcw size={15} />}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -782,7 +1035,7 @@ function HRDashboard() {
                   required
                 >
                   <option value="">Select…</option>
-                  {designations.map((d) => (
+                  {activeDesignations.map((d) => (
                     <option key={d.designation_id} value={d.designation_id}>
                       {d.designation_name}
                     </option>
@@ -812,7 +1065,7 @@ function HRDashboard() {
               onChange={(e) => setForm({ ...form, department_id: e.target.value })}
             >
               <option value="">Unassigned</option>
-              {departments.map((d) => (
+              {activeDepartments.map((d) => (
                 <option key={d.department_id} value={d.department_id}>
                   {d.department_name}
                 </option>
@@ -959,6 +1212,154 @@ function HRDashboard() {
                   : confirmTarget.status === "ACTIVE"
                   ? "Deactivate"
                   : "Reactivate"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deptModalOpen && (
+        <div className="hr-modal-backdrop" onClick={closeDeptModal}>
+          <form className="hr-modal" onClick={(e) => e.stopPropagation()} onSubmit={handleDeptSubmit}>
+            <button type="button" className="hr-modal-x" onClick={closeDeptModal} aria-label="Close">
+              ✕
+            </button>
+            <h2>{editingDept ? "Edit department" : "New department"}</h2>
+
+            <label>Department name</label>
+            <input
+              value={deptForm.department_name}
+              onChange={(e) => setDeptForm({ ...deptForm, department_name: e.target.value })}
+              required
+            />
+
+            <label>Description</label>
+            <textarea
+              className="hr-textarea"
+              value={deptForm.description}
+              onChange={(e) => setDeptForm({ ...deptForm, description: e.target.value })}
+              rows={3}
+            />
+
+            {deptFormError && <p className="hr-error">{deptFormError}</p>}
+
+            <div className="hr-modal-actions">
+              <button type="button" className="hr-btn-sm" onClick={closeDeptModal}>
+                Cancel
+              </button>
+              <button type="submit" className="hr-btn-accent" disabled={deptSubmitting}>
+                {deptSubmitting ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {deptConfirmTarget && (
+        <div className="hr-modal-backdrop" onClick={cancelToggleDept}>
+          <div className="hr-modal hr-confirm" onClick={(e) => e.stopPropagation()}>
+            <h2>{deptConfirmTarget.is_active ? "Deactivate department?" : "Reactivate department?"}</h2>
+            <p>
+              {deptConfirmTarget.is_active
+                ? `${deptConfirmTarget.department_name} will be marked inactive and hidden from the New Employee form.`
+                : `${deptConfirmTarget.department_name} will be marked active again.`}
+            </p>
+            <div className="hr-modal-actions">
+              <button type="button" className="hr-btn-sm" onClick={cancelToggleDept}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className={deptConfirmTarget.is_active ? "hr-btn-sm hr-btn-danger" : "hr-btn-accent"}
+                onClick={confirmToggleDept}
+                disabled={deptConfirming}
+              >
+                {deptConfirming ? "Working…" : deptConfirmTarget.is_active ? "Deactivate" : "Reactivate"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {desigModalOpen && (
+        <div className="hr-modal-backdrop" onClick={closeDesigModal}>
+          <form className="hr-modal" onClick={(e) => e.stopPropagation()} onSubmit={handleDesigSubmit}>
+            <button type="button" className="hr-modal-x" onClick={closeDesigModal} aria-label="Close">
+              ✕
+            </button>
+            <h2>{editingDesig ? "Edit designation" : "New designation"}</h2>
+
+            <div className="hr-form-row">
+              <div>
+                <label>Designation code</label>
+                <input
+                  value={desigForm.designation_code}
+                  onChange={(e) => setDesigForm({ ...desigForm, designation_code: e.target.value })}
+                  required={!editingDesig}
+                  disabled={!!editingDesig}
+                  title={editingDesig ? "Code can't be changed after creation." : undefined}
+                />
+              </div>
+              <div>
+                <label>Level number</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={desigForm.level_number}
+                  onChange={(e) => setDesigForm({ ...desigForm, level_number: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <label>Designation name</label>
+            <input
+              value={desigForm.designation_name}
+              onChange={(e) => setDesigForm({ ...desigForm, designation_name: e.target.value })}
+              required
+            />
+
+            <label>Description</label>
+            <textarea
+              className="hr-textarea"
+              value={desigForm.description}
+              onChange={(e) => setDesigForm({ ...desigForm, description: e.target.value })}
+              rows={3}
+            />
+
+            {desigFormError && <p className="hr-error">{desigFormError}</p>}
+
+            <div className="hr-modal-actions">
+              <button type="button" className="hr-btn-sm" onClick={closeDesigModal}>
+                Cancel
+              </button>
+              <button type="submit" className="hr-btn-accent" disabled={desigSubmitting}>
+                {desigSubmitting ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {desigConfirmTarget && (
+        <div className="hr-modal-backdrop" onClick={cancelToggleDesig}>
+          <div className="hr-modal hr-confirm" onClick={(e) => e.stopPropagation()}>
+            <h2>{desigConfirmTarget.is_active ? "Deactivate designation?" : "Reactivate designation?"}</h2>
+            <p>
+              {desigConfirmTarget.is_active
+                ? `${desigConfirmTarget.designation_name} will be marked inactive and hidden from the New Employee form.`
+                : `${desigConfirmTarget.designation_name} will be marked active again.`}
+            </p>
+            <div className="hr-modal-actions">
+              <button type="button" className="hr-btn-sm" onClick={cancelToggleDesig}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className={desigConfirmTarget.is_active ? "hr-btn-sm hr-btn-danger" : "hr-btn-accent"}
+                onClick={confirmToggleDesig}
+                disabled={desigConfirming}
+              >
+                {desigConfirming ? "Working…" : desigConfirmTarget.is_active ? "Deactivate" : "Reactivate"}
               </button>
             </div>
           </div>

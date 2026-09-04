@@ -55,6 +55,33 @@ function Sidebar() {
         </NavLink>
       )}
 
+      {/* Self-service Attendance/Leave for anyone without the full HR
+          module (Employee, Manager, Viewer) — HR Administrator/System
+          Administrator use the real HR module's Attendance/Leave instead. */}
+      {!isSystemAdministrator && !canSeeHR && (
+        <>
+          <NavLink
+            to="/my/attendance"
+            className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
+          >
+            <span className="nav-icon">
+              <CalendarCheck size={16} />
+            </span>
+            Attendance
+          </NavLink>
+
+          <NavLink
+            to="/my/leave"
+            className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
+          >
+            <span className="nav-icon">
+              <Palmtree size={16} />
+            </span>
+            Apply Leave
+          </NavLink>
+        </>
+      )}
+
       {isSystemAdministrator && (
         <>
           <button

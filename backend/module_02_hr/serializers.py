@@ -88,10 +88,89 @@ class DepartmentSerializer(serializers.ModelSerializer):
         fields = ["department_id", "department_name", "description", "is_active"]
 
 
+# Create/edit for the Departments tab — department_name is DB-unique, so
+# the same field gets checked both server-side (here) and would 400 from
+# a raw IntegrityError otherwise.
+class DepartmentWriteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Department
+        fields = ["department_name", "description", "is_active"]
+        extra_kwargs = {"is_active": {"required": False}}
+
+    def validate_department_name(self, value):
+        qs = Department.objects.filter(department_name__iexact=value)
+        if self.instance is not None:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError("A department with this name already exists.")
+        return value
+
+    def create(self, validated_data):
+        now = timezone.now()
+        validated_data.setdefault("is_active", True)
+        return Department.objects.create(**validated_data, created_at=now, updated_at=now)
+
+    def update(self, instance, validated_data):
+        for field, value in validated_data.items():
+            setattr(instance, field, value)
+        instance.updated_at = timezone.now()
+        instance.save()
+        return instance
+
+
 class DesignationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Designation
-        fields = ["designation_id", "designation_name", "description", "level_number", "is_active"]
+        fields = [
+            "designation_id",
+            "designation_code",
+            "designation_name",
+            "description",
+            "level_number",
+            "is_active",
+        ]
+
+
+# Create/edit for the Designations tab — designation_code and
+# designation_name are both DB-unique.
+class DesignationWriteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Designation
+        fields = ["designation_code", "designation_name", "description", "level_number", "is_active"]
+        # designation_code is NOT NULL at the DB level despite the Django
+        # model marking it null=True (a pre-existing model/schema mismatch)
+        # — required here so create() can't hit that constraint.
+        extra_kwargs = {"is_active": {"required": False}, "designation_code": {"required": True}}
+
+    def validate_designation_name(self, value):
+        qs = Designation.objects.filter(designation_name__iexact=value)
+        if self.instance is not None:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError("A designation with this name already exists.")
+        return value
+
+    def validate_designation_code(self, value):
+        if not value:
+            return value
+        qs = Designation.objects.filter(designation_code__iexact=value)
+        if self.instance is not None:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError("A designation with this code already exists.")
+        return value
+
+    def create(self, validated_data):
+        now = timezone.now()
+        validated_data.setdefault("is_active", True)
+        return Designation.objects.create(**validated_data, created_at=now, updated_at=now)
+
+    def update(self, instance, validated_data):
+        for field, value in validated_data.items():
+            setattr(instance, field, value)
+        instance.updated_at = timezone.now()
+        instance.save()
+        return instance
 
 
 class EmploymentTypeSerializer(serializers.ModelSerializer):

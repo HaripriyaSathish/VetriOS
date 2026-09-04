@@ -193,8 +193,10 @@ function Assignments() {
           className="border border-gray-300 rounded-md px-3 py-2 text-sm w-full"
         >
           {batches.map((b) => (
-            <option key={b.batch_id} value={b.batch_id}>{b.batch_name}</option>
-          ))}
+  <option key={b.batch_id} value={b.batch_id}>
+    {b.batch_name}{b.trainer_name ? ` — ${b.trainer_name}` : " — Unassigned"}
+  </option>
+))}
         </select>
       </div>
 

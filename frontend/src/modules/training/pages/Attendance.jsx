@@ -147,8 +147,10 @@ function Attendance() {
         >
           <option value="">Select a batch</option>
           {batches.map((b) => (
-            <option key={b.batch_id} value={b.batch_id}>{b.batch_name}</option>
-          ))}
+  <option key={b.batch_id} value={b.batch_id}>
+    {b.batch_name}{b.trainer_name ? ` — ${b.trainer_name}` : " — Unassigned"}
+  </option>
+))}
         </select>
 
         {selectedBatchId && (

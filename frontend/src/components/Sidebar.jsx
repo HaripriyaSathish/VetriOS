@@ -11,6 +11,14 @@ import {
   CalendarCheck,
   Palmtree,
   ClipboardList,
+  GraduationCap,
+  Layers,
+  FileText,
+  BarChart3,
+  Mic,
+  Video,
+  UserMinus,
+  MessageCircle,
 } from "lucide-react";
 import { NAV_ITEMS, hasAccess } from "../config/nav";
 import "../components-styles/Sidebar.css";
@@ -216,40 +224,102 @@ function Sidebar() {
 
       {trainingItem && hasAccess(trainingItem.requirement, user) && (
         <>
-          <button className="nav-item nav-group-toggle" onClick={() => setTrainingOpen(!trainingOpen)}>
-            <span className="nav-icon">🎓</span> Training
-            <span className="nav-caret">{trainingOpen ? "▾" : "▸"}</span>
+          <button
+            type="button"
+            className={"nav-item nav-group-toggle" + (trainingOpen ? " open" : "")}
+            onClick={() => setTrainingOpen((prev) => !prev)}
+          >
+            <span className="nav-icon">
+              <GraduationCap size={16} />
+            </span>
+            Training
+            <span className="nav-chevron">
+              <ChevronDown size={14} />
+            </span>
           </button>
 
           {trainingOpen && (
             <div className="nav-subgroup">
-              <NavLink to="/training" end className={({ isActive }) => "nav-item nav-sub-item" + (isActive ? " active" : "")}>
+              <NavLink
+                to="/training"
+                end
+                className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
+              >
+                <span className="nav-icon">
+                  <Layers size={14} />
+                </span>
                 Batches
               </NavLink>
 
               {hasAccess(trainerRequirement, user) && (
-                <NavLink to="/training/attendance" className={({ isActive }) => "nav-item nav-sub-item" + (isActive ? " active" : "")}>
+                <NavLink
+                  to="/training/attendance"
+                  className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
+                >
+                  <span className="nav-icon">
+                    <CalendarCheck size={14} />
+                  </span>
                   Attendance
                 </NavLink>
               )}
-              <NavLink to="/training/assignments" className={({ isActive }) => "nav-item nav-sub-item" + (isActive ? " active" : "")}>
+
+              <NavLink
+                to="/training/assignments"
+                className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
+              >
+                <span className="nav-icon">
+                  <ClipboardList size={14} />
+                </span>
                 Assignments
               </NavLink>
-              <NavLink to="/training/reports" className={({ isActive }) => "nav-item nav-sub-item" + (isActive ? " active" : "")}>
+
+              <NavLink
+                to="/training/reports"
+                className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
+              >
+                <span className="nav-icon">
+                  <BarChart3 size={14} />
+                </span>
                 Reports
               </NavLink>
 
-              <NavLink to="/training/mock-interviews" className={({ isActive }) => "nav-item nav-sub-item" + (isActive ? " active" : "")}>
+              <NavLink
+                to="/training/mock-interviews"
+                className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
+              >
+                <span className="nav-icon">
+                  <Mic size={14} />
+                </span>
                 Mock Interview
               </NavLink>
-              <NavLink to="/training/absentees-recordings" className={({ isActive }) => "nav-item nav-sub-item" + (isActive ? " active" : "")}>
+
+              <NavLink
+                to="/training/absentees-recordings"
+                className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
+              >
+                <span className="nav-icon">
+                  <Video size={14} />
+                </span>
                 Absentees & Recordings
               </NavLink>
-              <NavLink to="/training/dropout-tracking" className={({ isActive }) => "nav-item nav-sub-item" + (isActive ? " active" : "")}>
+
+              <NavLink
+                to="/training/dropout-tracking"
+                className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
+              >
+                <span className="nav-icon">
+                  <UserMinus size={14} />
+                </span>
                 Dropout Tracking
               </NavLink>
 
-              <NavLink to="/training/messages" className={({ isActive }) => "nav-item nav-sub-item" + (isActive ? " active" : "")}>
+              <NavLink
+                to="/training/messages"
+                className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
+              >
+                <span className="nav-icon">
+                  <MessageCircle size={14} />
+                </span>
                 Messages
               </NavLink>
             </div>

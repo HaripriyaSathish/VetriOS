@@ -40,24 +40,48 @@ def _is_batch_trainer(user, batch):
     return bool(batch.trainer and batch.trainer.user_id == user.user_id)
 
 class TrainerDashboardView(APIView):
+    """GET /api/training/dashboard/ — a trainer sees only their own
+    batches; System Administrator / Manager / Business Team see every
+    batch, since these admin-facing pages (Assignments, Reports, Mock
+    Interview, etc.) need to browse across all trainers."""
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
+        user_roles = request.user.active_role_names()
+        is_admin = bool(user_roles & {"System Administrator", "Manager", "Business Team"})
+
         try:
             trainer_profile = TrainerProfile.objects.get(user=request.user)
         except TrainerProfile.DoesNotExist:
-            return Response({"detail": "No trainer profile found for this user."}, status=404)
+            trainer_profile = None
 
-        batches = Batch.objects.filter(trainer=trainer_profile)
-        data = BatchDetailSerializer(batches, many=True).data
+        if trainer_profile:
+            batches = Batch.objects.filter(trainer=trainer_profile).select_related("course")
+        elif is_admin:
+            batches = Batch.objects.all().select_related("course", "trainer__user__person")
+        else:
+            return Response({"detail": "No trainer profile found for this account."}, status=404)
+
         person = request.user.person
+        batch_data = []
+        for b in batches:
+            trainer_name = None
+            if b.trainer:
+                tp = b.trainer.user.person
+                trainer_name = f"{tp.first_name} {tp.last_name or ''}".strip()
+            batch_data.append({
+                "batch_id": b.batch_id,
+                "batch_name": b.batch_name,
+                "course_name": b.course.course_name,
+                "trainer_name": trainer_name,
+                "status": b.status,
+            })
 
         return Response({
-            "trainer_name": f"{person.first_name} {person.last_name or ''}".strip(),
-            "specialization": trainer_profile.specialization,
-            "batches": data,
+            "full_name": f"{person.first_name} {person.last_name or ''}".strip(),
+            "specialization": trainer_profile.specialization if trainer_profile else None,
+            "batches": batch_data,
         })
-
 
 class BatchDetailView(APIView):
     permission_classes = [permissions.IsAuthenticated]

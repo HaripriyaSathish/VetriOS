@@ -22,7 +22,7 @@ from .views import (
     NotificationListView, UnreadNotificationCountView,
     MarkNotificationReadView, MarkAllNotificationsReadView,
 )
-
+from .assistant_views import AssistantChatView
 urlpatterns = [
     path("enquiries/", EnquiryListCreateView.as_view(), name="enquiry-list-create"),
     path("enquiries/<int:enquiry_id>/", EnquiryDetailView.as_view(), name="enquiry-detail"),
@@ -67,4 +67,5 @@ urlpatterns = [
     path("notifications/unread-count/", UnreadNotificationCountView.as_view(), name="notifications-unread-count"),
     path("notifications/<int:notification_id>/read/", MarkNotificationReadView.as_view(), name="notification-read"),
     path("notifications/read-all/", MarkAllNotificationsReadView.as_view(), name="notifications-read-all"),
+    path("assistant/chat/", AssistantChatView.as_view(), name="assistant-chat"),
 ]

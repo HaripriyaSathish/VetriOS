@@ -19,4 +19,4 @@ dist/
 
 # OS/editor junk
 .vscode/
-.DS_Store
+.DS_Storebackend/.env

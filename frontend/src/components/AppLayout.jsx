@@ -1,6 +1,7 @@
 import { Outlet, useNavigate } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import "../components-styles/AppLayout.css";
+import NotificationBell from "./NotificationBell";
 
 // Shell for every signed-in page — sidebar on the left, topbar + routed
 // page content on the right. Reads "user" once here so Sidebar and the
@@ -22,6 +23,7 @@ function AppLayout() {
 
       <div className="app-main">
         <header className="app-topbar">
+          <NotificationBell />
           <span className="app-topbar-user">{user?.full_name}</span>
           <button className="app-logout" onClick={handleLogout}>
             Log out

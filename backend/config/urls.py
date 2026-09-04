@@ -25,4 +25,5 @@ urlpatterns = [
     path('api/hr/', include('module_02_hr.urls')),
     path('api/training/', include('module_03_training.urls')),
     path('api/admissions/', include('local_extensions.urls')),
+    path('api/student/', include('module_03_training.student_urls')),
 ]

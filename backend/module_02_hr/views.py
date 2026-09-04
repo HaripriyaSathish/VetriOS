@@ -15,6 +15,7 @@ from module_01_identity_access.models import (
     EmployeeLeaveBalance,
     EmploymentType,
     LeaveType,
+    UserAccount,
 )
 from .permissions import IsHRorSystemAdministrator
 from .serializers import (
@@ -150,6 +151,32 @@ def _employee_for_user(user):
     return Employee.objects.filter(person_id=user.person_id).select_related("person").first()
 
 
+# Shared by the org-wide Attendance screen and the personal "my
+# attendance" view — same Present/Half day/Missing-checkout/On
+# leave/Absent/No login rule, computed once so the two screens can't
+# drift apart. has_login=False always wins: check-in (and leave requests)
+# are self-service, so an employee with no user_account has no way to
+# ever produce a real attendance/leave record — showing them as plain
+# "Absent" would wrongly suggest they skipped work instead of never
+# having had login access at all.
+def _attendance_status(att, is_on_leave, has_login=True):
+    hours = None
+    if att and att.check_in_time and att.check_out_time:
+        hours = round((att.check_out_time - att.check_in_time).total_seconds() / 3600, 1)
+
+    if not has_login:
+        return "NO_LOGIN", hours
+    if is_on_leave:
+        return "ON_LEAVE", hours
+    if att is None:
+        return "ABSENT", hours
+    if att.check_in_time and not att.check_out_time:
+        return "PRESENT", hours
+    if hours is not None and hours >= MIN_FULL_DAY_HOURS:
+        return "PRESENT", hours
+    return "HALF_DAY", hours
+
+
 # Backs the whole Attendance screen in one call: today's org-wide
 # records + roll-up stats for the summary cards + the logged-in user's
 # own check-in/out state (for the "Check in" button and greeting banner).
@@ -167,34 +194,35 @@ class AttendanceTodayView(APIView):
                 status="APPROVED", start_date__lte=today, end_date__gte=today
             ).values_list("employee_id", flat=True)
         )
+        person_ids_with_login = set(
+            UserAccount.objects.filter(person_id__in=[e.person_id for e in employees]).values_list(
+                "person_id", flat=True
+            )
+        )
 
         records = []
-        present = half_day = missing_checkout = on_leave = 0
+        present = half_day = missing_checkout = on_leave = absent = no_login = 0
         for emp in employees:
             att = attendance_by_employee.get(emp.employee_id)
             is_on_leave = emp.employee_id in on_leave_ids
-            hours = None
-            if att and att.check_in_time and att.check_out_time:
-                hours = round((att.check_out_time - att.check_in_time).total_seconds() / 3600, 1)
+            has_login = emp.person_id in person_ids_with_login
+            display_status, hours = _attendance_status(att, is_on_leave, has_login)
 
-            if is_on_leave:
+            if display_status == "NO_LOGIN":
+                no_login += 1
+            elif display_status == "ON_LEAVE":
                 on_leave += 1
-                display_status = "ON_LEAVE"
-            elif att is None:
-                display_status = "ABSENT"
-            elif att.check_in_time and not att.check_out_time:
-                # Checked in is enough to count as Present for the day —
-                # "missing checkout" is a separate, overlapping flag for
-                # HR follow-up, not a different status the row shows.
+            elif display_status == "ABSENT":
+                absent += 1
+            elif display_status == "PRESENT":
                 present += 1
-                missing_checkout += 1
-                display_status = "PRESENT"
-            elif hours >= MIN_FULL_DAY_HOURS:
-                present += 1
-                display_status = "PRESENT"
-            else:
+                if att and att.check_in_time and not att.check_out_time:
+                    # Checked in is enough to count as Present for the day —
+                    # "missing checkout" is a separate, overlapping flag for
+                    # HR follow-up, not a different status the row shows.
+                    missing_checkout += 1
+            elif display_status == "HALF_DAY":
                 half_day += 1
-                display_status = "HALF_DAY"
 
             records.append(
                 {
@@ -220,6 +248,8 @@ class AttendanceTodayView(APIView):
                     "half_day": half_day,
                     "missing_checkout": missing_checkout,
                     "on_leave": on_leave,
+                    "absent": absent,
+                    "no_login": no_login,
                 },
                 "records": AttendanceRecordSerializer(records, many=True).data,
                 "me": {
@@ -233,11 +263,13 @@ class AttendanceTodayView(APIView):
         )
 
 
-# The logged-in user checking themselves in — requires an Employee
+# The logged-in user checking themselves in — any authenticated account
+# can hit this (not HR-gated — it's self-service, and it only ever
+# touches request.user's own employee record). Requires an Employee
 # record for their person (a login with no HR employee record, e.g. a
 # pure System Administrator account, can't check in/out).
 class AttendanceCheckInView(APIView):
-    permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         employee = _employee_for_user(request.user)
@@ -267,7 +299,7 @@ class AttendanceCheckInView(APIView):
 
 
 class AttendanceCheckOutView(APIView):
-    permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         employee = _employee_for_user(request.user)
@@ -287,6 +319,70 @@ class AttendanceCheckOutView(APIView):
         record.check_out_time = timezone.now()
         record.save(update_fields=["check_out_time"])
         return Response({"check_out_time": record.check_out_time})
+
+
+# How many days of history the Employee Dashboard shows below the
+# check-in control — most recent first.
+ATTENDANCE_HISTORY_DAYS = 14
+
+
+# Backs the Employee Dashboard's attendance panel — today's own status
+# (for the Check in/out button) plus a short personal history. Unlike
+# AttendanceTodayView this is not HR-gated: any authenticated account
+# can see their own attendance, same as they can check themselves in.
+class MyAttendanceView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        employee = _employee_for_user(request.user)
+        if not employee:
+            return Response({"employee_id": None, "today": None, "history": []})
+
+        today = timezone.localdate()
+        since = today - timezone.timedelta(days=ATTENDANCE_HISTORY_DAYS - 1)
+        records = EmployeeAttendance.objects.filter(
+            employee=employee, attendance_date__gte=since, attendance_date__lte=today
+        ).order_by("-attendance_date")
+        is_on_leave_today = EmployeeLeave.objects.filter(
+            employee=employee, status="APPROVED", start_date__lte=today, end_date__gte=today
+        ).exists()
+
+        today_record = records.filter(attendance_date=today).first()
+        today_status, today_hours = _attendance_status(today_record, is_on_leave_today)
+
+        history = []
+        for att in records:
+            is_leave_day = EmployeeLeave.objects.filter(
+                employee=employee,
+                status="APPROVED",
+                start_date__lte=att.attendance_date,
+                end_date__gte=att.attendance_date,
+            ).exists()
+            day_status, day_hours = _attendance_status(att, is_leave_day)
+            history.append(
+                {
+                    "date": att.attendance_date,
+                    "check_in_time": att.check_in_time,
+                    "check_out_time": att.check_out_time,
+                    "hours": day_hours,
+                    "status": day_status,
+                }
+            )
+
+        return Response(
+            {
+                "employee_id": employee.employee_id,
+                "today": {
+                    "checked_in": bool(today_record and today_record.check_in_time),
+                    "checked_out": bool(today_record and today_record.check_out_time),
+                    "check_in_time": today_record.check_in_time if today_record else None,
+                    "check_out_time": today_record.check_out_time if today_record else None,
+                    "status": today_status,
+                    "hours": today_hours,
+                },
+                "history": history,
+            }
+        )
 
 
 # The four leave types selectable on the "New request" form — UNPAID is

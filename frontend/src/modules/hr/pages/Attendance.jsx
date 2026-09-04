@@ -14,6 +14,7 @@ const STATUS_LABEL = {
   WORK_FROM_HOME: "WFH",
   ON_LEAVE: "On leave",
   ABSENT: "Absent",
+  NO_LOGIN: "No login",
 };
 
 const STATUS_CLASS = {
@@ -23,6 +24,7 @@ const STATUS_CLASS = {
   WORK_FROM_HOME: "present",
   ON_LEAVE: "leave",
   ABSENT: "absent",
+  NO_LOGIN: "no-login",
 };
 
 function formatTime(value) {
@@ -200,6 +202,16 @@ function Attendance() {
           <span className="att-stat-label">On leave</span>
           <span className="att-stat-value">{data?.stats.on_leave ?? "—"}</span>
           <span className="att-stat-sub">Today</span>
+        </div>
+        <div className="att-stat-card">
+          <span className="att-stat-label">Absent</span>
+          <span className="att-stat-value">{data?.stats.absent ?? "—"}</span>
+          <span className="att-stat-sub">Today</span>
+        </div>
+        <div className="att-stat-card">
+          <span className="att-stat-label">No login</span>
+          <span className="att-stat-value">{data?.stats.no_login ?? "—"}</span>
+          <span className="att-stat-sub">Credentials not set up</span>
         </div>
       </div>
 

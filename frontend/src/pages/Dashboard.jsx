@@ -1,11 +1,21 @@
 import { useOutletContext } from "react-router-dom";
+import EmployeeDashboard from "../modules/hr/pages/EmployeeDashboard";
 import "../styles/Dashboard.css";
 
-// Landing page after login — proves the token/role data made it through.
-// Real module dashboards replace this later; AppLayout owns the
-// sidebar/topbar/logout around it.
+const ADMIN_ROLES = new Set(["HR Administrator", "System Administrator"]);
+
+// Landing page after login. HR Administrator / System Administrator see
+// this generic roles/permissions summary (they have the full HR module
+// for anything more); everyone else — Employee, Manager, Viewer — lands
+// on EmployeeDashboard instead, since they have no other way to check
+// themselves in (the rest of /hr/* is admin-gated).
 function Dashboard() {
   const { user } = useOutletContext();
+
+  const isAdmin = (user.roles || []).some((role) => ADMIN_ROLES.has(role));
+  if (!isAdmin) {
+    return <EmployeeDashboard user={user} />;
+  }
 
   return (
     <div className="dash-body">

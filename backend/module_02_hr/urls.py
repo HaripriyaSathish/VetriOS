@@ -15,6 +15,7 @@ from .views import (
     LeaveRequestRejectView,
     LeaveSummaryView,
     LeaveTypeListView,
+    MyAttendanceView,
 )
 
 urlpatterns = [
@@ -27,6 +28,7 @@ urlpatterns = [
     path("attendance/today/", AttendanceTodayView.as_view(), name="attendance-today"),
     path("attendance/check-in/", AttendanceCheckInView.as_view(), name="attendance-check-in"),
     path("attendance/check-out/", AttendanceCheckOutView.as_view(), name="attendance-check-out"),
+    path("attendance/me/", MyAttendanceView.as_view(), name="attendance-me"),
     path("leave/types/", LeaveTypeListView.as_view(), name="leave-type-list"),
     path("leave/summary/", LeaveSummaryView.as_view(), name="leave-summary"),
     path("leave/requests/", LeaveRequestListCreateView.as_view(), name="leave-request-list-create"),

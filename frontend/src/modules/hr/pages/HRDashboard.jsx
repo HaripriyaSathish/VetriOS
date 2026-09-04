@@ -441,10 +441,7 @@ function HRDashboard() {
     try {
       const payload = { ...desigForm, level_number: desigForm.level_number === "" ? null : Number(desigForm.level_number) };
       if (editingDesig) {
-        // designation_code is immutable on edit — omit it so the PATCH
-        // can't collide with itself on the unique constraint.
-        const { designation_code, ...rest } = payload;
-        await client.patch(`/api/hr/designations/${editingDesig.designation_id}/`, rest);
+        await client.patch(`/api/hr/designations/${editingDesig.designation_id}/`, payload);
       } else {
         await client.post("/api/hr/designations/", payload);
       }
@@ -1295,9 +1292,7 @@ function HRDashboard() {
                 <input
                   value={desigForm.designation_code}
                   onChange={(e) => setDesigForm({ ...desigForm, designation_code: e.target.value })}
-                  required={!editingDesig}
-                  disabled={!!editingDesig}
-                  title={editingDesig ? "Code can't be changed after creation." : undefined}
+                  required
                 />
               </div>
               <div>

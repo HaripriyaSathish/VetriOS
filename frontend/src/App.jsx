@@ -8,6 +8,8 @@ import Permissions from "./modules/identity-access/pages/Permissions";
 import UserPermissions from "./modules/identity-access/pages/UserPermissions";
 import TrainingRouter from "./modules/training/pages/TrainingRouter";
 import HRDashboard from "./modules/hr/pages/HRDashboard";
+import Attendance from "./modules/hr/pages/Attendance";
+import Leave from "./modules/hr/pages/Leave";
 import ProtectedRoute from "./components/ProtectedRoute";
 import PermissionGate from "./components/PermissionGate";
 import AppLayout from "./components/AppLayout";
@@ -85,12 +87,45 @@ function App() {
   </PermissionGate>
 } />
 
-        {/* Real HR dashboard, replacing the generic placeholder for this one module */}
+        {/* Workspace (HR) group — HR Dashboard is still a placeholder;
+            Employee is the one real page so far. */}
         <Route
           path="/hr"
           element={
             <PermissionGate requirement={{ type: "role", value: ["HR Administrator", "System Administrator"] }}>
+              <ModulePlaceholder name="HR Dashboard" />
+            </PermissionGate>
+          }
+        />
+        <Route
+          path="/hr/employees"
+          element={
+            <PermissionGate requirement={{ type: "role", value: ["HR Administrator", "System Administrator"] }}>
               <HRDashboard />
+            </PermissionGate>
+          }
+        />
+        <Route
+          path="/hr/attendance"
+          element={
+            <PermissionGate requirement={{ type: "role", value: ["HR Administrator", "System Administrator"] }}>
+              <Attendance />
+            </PermissionGate>
+          }
+        />
+        <Route
+          path="/hr/leave"
+          element={
+            <PermissionGate requirement={{ type: "role", value: ["HR Administrator", "System Administrator"] }}>
+              <Leave />
+            </PermissionGate>
+          }
+        />
+        <Route
+          path="/hr/worklogs"
+          element={
+            <PermissionGate requirement={{ type: "role", value: ["HR Administrator", "System Administrator"] }}>
+              <ModulePlaceholder name="Worklogs" />
             </PermissionGate>
           }
         />

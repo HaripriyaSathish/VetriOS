@@ -9,6 +9,8 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from .models import Permission, Person, Role, RolePermission, UserAccount, UserPermission, UserRole
 from .permissions import IsSystemAdministrator
 from .serializers import (
+    USERNAME_PATTERN,
+    USERNAME_HINT,
     LoginSerializer,
     MeSerializer,
     PermissionSerializer,
@@ -120,6 +122,27 @@ class UserAccountDetailView(generics.RetrieveUpdateDestroyAPIView):
         instance.updated_at = timezone.now()
         instance.save(update_fields=["is_active", "updated_at"])
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+# Live "is this username free" check as HR types it into the New/Edit
+# account form — same format rule and uniqueness check the actual save
+# enforces, just without writing anything.
+class UsernameAvailabilityView(APIView):
+    permission_classes = [IsAuthenticated, IsSystemAdministrator]
+
+    def get(self, request):
+        username = request.query_params.get("username", "")
+        if not USERNAME_PATTERN.match(username):
+            return Response({"available": False, "reason": USERNAME_HINT})
+
+        qs = UserAccount.objects.filter(username=username)
+        exclude_id = request.query_params.get("exclude")
+        if exclude_id:
+            qs = qs.exclude(pk=exclude_id)
+
+        if qs.exists():
+            return Response({"available": False, "reason": "This username is already taken."})
+        return Response({"available": True, "reason": None})
 
 
 # Feeds the "link an existing person" mode of the "+ New account" modal

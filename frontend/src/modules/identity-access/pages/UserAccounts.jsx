@@ -80,6 +80,14 @@ function IconChevron({ collapsed }) {
   );
 }
 
+function IconCheck() {
+  return (
+    <svg {...svgProps({ width: 13, height: 13 })}>
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  );
+}
+
 function IconCheckCircle() {
   return (
     <svg {...svgProps({ width: 18, height: 18, stroke: "none" })}>
@@ -237,6 +245,10 @@ function UserAccounts() {
   const [unlinkedLoading, setUnlinkedLoading] = useState(false);
   const [personSearch, setPersonSearch] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  // "idle" | "checking" | "available" | "taken" | "invalid" — driven by a
+  // debounced call to the check-username endpoint as the field is typed.
+  const [usernameStatus, setUsernameStatus] = useState("idle");
+  const [usernameStatusMsg, setUsernameStatusMsg] = useState("");
 
   const [permUser, setPermUser] = useState(null);
   const [permRows, setPermRows] = useState([]); // [{permission_id, code, name, viaRole, override}]
@@ -274,6 +286,39 @@ function UserAccounts() {
     loadData();
   }, []);
 
+  // Debounced live "is this username free" check as it's typed — same
+  // rule the actual save enforces, just checked ahead of time. Skips the
+  // call entirely while editing and the field still matches the user's
+  // current username (nothing would change, no point checking).
+  useEffect(() => {
+    if (!modalOpen) return;
+    const username = form.username.trim();
+    if (!username || (editingUser && username === editingUser.username)) {
+      setUsernameStatus("idle");
+      setUsernameStatusMsg("");
+      return;
+    }
+    setUsernameStatus("checking");
+    const timer = setTimeout(async () => {
+      try {
+        const params = { username };
+        if (editingUser) params.exclude = editingUser.user_id;
+        const { data } = await client.get("/api/identity/users/check-username/", { params });
+        if (data.available) {
+          setUsernameStatus("available");
+          setUsernameStatusMsg("Username available");
+        } else {
+          setUsernameStatus(/^3-30 characters/.test(data.reason) ? "invalid" : "taken");
+          setUsernameStatusMsg(data.reason);
+        }
+      } catch (err) {
+        setUsernameStatus("idle");
+        setUsernameStatusMsg("");
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [form.username, modalOpen, editingUser]);
+
   const openCreate = async () => {
     setEditingUser(null);
     setForm(EMPTY_FORM);
@@ -283,6 +328,8 @@ function UserAccounts() {
     setPersonSearch("");
     setShowPassword(false);
     setCreateRoleIds(new Set());
+    setUsernameStatus("idle");
+    setUsernameStatusMsg("");
     setModalOpen(true);
     setUnlinkedLoading(true);
     try {
@@ -311,6 +358,8 @@ function UserAccounts() {
     setFormError("");
     setEditRoleIds(new Set());
     setShowPassword(false);
+    setUsernameStatus("idle");
+    setUsernameStatusMsg("");
     setModalOpen(true);
     try {
       const { data } = await client.get("/api/identity/user-roles/");
@@ -720,6 +769,12 @@ function UserAccounts() {
               onChange={(e) => setForm({ ...form, username: e.target.value })}
               required
             />
+            {usernameStatus !== "idle" && (
+              <p className={"ua-username-status ua-username-status-" + usernameStatus}>
+                {usernameStatus === "available" && <IconCheck />}
+                {usernameStatus === "checking" ? "Checking availability…" : usernameStatusMsg}
+              </p>
+            )}
 
             <label>{editingUser ? "Reset password (optional)" : "Password"}</label>
             <div className="ua-password-field">
@@ -818,7 +873,11 @@ function UserAccounts() {
               <button type="button" className="ua-btn-sm" onClick={closeModal}>
                 Cancel
               </button>
-              <button type="submit" className="ua-btn-accent" disabled={submitting}>
+              <button
+                type="submit"
+                className="ua-btn-accent"
+                disabled={submitting || usernameStatus === "taken" || usernameStatus === "invalid"}
+              >
                 {submitting ? "Saving…" : "Save"}
               </button>
             </div>

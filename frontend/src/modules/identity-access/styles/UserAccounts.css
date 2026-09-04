@@ -399,6 +399,34 @@
   margin: 0 0 14px;
 }
 
+.ua-username-status {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 700;
+  margin: 5px 0 0;
+}
+
+.ua-username-status svg {
+  flex: none;
+  stroke: currentColor;
+}
+
+.ua-username-status-checking {
+  color: #8a93a6;
+  font-weight: 500;
+}
+
+.ua-username-status-available {
+  color: #1f6837;
+}
+
+.ua-username-status-taken,
+.ua-username-status-invalid {
+  color: #96271f;
+}
+
 .ua-perm-modal-head {
   display: flex;
   align-items: center;

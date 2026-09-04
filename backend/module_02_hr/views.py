@@ -6,9 +6,19 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from module_01_identity_access.models import Department, Designation, Employee, EmploymentType
+from module_01_identity_access.models import (
+    Department,
+    Designation,
+    Employee,
+    EmployeeAttendance,
+    EmployeeLeave,
+    EmployeeLeaveBalance,
+    EmploymentType,
+    LeaveType,
+)
 from .permissions import IsHRorSystemAdministrator
 from .serializers import (
+    AttendanceRecordSerializer,
     DepartmentSerializer,
     DesignationSerializer,
     EmployeeDetailSerializer,
@@ -16,6 +26,11 @@ from .serializers import (
     EmployeeUpdateSerializer,
     EmployeeWriteSerializer,
     EmploymentTypeSerializer,
+    LeaveBalanceSerializer,
+    LeaveRequestSerializer,
+    LeaveRequestWriteSerializer,
+    LeaveTypeSerializer,
+    _current_department_history,
 )
 
 
@@ -117,3 +132,363 @@ class EmploymentTypeListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
     queryset = EmploymentType.objects.filter(is_active=True).order_by("employment_type_name")
     serializer_class = EmploymentTypeSerializer
+
+
+# No fixed check-in/check-out window — people clock in anywhere from
+# 8am to 9:30am and out from 5:30pm to 7pm. The only thing that matters
+# is total hours worked: 8+ is a full day, anything less (but still
+# checked out) is a half day. Not DB-enforced, so it lives here.
+MIN_FULL_DAY_HOURS = 8
+
+
+def _department_name(person_id):
+    current = _current_department_history(person_id)
+    return current.department.department_name if current else None
+
+
+def _employee_for_user(user):
+    return Employee.objects.filter(person_id=user.person_id).select_related("person").first()
+
+
+# Backs the whole Attendance screen in one call: today's org-wide
+# records + roll-up stats for the summary cards + the logged-in user's
+# own check-in/out state (for the "Check in" button and greeting banner).
+class AttendanceTodayView(APIView):
+    permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
+
+    def get(self, request):
+        today = timezone.localdate()
+        employees = Employee.objects.filter(status="ACTIVE").select_related("person")
+        attendance_by_employee = {
+            a.employee_id: a for a in EmployeeAttendance.objects.filter(attendance_date=today)
+        }
+        on_leave_ids = set(
+            EmployeeLeave.objects.filter(
+                status="APPROVED", start_date__lte=today, end_date__gte=today
+            ).values_list("employee_id", flat=True)
+        )
+
+        records = []
+        present = half_day = missing_checkout = on_leave = 0
+        for emp in employees:
+            att = attendance_by_employee.get(emp.employee_id)
+            is_on_leave = emp.employee_id in on_leave_ids
+            hours = None
+            if att and att.check_in_time and att.check_out_time:
+                hours = round((att.check_out_time - att.check_in_time).total_seconds() / 3600, 1)
+
+            if is_on_leave:
+                on_leave += 1
+                display_status = "ON_LEAVE"
+            elif att is None:
+                display_status = "ABSENT"
+            elif att.check_in_time and not att.check_out_time:
+                # Checked in is enough to count as Present for the day —
+                # "missing checkout" is a separate, overlapping flag for
+                # HR follow-up, not a different status the row shows.
+                present += 1
+                missing_checkout += 1
+                display_status = "PRESENT"
+            elif hours >= MIN_FULL_DAY_HOURS:
+                present += 1
+                display_status = "PRESENT"
+            else:
+                half_day += 1
+                display_status = "HALF_DAY"
+
+            records.append(
+                {
+                    "employee_id": emp.employee_id,
+                    "person_id": emp.person_id,
+                    "full_name": str(emp.person),
+                    "department_name": _department_name(emp.person_id),
+                    "check_in_time": att.check_in_time if att else None,
+                    "check_out_time": att.check_out_time if att else None,
+                    "hours": hours,
+                    "status": display_status,
+                }
+            )
+
+        me = _employee_for_user(request.user)
+        my_attendance = attendance_by_employee.get(me.employee_id) if me else None
+
+        return Response(
+            {
+                "date": today,
+                "stats": {
+                    "present": present,
+                    "half_day": half_day,
+                    "missing_checkout": missing_checkout,
+                    "on_leave": on_leave,
+                },
+                "records": AttendanceRecordSerializer(records, many=True).data,
+                "me": {
+                    "employee_id": me.employee_id if me else None,
+                    "checked_in": bool(my_attendance and my_attendance.check_in_time),
+                    "checked_out": bool(my_attendance and my_attendance.check_out_time),
+                    "check_in_time": my_attendance.check_in_time if my_attendance else None,
+                    "check_out_time": my_attendance.check_out_time if my_attendance else None,
+                },
+            }
+        )
+
+
+# The logged-in user checking themselves in — requires an Employee
+# record for their person (a login with no HR employee record, e.g. a
+# pure System Administrator account, can't check in/out).
+class AttendanceCheckInView(APIView):
+    permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
+
+    def post(self, request):
+        employee = _employee_for_user(request.user)
+        if not employee:
+            return Response(
+                {"detail": "No employee record is linked to your account."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        now = timezone.now()
+        today = timezone.localdate()
+        # attendance_status is DB-required (NOT NULL) but the screen's
+        # actual Present/Half day classification is computed from hours
+        # worked at display time (AttendanceTodayView) — this stored
+        # value is just a placeholder to satisfy the column.
+        record, _ = EmployeeAttendance.objects.get_or_create(
+            employee=employee,
+            attendance_date=today,
+            defaults={"attendance_status": "PRESENT", "created_at": now},
+        )
+        if record.check_in_time:
+            return Response({"detail": "Already checked in today."}, status=status.HTTP_400_BAD_REQUEST)
+
+        record.check_in_time = now
+        record.save(update_fields=["check_in_time"])
+        return Response({"check_in_time": record.check_in_time})
+
+
+class AttendanceCheckOutView(APIView):
+    permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
+
+    def post(self, request):
+        employee = _employee_for_user(request.user)
+        if not employee:
+            return Response(
+                {"detail": "No employee record is linked to your account."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        today = timezone.localdate()
+        record = EmployeeAttendance.objects.filter(employee=employee, attendance_date=today).first()
+        if not record or not record.check_in_time:
+            return Response({"detail": "Check in first."}, status=status.HTTP_400_BAD_REQUEST)
+        if record.check_out_time:
+            return Response({"detail": "Already checked out today."}, status=status.HTTP_400_BAD_REQUEST)
+
+        record.check_out_time = timezone.now()
+        record.save(update_fields=["check_out_time"])
+        return Response({"check_out_time": record.check_out_time})
+
+
+# The four leave types selectable on the "New request" form — UNPAID is
+# deliberately excluded here: nobody picks it directly, a request only
+# ever becomes UNPAID (Loss of Pay) automatically, when approving it
+# would exceed the employee's remaining balance for what they asked for.
+SELECTABLE_LEAVE_CODES = ["CASUAL", "SICK", "EARNED", "MATERNITY"]
+
+# Company-wide defaults (no per-employee override yet) — applied lazily,
+# the first time a balance row is needed for that employee/type/year,
+# rather than pre-seeded for everyone up front.
+DEFAULT_ALLOCATIONS = {"CASUAL": 12, "SICK": 6, "EARNED": 15, "MATERNITY": 182}
+
+
+def _get_or_create_balance(employee, leave_type, year):
+    now = timezone.now()
+    balance, created = EmployeeLeaveBalance.objects.get_or_create(
+        employee=employee,
+        leave_type=leave_type,
+        leave_year=year,
+        defaults={
+            "allocated_days": DEFAULT_ALLOCATIONS.get(leave_type.leave_type_code, 0),
+            "used_days": 0,
+            "remaining_days": DEFAULT_ALLOCATIONS.get(leave_type.leave_type_code, 0),
+            "created_at": now,
+            "updated_at": now,
+        },
+    )
+    return balance
+
+
+def _leave_request_row(leave):
+    return {
+        "leave_id": leave.leave_id,
+        "employee_id": leave.employee_id,
+        "person_id": leave.employee.person_id,
+        "full_name": str(leave.employee.person),
+        "leave_type_id": leave.leave_type_id,
+        "leave_type_code": leave.leave_type.leave_type_code if leave.leave_type else None,
+        "leave_type_name": leave.leave_type.leave_type_name if leave.leave_type else None,
+        "start_date": leave.start_date,
+        "end_date": leave.end_date,
+        "total_days": leave.total_days,
+        "reason": leave.reason,
+        "status": leave.status,
+        "created_at": leave.created_at,
+    }
+
+
+# Feeds the "Leave type" dropdown on the New request form.
+class LeaveTypeListView(generics.ListAPIView):
+    permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
+    queryset = LeaveType.objects.filter(is_active=True, leave_type_code__in=SELECTABLE_LEAVE_CODES).order_by(
+        "leave_type_name"
+    )
+    serializer_class = LeaveTypeSerializer
+
+
+# Backs the whole Leave screen in one call: the logged-in user's own
+# balances (auto-created on first look, same lazy pattern as attendance),
+# org-wide summary stats, and every leave request for the table below.
+class LeaveSummaryView(APIView):
+    permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
+
+    def get(self, request):
+        today = timezone.localdate()
+        year = today.year
+
+        me = _employee_for_user(request.user)
+        my_balances = []
+        if me:
+            for leave_type in LeaveType.objects.filter(
+                is_active=True, leave_type_code__in=SELECTABLE_LEAVE_CODES
+            ).order_by("leave_type_name"):
+                balance = _get_or_create_balance(me, leave_type, year)
+                my_balances.append(
+                    {
+                        "leave_type_id": leave_type.leave_type_id,
+                        "leave_type_code": leave_type.leave_type_code,
+                        "leave_type_name": leave_type.leave_type_name,
+                        "allocated_days": balance.allocated_days,
+                        "used_days": balance.used_days,
+                        "remaining_days": balance.remaining_days,
+                    }
+                )
+
+        all_requests = EmployeeLeave.objects.select_related("employee__person", "leave_type").order_by(
+            "-created_at"
+        )
+        pending_count = sum(1 for r in all_requests if r.status == "PENDING")
+        upcoming = [r for r in all_requests if r.status == "APPROVED" and r.end_date >= today]
+        upcoming_days = sum(float(r.total_days or 0) for r in upcoming)
+        upcoming_employees = len({r.employee_id for r in upcoming})
+
+        return Response(
+            {
+                "my_balances": LeaveBalanceSerializer(my_balances, many=True).data,
+                "stats": {
+                    "pending_approvals": pending_count,
+                    "upcoming_days": upcoming_days,
+                    "upcoming_employees": upcoming_employees,
+                },
+                "requests": LeaveRequestSerializer(
+                    [_leave_request_row(r) for r in all_requests], many=True
+                ).data,
+            }
+        )
+
+
+# Lists every leave request (HR view) / creates one for the logged-in
+# user's own employee record (self-service, same pattern as attendance
+# check-in — the employee is derived from the account, never the body).
+class LeaveRequestListCreateView(APIView):
+    permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
+
+    def get(self, request):
+        all_requests = EmployeeLeave.objects.select_related("employee__person", "leave_type").order_by(
+            "-created_at"
+        )
+        return Response(LeaveRequestSerializer([_leave_request_row(r) for r in all_requests], many=True).data)
+
+    def post(self, request):
+        employee = _employee_for_user(request.user)
+        if not employee:
+            return Response(
+                {"detail": "No employee record is linked to your account."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = LeaveRequestWriteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        total_days = (data["end_date"] - data["start_date"]).days + 1
+        now = timezone.now()
+        leave = EmployeeLeave.objects.create(
+            employee=employee,
+            leave_type_id=data["leave_type_id"],
+            start_date=data["start_date"],
+            end_date=data["end_date"],
+            total_days=total_days,
+            reason=data.get("reason") or None,
+            status="PENDING",
+            created_at=now,
+            updated_at=now,
+        )
+        return Response(_leave_request_row(leave), status=status.HTTP_201_CREATED)
+
+
+# Approves a pending request. If the employee's remaining balance for
+# the requested leave type covers it, that balance is deducted and the
+# request keeps its original leave type. If not, the WHOLE request is
+# converted to Loss of Pay (the UNPAID leave type) instead — no partial
+# split between paid/unpaid days, and no balance is touched in that case
+# since unpaid leave has no cap.
+class LeaveRequestApproveView(APIView):
+    permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
+
+    def post(self, request, pk):
+        try:
+            leave = EmployeeLeave.objects.select_related("employee", "leave_type").get(pk=pk)
+        except EmployeeLeave.DoesNotExist:
+            return Response({"detail": "Leave request not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if leave.status != "PENDING":
+            return Response({"detail": "Only pending requests can be approved."}, status=status.HTTP_400_BAD_REQUEST)
+
+        now = timezone.now()
+        total_days = float(leave.total_days or 0)
+        balance = _get_or_create_balance(leave.employee, leave.leave_type, leave.start_date.year)
+
+        if float(balance.remaining_days) >= total_days:
+            balance.used_days = float(balance.used_days) + total_days
+            balance.remaining_days = float(balance.remaining_days) - total_days
+            balance.updated_at = now
+            balance.save(update_fields=["used_days", "remaining_days", "updated_at"])
+        else:
+            unpaid = LeaveType.objects.filter(leave_type_code="UNPAID").first()
+            if unpaid:
+                leave.leave_type = unpaid
+
+        leave.status = "APPROVED"
+        leave.approved_by_user_id = request.user.pk
+        leave.approved_at = now
+        leave.updated_at = now
+        leave.save(update_fields=["leave_type", "status", "approved_by_user_id", "approved_at", "updated_at"])
+        return Response(_leave_request_row(leave))
+
+
+class LeaveRequestRejectView(APIView):
+    permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
+
+    def post(self, request, pk):
+        try:
+            leave = EmployeeLeave.objects.select_related("employee", "leave_type").get(pk=pk)
+        except EmployeeLeave.DoesNotExist:
+            return Response({"detail": "Leave request not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if leave.status != "PENDING":
+            return Response({"detail": "Only pending requests can be rejected."}, status=status.HTTP_400_BAD_REQUEST)
+
+        leave.status = "REJECTED"
+        leave.updated_at = timezone.now()
+        leave.save(update_fields=["status", "updated_at"])
+        return Response(_leave_request_row(leave))

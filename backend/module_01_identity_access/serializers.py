@@ -1,7 +1,24 @@
+import re
+
 from django.utils import timezone
 from rest_framework import serializers
 
 from .models import Permission, Person, Role, RolePermission, UserAccount, UserRole
+
+# 3-30 characters, starts with a letter, otherwise letters/digits/._- only
+# — mirrors the existing seeded usernames (maya.san, testadmin, hradmin).
+USERNAME_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9._-]{2,29}$")
+USERNAME_HINT = (
+    "3-30 characters, must start with a letter, and may only contain letters, "
+    "numbers, dots, underscores, and hyphens. No spaces allowed."
+)
+
+
+def validate_username_format(value):
+    """Shared with UsernameAvailabilityView so the live-check endpoint and
+    the actual save both enforce the exact same rule."""
+    if not USERNAME_PATTERN.match(value):
+        raise serializers.ValidationError(USERNAME_HINT)
 
 
 # Row shape for "existing person, no login yet" — feeds the "+ New
@@ -193,6 +210,7 @@ class UserAccountWriteSerializer(serializers.Serializer):
     role_id = serializers.IntegerField(required=False, allow_null=True)
 
     def validate_username(self, value):
+        validate_username_format(value)
         qs = UserAccount.objects.filter(username=value)
         if self.instance is not None:
             qs = qs.exclude(pk=self.instance.pk)

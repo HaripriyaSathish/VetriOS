@@ -1,0 +1,149 @@
+.lv-balance-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.lv-balance-row .hr-empty {
+  grid-column: 1 / -1;
+  background: #fff;
+  border: 1px solid #d9dfe8;
+  border-radius: 10px;
+}
+
+.lv-balance-card {
+  background: #fff;
+  border: 1px solid #d9dfe8;
+  border-radius: 10px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lv-balance-label {
+  font-size: 12.5px;
+  color: #3a4152;
+  font-weight: 600;
+}
+
+.lv-balance-value {
+  font-family: "Sora", sans-serif;
+  font-size: 22px;
+  font-weight: 800;
+  color: #161a26;
+}
+
+.lv-balance-unit {
+  font-family: "Manrope", sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  color: #8a93a6;
+}
+
+.lv-balance-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: #eaeef4;
+  overflow: hidden;
+}
+
+.lv-balance-bar-fill {
+  height: 100%;
+  background: #0f9d76;
+  border-radius: 999px;
+}
+
+.lv-balance-sub {
+  font-size: 11px;
+  color: #8a93a6;
+}
+
+.lv-tabs {
+  display: flex;
+  gap: 6px;
+}
+
+.lv-tab {
+  border: 1px solid #d9dfe8;
+  background: #fff;
+  color: #3a4152;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.lv-tab:hover {
+  background: #eaeef4;
+}
+
+.lv-tab.active {
+  background: #e3f7ee;
+  border-color: #0f9d76;
+  color: #0c6b4f;
+}
+
+.lv-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid #d9dfe8;
+  background: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.lv-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.lv-action-approve {
+  color: #1f6837;
+}
+
+.lv-action-approve:hover:not(:disabled) {
+  background: #e3f5e9;
+  border-color: #1f6837;
+}
+
+.lv-action-reject {
+  color: #96271f;
+}
+
+.lv-action-reject:hover:not(:disabled) {
+  background: #fbe7e5;
+  border-color: #96271f;
+}
+
+.lv-textarea {
+  border: 1px solid #c2cad8;
+  border-radius: 8px;
+  padding: 9px 11px;
+  font-size: 13.5px;
+  margin-top: 5px;
+  font-family: inherit;
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+}
+
+.lv-textarea:focus {
+  outline: 2px solid #235777;
+  outline-offset: 1px;
+  border-color: #235777;
+}
+
+@media (max-width: 1000px) {
+  .lv-balance-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

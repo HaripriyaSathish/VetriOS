@@ -6,9 +6,80 @@ from module_01_identity_access.models import (
     Designation,
     Employee,
     EmploymentType,
+    LeaveType,
     Person,
     PersonDepartmentHistory,
 )
+
+
+# Row shape for the Attendance screen's "Daily records" table — built by
+# the view from Employee + EmployeeAttendance + EmployeeLeave, not a
+# ModelSerializer (no single model backs this combined shape).
+class AttendanceRecordSerializer(serializers.Serializer):
+    employee_id = serializers.IntegerField()
+    person_id = serializers.IntegerField()
+    full_name = serializers.CharField()
+    department_name = serializers.CharField(allow_null=True)
+    check_in_time = serializers.DateTimeField(allow_null=True)
+    check_out_time = serializers.DateTimeField(allow_null=True)
+    hours = serializers.FloatField(allow_null=True)
+    status = serializers.CharField()
+
+
+class LeaveTypeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = LeaveType
+        fields = ["leave_type_id", "leave_type_code", "leave_type_name", "is_paid"]
+
+
+# One row of "my balance" on the Leave screen — allocated/used/remaining
+# for one leave type, current year.
+class LeaveBalanceSerializer(serializers.Serializer):
+    leave_type_id = serializers.IntegerField()
+    leave_type_code = serializers.CharField()
+    leave_type_name = serializers.CharField()
+    allocated_days = serializers.FloatField()
+    used_days = serializers.FloatField()
+    remaining_days = serializers.FloatField()
+
+
+# Row shape for the "Leave requests" table — combines Employee + Person +
+# LeaveType, not a ModelSerializer for the same reason as attendance rows.
+class LeaveRequestSerializer(serializers.Serializer):
+    leave_id = serializers.IntegerField()
+    employee_id = serializers.IntegerField()
+    person_id = serializers.IntegerField()
+    full_name = serializers.CharField()
+    leave_type_id = serializers.IntegerField(allow_null=True)
+    leave_type_code = serializers.CharField(allow_null=True)
+    leave_type_name = serializers.CharField(allow_null=True)
+    start_date = serializers.DateField()
+    end_date = serializers.DateField()
+    total_days = serializers.FloatField()
+    reason = serializers.CharField(allow_null=True)
+    status = serializers.CharField()
+    created_at = serializers.DateTimeField()
+
+
+# Creates a leave request for the logged-in user's own employee record —
+# self-service, same as attendance check-in. Days are counted inclusive
+# (end_date - start_date + 1), no weekend exclusion — the DB's
+# total_days column is populated here, not left to the client to compute.
+class LeaveRequestWriteSerializer(serializers.Serializer):
+    leave_type_id = serializers.IntegerField()
+    start_date = serializers.DateField()
+    end_date = serializers.DateField()
+    reason = serializers.CharField(required=False, allow_blank=True)
+
+    def validate_leave_type_id(self, value):
+        if not LeaveType.objects.filter(pk=value, is_active=True).exists():
+            raise serializers.ValidationError("Unknown leave type.")
+        return value
+
+    def validate(self, attrs):
+        if attrs["end_date"] < attrs["start_date"]:
+            raise serializers.ValidationError({"end_date": ["End date can't be before the start date."]})
+        return attrs
 
 
 class DepartmentSerializer(serializers.ModelSerializer):

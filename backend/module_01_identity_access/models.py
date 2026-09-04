@@ -118,6 +118,84 @@ class PersonDepartmentHistory(models.Model):
         db_table = "person_department_history"
 
 
+# One row per employee per calendar day — uq_employee_attendance in the
+# DB enforces that. attendance_status is DB-constrained to PRESENT,
+# ABSENT, LATE, HALF_DAY, EXCUSED, WORK_FROM_HOME; "missing checkout"
+# isn't one of those — it's derived (check_in_time set, check_out_time
+# still null), not a stored status.
+class EmployeeAttendance(models.Model):
+    attendance_id = models.BigAutoField(primary_key=True)
+    employee = models.ForeignKey(Employee, on_delete=models.DO_NOTHING, db_column="employee_id")
+    attendance_date = models.DateField()
+    attendance_status = models.CharField(max_length=50)
+    check_in_time = models.DateTimeField(blank=True, null=True)
+    check_out_time = models.DateTimeField(blank=True, null=True)
+    remarks = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = "employee_attendance"
+
+
+# status is DB-constrained to PENDING, APPROVED, REJECTED, CANCELLED —
+# only APPROVED rows covering today count as "on leave" for attendance.
+class EmployeeLeave(models.Model):
+    leave_id = models.BigAutoField(primary_key=True)
+    employee = models.ForeignKey(Employee, on_delete=models.DO_NOTHING, db_column="employee_id")
+    leave_type = models.ForeignKey(
+        "LeaveType", on_delete=models.DO_NOTHING, db_column="leave_type_id", blank=True, null=True
+    )
+    start_date = models.DateField()
+    end_date = models.DateField()
+    total_days = models.DecimalField(max_digits=5, decimal_places=1, blank=True, null=True)
+    reason = models.TextField(blank=True, null=True)
+    status = models.CharField(max_length=50)
+    approved_by_user_id = models.BigIntegerField(blank=True, null=True)
+    approved_at = models.DateTimeField(blank=True, null=True)
+    created_at = models.DateTimeField(blank=True, null=True)
+    updated_at = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = "employee_leave"
+
+
+class LeaveType(models.Model):
+    leave_type_id = models.BigAutoField(primary_key=True)
+    leave_type_code = models.CharField(max_length=30)
+    leave_type_name = models.CharField(max_length=100)
+    description = models.TextField(blank=True, null=True)
+    is_paid = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(blank=True, null=True)
+    updated_at = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = "leave_type"
+
+
+# One row per employee, per leave type, per calendar year — e.g. Rahul's
+# 2026 Casual Leave allowance. remaining_days is stored (not always
+# recomputed) since the DB schema has it as its own column; kept in sync
+# with allocated_days/used_days on every balance-affecting write.
+class EmployeeLeaveBalance(models.Model):
+    leave_balance_id = models.BigAutoField(primary_key=True)
+    employee = models.ForeignKey(Employee, on_delete=models.DO_NOTHING, db_column="employee_id")
+    leave_type = models.ForeignKey(LeaveType, on_delete=models.DO_NOTHING, db_column="leave_type_id")
+    leave_year = models.IntegerField()
+    allocated_days = models.DecimalField(max_digits=5, decimal_places=1)
+    used_days = models.DecimalField(max_digits=5, decimal_places=1, default=0)
+    remaining_days = models.DecimalField(max_digits=5, decimal_places=1)
+    created_at = models.DateTimeField(blank=True, null=True)
+    updated_at = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = "employee_leave_balance"
+
+
 # One of the 5 confirmed RBAC roles (System Administrator, HR
 # Administrator, Manager, Employee, Viewer) — a user can hold several
 # at once via UserRole.

@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import client from "../../../api/client";
 import Pagination, { paginate } from "../../../components/Pagination";
+import { EmployeeAvatar } from "../components/EmployeeAvatar";
 import "../styles/HRDashboard.css";
 
 const EMPTY_FILTERS = {
@@ -43,40 +44,24 @@ const EMPTY_FORM = {
   confirmation_date: "",
 };
 
-// No column/table stores this URL anywhere — it's fully deterministic
-// from person_id, built the same way on every render. A photo upload
-// just overwrites this same Cloudinary public_id; if nothing was ever
-// uploaded, the image 404s and the <img onError> swap to a default
-// silhouette icon (no DB flag needed to know "has a photo or not").
-const CLOUDINARY_CLOUD_NAME = "cikqryjt";
-
-function avatarUrl(personId, version) {
-  return `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/image/upload/f_auto,q_auto,c_fill,g_face,w_96,h_96/person_avatars/person_${personId}?v=${version}`;
-}
-
-// Renders the real photo when one loads; falls back to a generic
-// silhouette icon (no name-based colors) the moment it 404s, matching
-// the "default profile picture" look for anyone without an upload yet.
-function EmployeeAvatar({ personId, size = 32, version }) {
-  const [failed, setFailed] = useState(false);
-
-  if (!personId || failed) {
-    return (
-      <div className="hr-avatar hr-avatar-fallback" style={{ width: size, height: size }}>
-        <CircleUserRound size={Math.round(size * 0.72)} />
-      </div>
-    );
+// Nothing in the UI otherwise shows which employee codes are already
+// taken, so guessing the next one (EMP005? EMP006?) isn't really
+// possible — suggest it instead: highest EMP<N> in use, plus one, same
+// zero-padding width. Pre-filled but still an editable text field, so
+// HR can always override it.
+function suggestNextEmployeeCode(employees) {
+  let maxNum = 0;
+  let width = 3;
+  for (const emp of employees) {
+    const match = /^EMP(\d+)$/i.exec(emp.employee_code || "");
+    if (!match) continue;
+    const num = parseInt(match[1], 10);
+    if (num > maxNum) {
+      maxNum = num;
+      width = match[1].length;
+    }
   }
-
-  return (
-    <img
-      className="hr-avatar hr-avatar-photo"
-      style={{ width: size, height: size }}
-      src={avatarUrl(personId, version)}
-      alt=""
-      onError={() => setFailed(true)}
-    />
-  );
+  return `EMP${String(maxNum + 1).padStart(width, "0")}`;
 }
 
 function toCsv(rows) {
@@ -185,7 +170,7 @@ function HRDashboard() {
 
   const openCreate = () => {
     setEditingEmployee(null);
-    setForm(EMPTY_FORM);
+    setForm({ ...EMPTY_FORM, employee_code: suggestNextEmployeeCode(employees) });
     setFormError("");
     setAvatarFile(null);
     setAvatarPreview("");

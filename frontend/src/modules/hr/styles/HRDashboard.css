@@ -282,6 +282,11 @@
   width: 190px;
 }
 
+.hr-popover-right {
+  left: auto;
+  right: 0;
+}
+
 .hr-popover-head {
   display: flex;
   align-items: center;

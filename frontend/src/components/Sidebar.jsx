@@ -21,9 +21,12 @@ const HR_PATHS = ["/hr"];
 function Sidebar() {
   const user = JSON.parse(localStorage.getItem("user") || "null");
   const location = useLocation();
+  const [trainingOpen, setTrainingOpen] = useState(true);
 
   const identityRequirement = { type: "role", value: "System Administrator" };
   const businessTeamRequirement = { type: "role", value: "Business Team" };
+  const trainerRequirement = { type: "role", value: "Employee" };
+  const studentRequirement = { type: "role", value: "Student" };
   const trainingItem = NAV_ITEMS.find((item) => item.id === "training");
   const hrItem = NAV_ITEMS.find((item) => item.id === "hr");
 
@@ -212,21 +215,92 @@ function Sidebar() {
       )}
 
       {trainingItem && hasAccess(trainingItem.requirement, user) && (
-        <NavLink
-          to="/training"
-          className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
-        >
-          <span className="nav-icon">🎓</span> Training
-        </NavLink>
+        <>
+          <button className="nav-item nav-group-toggle" onClick={() => setTrainingOpen(!trainingOpen)}>
+            <span className="nav-icon">🎓</span> Training
+            <span className="nav-caret">{trainingOpen ? "▾" : "▸"}</span>
+          </button>
+
+          {trainingOpen && (
+            <div className="nav-subgroup">
+              <NavLink to="/training" end className={({ isActive }) => "nav-item nav-sub-item" + (isActive ? " active" : "")}>
+                Batches
+              </NavLink>
+
+              {hasAccess(trainerRequirement, user) && (
+                <NavLink to="/training/attendance" className={({ isActive }) => "nav-item nav-sub-item" + (isActive ? " active" : "")}>
+                  Attendance
+                </NavLink>
+              )}
+              <NavLink to="/training/assignments" className={({ isActive }) => "nav-item nav-sub-item" + (isActive ? " active" : "")}>
+                Assignments
+              </NavLink>
+              <NavLink to="/training/reports" className={({ isActive }) => "nav-item nav-sub-item" + (isActive ? " active" : "")}>
+                Reports
+              </NavLink>
+
+              <NavLink to="/training/mock-interviews" className={({ isActive }) => "nav-item nav-sub-item" + (isActive ? " active" : "")}>
+                Mock Interview
+              </NavLink>
+              <NavLink to="/training/absentees-recordings" className={({ isActive }) => "nav-item nav-sub-item" + (isActive ? " active" : "")}>
+                Absentees & Recordings
+              </NavLink>
+              <NavLink to="/training/dropout-tracking" className={({ isActive }) => "nav-item nav-sub-item" + (isActive ? " active" : "")}>
+                Dropout Tracking
+              </NavLink>
+
+              <NavLink to="/training/messages" className={({ isActive }) => "nav-item nav-sub-item" + (isActive ? " active" : "")}>
+                Messages
+              </NavLink>
+            </div>
+          )}
+        </>
       )}
 
       {hasAccess(businessTeamRequirement, user) && (
-        <NavLink
-          to="/training/enquiries"
-          className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
-        >
-          <span className="nav-icon">📋</span> Enquiries
-        </NavLink>
+        <>
+          <NavLink to="/training/enquiries" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+            <span className="nav-icon">📋</span> Enquiries
+          </NavLink>
+          <NavLink to="/training/fee-conversion" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+            <span className="nav-icon">💳</span> Fee & Conversion
+          </NavLink>
+          <NavLink to="/training/batches/new" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+            <span className="nav-icon">➕</span> New Batch
+          </NavLink>
+          <NavLink to="/training/welcome-emails" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+            <span className="nav-icon">✉️</span> Welcome Emails
+          </NavLink>
+        </>
+      )}
+
+      {hasAccess(studentRequirement, user) && (
+        <>
+          <NavLink to="/student/dashboard" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+            <span className="nav-icon">🎒</span> My Dashboard
+          </NavLink>
+          <NavLink to="/student/attendance" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+            <span className="nav-icon">📅</span> My Attendance
+          </NavLink>
+          <NavLink to="/student/ask-trainer" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+            <span className="nav-icon">💬</span> Ask Trainer
+          </NavLink>
+          <NavLink to="/student/assessments" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+            <span className="nav-icon">🎯</span> Assessments
+          </NavLink>
+          <NavLink to="/student/progress" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+            <span className="nav-icon">📈</span> Progress
+          </NavLink>
+          <NavLink to="/student/assignments" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+            <span className="nav-icon">📝</span> Assignments
+          </NavLink>
+          <NavLink to="/student/recordings" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+            <span className="nav-icon">🎥</span> Recordings
+          </NavLink>
+          <NavLink to="/student/reports" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+            <span className="nav-icon">📊</span> Reports
+          </NavLink>
+        </>
       )}
     </aside>
   );

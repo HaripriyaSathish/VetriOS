@@ -30,7 +30,8 @@ class Enquiry(models.Model):
     )
     address = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(blank=True, null=True)
-
+    welcome_email_sent = models.BooleanField(default=False)
+    welcome_email_sent_at = models.DateTimeField(null=True, blank=True)
     class Meta:
         managed = False
         db_table = "enquiry"
@@ -348,3 +349,20 @@ class Notification(models.Model):
 
     def __str__(self):
         return f"[{self.module}] {self.notification_type} -> {self.recipient_id}: {self.title}" 
+
+
+class MockInterviewDetail(models.Model):
+    """Holds the meeting link separately from StudentAssessment.feedback
+    — feedback is trainer-internal (visible to Trainer/Business Team
+    only), meeting_link is student-visible. Not part of the official 95."""
+    student_assessment = models.OneToOneField(
+        "module_03_training.StudentAssessment", on_delete=models.CASCADE,
+        db_column="student_assessment_id", related_name="interview_detail",
+        db_constraint=False,
+    )
+    meeting_link = models.CharField(max_length=500, blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "ext_mock_interview_detail"

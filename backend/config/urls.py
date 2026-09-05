@@ -26,4 +26,6 @@ urlpatterns = [
     path('api/training/', include('module_03_training.urls')),
     path('api/admissions/', include('local_extensions.urls')),
     path('api/student/', include('module_03_training.student_urls')),
+    path("api/documents/", include("module_06_documents.urls")),
+    path("api/interns/", include("module_04_interns.urls")),
 ]

@@ -6,6 +6,7 @@ from .models import StudentAttendance
 from local_extensions.models import Task, StudentTask
 from .models import StudentAssessment
 from .student_permissions import IsStudent, get_student_enrollment
+from local_extensions.models import MockInterviewDetail
 
 CATEGORY_LABEL = {"task": "Daily Task", "mini_project": "Mini Project", "main_project": "Main Project", "seminar": "Seminar"}
 ELIGIBILITY_THRESHOLD = 85  # matches the trainer-side mock interview invite rule
@@ -66,12 +67,13 @@ class StudentEligibilityView(APIView):
 
         mock_data = {"invited": False}
         if mock:
+            detail = MockInterviewDetail.objects.filter(student_assessment=mock).first()
             mock_data = {
                 "invited": True,
                 "scheduled_date": mock.assessment.assessment_date,
                 "result_status": mock.result_status,
                 "score": mock.score,
-                "feedback": mock.feedback,
+                "meeting_link": detail.meeting_link if detail else None,
             }
 
         return Response({

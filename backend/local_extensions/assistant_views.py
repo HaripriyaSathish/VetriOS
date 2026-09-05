@@ -5,15 +5,27 @@ from rest_framework.permissions import IsAuthenticated
 
 from .ai_service import ask_groq_chat
 from .assistant_tools import STUDENT_TOOLS, STUDENT_TOOL_FUNCTIONS
+from .assistant_tools_trainer import TRAINER_TOOLS, TRAINER_TOOL_FUNCTIONS
+from .assistant_tools_business import BUSINESS_TOOLS, BUSINESS_TOOL_FUNCTIONS
 
 SYSTEM_PROMPT = (
     "You are the VetriOS Assistant, embedded in a training management platform. "
     "You can only see data through the tools provided — never invent numbers or "
-    "records. For data questions (attendance, assignments, eligibility), call the "
-    "relevant tool and answer using only its result. If the student asks for their "
-    "weekly or monthly report, call get_report_download with the right period. For "
-    "writing requests (drafting an email, a message, a summary), just write the "
-    "content directly — you don't need a tool for that. Keep answers concise and friendly."
+    "records. For data questions, call the relevant tool and answer using only its "
+    "result. If a tool needs a batch name or student name and the user didn't give "
+    "one, ask which they mean rather than guessing. For report requests, call the "
+    "report download tool with the right period. For writing requests (drafting an "
+    "email, a message, a summary), just write the content directly — you don't need "
+    "a tool for that. Keep answers concise and friendly.\n\n"
+    "Language rule — read carefully: look ONLY at the most recent user message to "
+    "decide what language to reply in. Ignore what language you used in any earlier "
+    "reply in this conversation — your own past replies are not a signal for this "
+    "decision. If the latest user message is plain English, your reply must be "
+    "plain English, even if you replied in Tamil or Tanglish earlier in this same "
+    "conversation. Only switch to Tanglish (Tamil words mixed with English, written "
+    "in English letters) or Tamil script when the user's LATEST message is itself "
+    "written that way. Keep technical terms (attendance, batch names, student "
+    "names, task titles) in English even inside a Tanglish reply."
 )
 
 
@@ -27,7 +39,13 @@ class AssistantChatView(APIView):
             return Response({"detail": "message is required."}, status=400)
 
         roles = request.user.active_role_names()
-        if "Student" in roles:
+        if "Employee" in roles:
+            tools = TRAINER_TOOLS
+            tool_functions = TRAINER_TOOL_FUNCTIONS
+        elif "Business Team" in roles:
+            tools = BUSINESS_TOOLS
+            tool_functions = BUSINESS_TOOL_FUNCTIONS
+        elif "Student" in roles:
             tools = STUDENT_TOOLS
             tool_functions = STUDENT_TOOL_FUNCTIONS
         else:
@@ -44,7 +62,6 @@ class AssistantChatView(APIView):
 
                 if reply.get("tool_calls"):
                     messages.append(reply)
-                    action_payload = None
 
                     for call in reply["tool_calls"]:
                         fn_name = call["function"]["name"]
@@ -56,8 +73,27 @@ class AssistantChatView(APIView):
                         result = func(request.user, **args) if func else {"error": "Unknown tool."}
 
                         if isinstance(result, dict) and result.get("action") == "download_report":
-                            action_payload = {"type": "download_report", "period": result["period"]}
-                            return Response({"reply": result["message"], "action": action_payload})
+                            return Response({
+                                "reply": result["message"],
+                                "action": {"type": "download_report", "period": result["period"]},
+                            })
+                        if isinstance(result, dict) and result.get("action") == "download_batch_report":
+                            return Response({
+                                "reply": result["message"],
+                                "action": {
+                                    "type": "download_batch_report",
+                                    "batch_id": result["batch_id"],
+                                    "period": result["period"],
+                                },
+                            })
+                        if isinstance(result, dict) and result.get("action") == "download_certificate":
+                            return Response({
+                                "reply": result["message"],
+                                "action": {
+                                    "type": "download_certificate",
+                                    "document_id": result["document_id"],
+                                },
+                            })
 
                         messages.append({
                             "role": "tool",

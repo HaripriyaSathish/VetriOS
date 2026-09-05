@@ -1,7 +1,7 @@
 from module_03_training.models import StudentAttendance, StudentAssessment
 from module_03_training.student_permissions import get_student_enrollment
-from .models import StudentTask
-
+from .models import StudentTask, RecordingView
+from .models import MockInterviewDetail
 
 def tool_get_my_attendance(user, **kwargs):
     enrollment = get_student_enrollment(user)
@@ -72,6 +72,45 @@ def tool_get_my_eligibility_report(user, **kwargs):
     }
 
 
+def tool_get_my_mock_interview(user, **kwargs):
+    enrollment = get_student_enrollment(user)
+    if not enrollment:
+        return {"error": "Not enrolled in any active batch."}
+
+    result = StudentAssessment.objects.filter(
+        enrollment=enrollment, assessment__assessment_type="MOCK_INTERVIEW"
+    ).select_related("assessment").order_by("-assessed_at").first()
+
+    if not result:
+        return {"invited": False}
+
+    detail = MockInterviewDetail.objects.filter(student_assessment=result).first()
+
+    return {
+        "invited": True,
+        "interview_date": str(result.assessment.assessment_date) if result.assessment.assessment_date else None,
+        "result_status": result.result_status,
+        "score": float(result.score) if result.score is not None else None,
+        "meeting_link": detail.meeting_link if detail else None,
+    }
+
+
+def tool_get_my_recordings(user, **kwargs):
+    enrollment = get_student_enrollment(user)
+    if not enrollment:
+        return {"error": "Not enrolled in any active batch."}
+
+    views = RecordingView.objects.filter(enrollment=enrollment).select_related("recording").order_by("-recording__date")
+    data = []
+    for v in views:
+        data.append({
+            "title": v.recording.title,
+            "date": str(v.recording.date),
+            "watched": v.clicked,
+        })
+    return {"recordings": data}
+
+
 def tool_get_report_download(user, period="weekly", **kwargs):
     if period not in ("weekly", "monthly"):
         period = "weekly"
@@ -120,6 +159,22 @@ STUDENT_TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "get_my_mock_interview",
+            "description": "Get the student's mock interview invitation status, date, result, score, and feedback.",
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_my_recordings",
+            "description": "List recordings shared with the student and whether they've watched each one.",
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "get_report_download",
             "description": "Get a download link for the student's weekly or monthly performance report (Excel).",
             "parameters": {
@@ -137,5 +192,7 @@ STUDENT_TOOL_FUNCTIONS = {
     "get_my_attendance": tool_get_my_attendance,
     "get_my_assignments": tool_get_my_assignments,
     "get_my_eligibility_report": tool_get_my_eligibility_report,
+    "get_my_mock_interview": tool_get_my_mock_interview,
+    "get_my_recordings": tool_get_my_recordings,
     "get_report_download": tool_get_report_download,
 }

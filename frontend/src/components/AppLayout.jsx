@@ -3,6 +3,8 @@ import { Outlet, useNavigate } from "react-router-dom";
 import { ChevronDown, User, Settings } from "lucide-react";
 import Sidebar from "./Sidebar";
 import "../components-styles/AppLayout.css";
+import NotificationBell from "./NotificationBell";
+import AIAssistantWidget from "./AIAssistantWidget";
 
 // Shell for every signed-in page — sidebar on the left, topbar + routed
 // page content on the right. Reads "user" once here so Sidebar and the
@@ -42,6 +44,8 @@ function AppLayout() {
           {user?.employee_code && <span className="app-topbar-empcode">{user.employee_code}</span>}
 
           <div className="app-topbar-right">
+            <NotificationBell />
+
             <div className="app-user-menu" ref={menuRef}>
               <button type="button" className="app-user-trigger" onClick={() => setMenuOpen((v) => !v)}>
                 <span className="app-topbar-identity">
@@ -73,6 +77,8 @@ function AppLayout() {
           <Outlet context={{ user }} />
         </div>
       </div>
+
+      <AIAssistantWidget />
     </div>
   );
 }

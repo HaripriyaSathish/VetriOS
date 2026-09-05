@@ -1,0 +1,105 @@
+.pf-screen {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 40px 16px;
+  background: #f3f4f6;
+  box-sizing: border-box;
+}
+
+.pf-screen * {
+  box-sizing: border-box;
+}
+
+.pf-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 32px;
+  max-width: 520px;
+  width: 100%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.pf-card h1 {
+  margin: 0 0 4px 0;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.pf-card .pf-sub {
+  color: #6b7280;
+  margin: 0 0 20px 0;
+  font-size: 14px;
+}
+
+.pf-card label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  margin: 14px 0 6px 0;
+  color: #111827;
+}
+
+.pf-card input,
+.pf-card select,
+.pf-card textarea {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #d1d5db !important;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+}
+
+.pf-card input:focus,
+.pf-card select:focus,
+.pf-card textarea:focus {
+  border-color: #6366f1 !important;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+}
+
+.pf-card textarea {
+  min-height: 70px;
+  resize: vertical;
+}
+
+.pf-submit {
+  margin-top: 20px;
+  width: 100%;
+  padding: 10px;
+  background: #111827;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pf-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.pf-error {
+  color: #b91c1c;
+  font-size: 13px;
+  margin-top: 12px;
+}
+
+.pf-thankyou {
+  text-align: center;
+}
+
+.pf-thankyou h1 {
+  font-size: 28px;
+}
+.pf-field-error {
+  color: #b91c1c;
+  font-size: 12px;
+  margin: 4px 0 0 0;
+}

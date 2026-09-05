@@ -231,3 +231,6 @@ class StudentAssessment(models.Model):
         managed = False
         db_table = 'student_assessment'
         unique_together = (('assessment', 'enrollment', 'attempt_no'),)
+
+
+        

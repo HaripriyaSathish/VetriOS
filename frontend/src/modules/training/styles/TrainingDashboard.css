@@ -148,3 +148,67 @@
 .td-row-clickable:hover {
   background: #f9fafb;
 }
+/* --- Fee & Conversion: Set Fee Plan form layout --- */
+
+.fc-form {
+  padding: 20px;
+}
+
+.fc-form h3 {
+  margin: 0 0 16px 0;
+}
+
+.fc-field-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-end;
+}
+
+.fc-field {
+  display: flex;
+  flex-direction: column;
+  min-width: 160px;
+}
+
+.fc-field label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  margin-bottom: 6px;
+}
+
+.fc-field input,
+.fc-field select {
+  padding: 8px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  min-width: 160px;
+}
+
+.fc-field input:focus,
+.fc-field select:focus {
+  outline: none;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+}
+
+.fc-submit-row {
+  margin-top: 20px;
+}
+.fc-account-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-end;
+  margin-top: 12px;
+}
+
+.fc-account-form .fc-field {
+  min-width: 220px;
+}
+
+.fc-account-submit {
+  margin-top: 16px;
+}

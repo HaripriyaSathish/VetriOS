@@ -5,7 +5,7 @@ import "../styles/TrainingDashboard.css";
 
 const EMPTY_FORM = {
   course_id: "", name: "", date_of_birth: "", whatsapp_number: "",
-  personal_email: "", education_summary: "", source: "other", address: "",
+  personal_email: "", education_summary: "", passed_out_year: "", source: "other", address: "",
 };
 
 function EnquiryList() {
@@ -97,6 +97,9 @@ function EnquiryList() {
                 <th>Name</th>
                 <th>Course</th>
                 <th>WhatsApp</th>
+                <th>Age</th>
+                <th>Eligible</th>
+                <th>Passed Out</th>
                 <th>Source</th>
                 <th>Status</th>
                 <th></th>
@@ -105,7 +108,7 @@ function EnquiryList() {
             <tbody>
               {enquiries.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="td-empty">No enquiries logged yet.</td>
+                  <td colSpan={9} className="td-empty">No enquiries logged yet.</td>
                 </tr>
               ) : (
                 enquiries.map((e) => (
@@ -113,6 +116,17 @@ function EnquiryList() {
                     <td className="td-name">{e.name}</td>
                     <td className="td-sub">{e.course_name}</td>
                     <td className="td-mono">{e.whatsapp_number}</td>
+                    <td className="td-mono">{e.age ?? "—"}</td>
+                    <td>
+                      {e.is_eligible === null ? (
+                        "—"
+                      ) : (
+                        <span className={"td-pill " + (e.is_eligible ? "on" : "off")}>
+                          {e.is_eligible ? "Eligible" : "Not eligible"}
+                        </span>
+                      )}
+                    </td>
+                    <td className="td-mono">{e.passed_out_year || "—"}</td>
                     <td className="td-sub">{e.source}</td>
                     <td>
                       <span className={"td-pill " + (e.status === "new" ? "off" : "on")}>
@@ -130,11 +144,15 @@ function EnquiryList() {
                         </button>
                       )}
                       {e.status === "shortlisted" && (
-                        <Link to={`/training/enquiries/${e.enquiry_id}/convert`}>
-                          Set Fee & Convert
+                        <Link to={`/training/fee-conversion/${e.enquiry_id}`}>
+                          {e.has_fee_plan ? "Manage Payment" : "Set Fee & Convert"}
                         </Link>
                       )}
-                      {e.status === "converted" && <span className="td-sub">Account created</span>}
+                      {e.status === "converted" && (
+                        <Link to={`/training/fee-conversion/${e.enquiry_id}`}>
+                          Account created
+                        </Link>
+                      )}
                     </td>
                   </tr>
                 ))
@@ -182,6 +200,19 @@ function EnquiryList() {
             <input
               value={form.personal_email}
               onChange={(e) => setForm({ ...form, personal_email: e.target.value })}
+            />
+
+            <label>Educational details</label>
+            <input
+              value={form.education_summary}
+              onChange={(e) => setForm({ ...form, education_summary: e.target.value })}
+            />
+
+            <label>Passed out year</label>
+            <input
+              type="number"
+              value={form.passed_out_year}
+              onChange={(e) => setForm({ ...form, passed_out_year: e.target.value })}
             />
 
             <label>Source</label>

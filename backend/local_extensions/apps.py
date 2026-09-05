@@ -2,4 +2,8 @@ from django.apps import AppConfig
 
 
 class LocalExtensionsConfig(AppConfig):
-    name = 'local_extensions'
+    default_auto_field = "django.db.models.BigAutoField"
+    name = "local_extensions"
+
+    def ready(self):
+        from . import signals  # noqa: F401

@@ -93,6 +93,16 @@ function Sidebar() {
             </span>
             Apply Leave
           </NavLink>
+
+          <NavLink
+            to="/my/worklog"
+            className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
+          >
+            <span className="nav-icon">
+              <ClipboardList size={16} />
+            </span>
+            Worklog
+          </NavLink>
         </>
       )}
 

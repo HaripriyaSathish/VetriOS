@@ -12,6 +12,7 @@ import Attendance from "./modules/hr/pages/Attendance";
 import Leave from "./modules/hr/pages/Leave";
 import MyAttendance from "./modules/hr/pages/MyAttendance";
 import MyLeave from "./modules/hr/pages/MyLeave";
+import MyWorklog from "./modules/hr/pages/MyWorklog";
 import ProtectedRoute from "./components/ProtectedRoute";
 import PermissionGate from "./components/PermissionGate";
 import AppLayout from "./components/AppLayout";
@@ -62,6 +63,7 @@ function App() {
         <Route path="/settings" element={<ModulePlaceholder name="Settings" />} />
         <Route path="/my/attendance" element={<MyAttendance />} />
         <Route path="/my/leave" element={<MyLeave />} />
+        <Route path="/my/worklog" element={<MyWorklog />} />
 
         <Route
           path="/identity/users"

@@ -139,6 +139,10 @@
   overflow: hidden;
 }
 
+.att-panel + .att-panel {
+  margin-top: 20px;
+}
+
 .att-panel-head {
   display: flex;
   align-items: flex-start;
@@ -226,4 +230,55 @@
   .att-stats {
     grid-template-columns: repeat(2, 1fr);
   }
+}
+
+/* Worklog page — plain .hr-table's auto column widths spread out badly
+   on a wide screen when most columns are short (S.No, times, a
+   checkbox); fixed widths keep them compact and let Work/Reported to
+   take the leftover space instead. */
+.wl-entry-table,
+.wl-history-table {
+  table-layout: fixed;
+}
+
+.wl-entry-table .wl-col-sno {
+  width: 56px;
+}
+
+.wl-entry-table .wl-col-time {
+  width: 130px;
+}
+
+.wl-entry-table .wl-col-action {
+  width: 90px;
+}
+
+.wl-history-table .wl-col-date,
+.wl-history-table .wl-col-login,
+.wl-history-table .wl-col-logout,
+.wl-history-table .wl-col-entries {
+  width: 130px;
+}
+
+.wl-text-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #d9dfe8;
+  border-radius: 6px;
+  padding: 7px 9px;
+  font-size: 13px;
+  font-family: inherit;
+  color: #161a26;
+}
+
+.wl-text-input:focus {
+  outline: none;
+  border-color: #235777;
+}
+
+/* The table sits flush against the panel's edges (like every other
+   hr-table), so anything below it needs its own padding — otherwise it
+   reads as stuck to the table's border and the panel's edges. */
+.wl-form-footer {
+  padding: 16px 18px;
 }

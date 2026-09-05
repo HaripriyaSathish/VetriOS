@@ -4,9 +4,11 @@ from rest_framework import serializers
 from module_01_identity_access.models import (
     Branch,
     Department,
+    DepartmentLead,
     Designation,
     Employee,
     EmployeeBranchHistory,
+    EmployeeWorklog,
     EmploymentType,
     LeaveType,
     Person,
@@ -254,6 +256,76 @@ def _set_current_branch(employee_id, branch_id):
         is_current=True,
         created_at=timezone.now(),
     )
+
+
+# Who a worklog gets routed to. A regular employee reports to their
+# department's current lead; a department lead reports straight to the
+# Founder instead (small flat company, no further chain above that).
+# Returns None if the employee has no department, no lead is assigned
+# for it, or (for a lead's own worklog) no one holds the Founder
+# designation yet — callers must handle a None recipient gracefully.
+def _resolve_worklog_recipient(employee):
+    dept_history = _current_department_history(employee.person_id)
+    if not dept_history:
+        return None
+    lead_row = DepartmentLead.objects.filter(department_id=dept_history.department_id).first()
+    if not lead_row:
+        return None
+    if lead_row.employee_id == employee.employee_id:
+        return (
+            Employee.objects.filter(designation__designation_name="Founder", status="ACTIVE")
+            .select_related("person")
+            .first()
+        )
+    return Employee.objects.filter(pk=lead_row.employee_id).select_related("person").first()
+
+
+# start_time/end_time are free text, not real time values — no time
+# picker on the form, just whatever the employee typed (e.g. "9:30 am").
+class WorklogEntrySerializer(serializers.Serializer):
+    sno = serializers.IntegerField(required=False)
+    start_time = serializers.CharField(max_length=20)
+    end_time = serializers.CharField(max_length=20)
+    description = serializers.CharField()
+    is_break = serializers.BooleanField(default=False)
+
+
+# Read shape for one day's worklog — reported_to_name is read off the
+# frozen reported_to_employee_id, not re-resolved live, so it always
+# reflects who that specific day's log actually went to.
+class EmployeeWorklogSerializer(serializers.ModelSerializer):
+    reported_to_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = EmployeeWorklog
+        fields = [
+            "worklog_id",
+            "work_date",
+            "login_time",
+            "logout_time",
+            "entries",
+            "reported_to_name",
+            "created_at",
+        ]
+
+    def get_reported_to_name(self, obj):
+        return str(obj.reported_to_employee.person) if obj.reported_to_employee_id else None
+
+
+# Submits (or re-submits) one day's worklog. login_time/logout_time are
+# optional — if left blank they're derived from the first entry's
+# start_time and the last entry's end_time, same as how the day reads in
+# the printed report.
+class EmployeeWorklogWriteSerializer(serializers.Serializer):
+    work_date = serializers.DateField(required=False)
+    login_time = serializers.CharField(max_length=20, required=False, allow_null=True, allow_blank=True)
+    logout_time = serializers.CharField(max_length=20, required=False, allow_null=True, allow_blank=True)
+    entries = WorklogEntrySerializer(many=True)
+
+    def validate_entries(self, value):
+        if not value:
+            raise serializers.ValidationError("At least one entry is required.")
+        return value
 
 
 # Row shape for the HR employee list — one query per list (person,

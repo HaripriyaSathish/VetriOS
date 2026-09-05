@@ -14,10 +14,12 @@ from module_01_identity_access.models import (
     EmployeeAttendance,
     EmployeeLeave,
     EmployeeLeaveBalance,
+    EmployeeWorklog,
     EmploymentType,
     LeaveType,
     UserAccount,
 )
+from local_extensions.email_utils import send_email
 from .permissions import IsHRorSystemAdministrator
 from .serializers import (
     AttendanceRecordSerializer,
@@ -29,6 +31,8 @@ from .serializers import (
     EmployeeDetailSerializer,
     EmployeeListSerializer,
     EmployeeUpdateSerializer,
+    EmployeeWorklogSerializer,
+    EmployeeWorklogWriteSerializer,
     EmployeeWriteSerializer,
     EmploymentTypeSerializer,
     LeaveBalanceSerializer,
@@ -36,6 +40,7 @@ from .serializers import (
     LeaveRequestWriteSerializer,
     LeaveTypeSerializer,
     _current_department_history,
+    _resolve_worklog_recipient,
 )
 
 
@@ -744,3 +749,102 @@ class LeaveRequestRejectView(APIView):
         leave.updated_at = timezone.now()
         leave.save(update_fields=["reason", "status", "updated_at"])
         return Response(_leave_request_row(leave))
+
+
+WORKLOG_HISTORY_DAYS = 30
+
+
+def _worklog_email_html(employee, work_date, entries):
+    rows = "".join(
+        f"<tr><td style='padding:4px 10px;border:1px solid #ddd;'>{e.get('sno', i)}</td>"
+        f"<td style='padding:4px 10px;border:1px solid #ddd;'>{e['start_time']} – {e['end_time']}</td>"
+        f"<td style='padding:4px 10px;border:1px solid #ddd;'>{e['description']}</td></tr>"
+        for i, e in enumerate(entries, start=1)
+    )
+    return (
+        f"<p>Good evening,</p>"
+        f"<p>Worklog for <b>{employee.person}</b> — {work_date.strftime('%d-%m-%Y')}</p>"
+        f"<table style='border-collapse:collapse;'>"
+        f"<tr><th style='padding:4px 10px;border:1px solid #ddd;'>S.No</th>"
+        f"<th style='padding:4px 10px;border:1px solid #ddd;'>Time</th>"
+        f"<th style='padding:4px 10px;border:1px solid #ddd;'>Work</th></tr>"
+        f"{rows}</table>"
+    )
+
+
+# Self-service — view my own worklog history, and submit/re-submit
+# today's (or a given day's) entries. Re-posting the same work_date
+# overwrites that day's row rather than creating a duplicate — one row
+# per employee per day, enforced by uq_employee_worklog_employee_date.
+class MyWorklogView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        employee = _employee_for_user(request.user)
+        if not employee:
+            return Response({"employee_id": None, "history": []})
+
+        today = timezone.localdate()
+        since = today - timezone.timedelta(days=WORKLOG_HISTORY_DAYS - 1)
+        records = EmployeeWorklog.objects.filter(
+            employee=employee, work_date__gte=since, work_date__lte=today
+        ).select_related("reported_to_employee__person").order_by("-work_date")
+
+        return Response(
+            {
+                "employee_id": employee.employee_id,
+                "history": EmployeeWorklogSerializer(records, many=True).data,
+            }
+        )
+
+    def post(self, request):
+        employee = _employee_for_user(request.user)
+        if not employee:
+            return Response(
+                {"detail": "No employee record is linked to your account."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = EmployeeWorklogWriteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        entries = data["entries"]
+        for i, entry in enumerate(entries, start=1):
+            entry.setdefault("sno", i)
+
+        work_date = data.get("work_date") or timezone.localdate()
+        login_time = data.get("login_time") or entries[0]["start_time"]
+        logout_time = data.get("logout_time") or entries[-1]["end_time"]
+
+        recipient = _resolve_worklog_recipient(employee)
+        now = timezone.now()
+
+        worklog = EmployeeWorklog.objects.filter(employee=employee, work_date=work_date).first()
+        if worklog:
+            worklog.login_time = login_time
+            worklog.logout_time = logout_time
+            worklog.entries = entries
+            worklog.reported_to_employee_id = recipient.employee_id if recipient else None
+            worklog.updated_at = now
+            worklog.save()
+        else:
+            worklog = EmployeeWorklog.objects.create(
+                employee=employee,
+                work_date=work_date,
+                login_time=login_time,
+                logout_time=logout_time,
+                entries=entries,
+                reported_to_employee_id=recipient.employee_id if recipient else None,
+                created_at=now,
+                updated_at=now,
+            )
+
+        if recipient and recipient.person.email:
+            send_email(
+                to=recipient.person.email,
+                subject=f"Worklog – {employee.person} – {work_date.strftime('%d-%m-%Y')}",
+                html_body=_worklog_email_html(employee, work_date, entries),
+            )
+
+        return Response(EmployeeWorklogSerializer(worklog).data, status=status.HTTP_200_OK)

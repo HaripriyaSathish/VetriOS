@@ -11,8 +11,9 @@ from .views import (
     GenerateTaskContentView, CreateTaskView, BatchTasksView, BatchStudentTasksView,
     UpdateStudentTaskView, ZoneReportView, SavedReportsView, SavedReportDownloadView,
 )
-from .views import BatchMockInterviewsView, InviteToMockInterviewView, UpdateMockInterviewResultView
+from .views import BatchMockInterviewsView, InviteToMockInterviewView, NotifyMockInterviewInvitesView, UpdateMockInterviewResultView, RevokeMockInterviewInviteView
 from .views import GenerateMockInterviewQuestionsView
+from .views import AssistantBatchReportDownloadView
 
 router = DefaultRouter()
 router.register("batches", BatchViewSet, basename="batch")
@@ -39,6 +40,9 @@ urlpatterns = [
     path("saved-reports/<int:report_id>/download/", SavedReportDownloadView.as_view(), name="saved-report-download"),
     path("batches/<int:batch_id>/mock-interviews/", BatchMockInterviewsView.as_view(), name="batch-mock-interviews"),
     path("batches/<int:batch_id>/mock-interview-eligibility/", InviteToMockInterviewView.as_view(), name="mock-interview-eligibility"),
+    path("batches/<int:batch_id>/mock-interview/notify/", NotifyMockInterviewInvitesView.as_view()),
     path("student-assessments/<int:student_assessment_id>/", UpdateMockInterviewResultView.as_view(), name="update-mock-interview-result"),
+    path("student-assessments/<int:student_assessment_id>/revoke/", RevokeMockInterviewInviteView.as_view()),
     path("mock-interview-questions/generate/", GenerateMockInterviewQuestionsView.as_view(), name="generate-mock-questions"),
+    path("batches/<int:batch_id>/assistant-report-download/<str:period>/", AssistantBatchReportDownloadView.as_view(), name="assistant-batch-report-download"),
 ] + router.urls

@@ -110,7 +110,11 @@ function Assessments() {
                 label={mock.result_status === "PENDING" ? "Awaiting session" : mock.result_status}
                 tone={mock.result_status === "PENDING" ? "amber" : mock.result_status === "PASS" ? "green" : "red"}
               />
-              {mock.feedback && <p className="text-sm text-gray-600 mt-3 max-w-md">{mock.feedback}</p>}
+              {mock.meeting_link && (
+  <a href={mock.meeting_link} target="_blank" rel="noreferrer" className="text-sm text-blue-600 hover:underline mt-3 block max-w-md">
+    Join Meeting
+  </a>
+)}
             </div>
             {mock.score != null && <span className="text-3xl font-bold text-green-600">{mock.score}</span>}
           </div>

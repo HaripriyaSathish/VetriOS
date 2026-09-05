@@ -28,9 +28,14 @@ function AIAssistantWidget() {
         message: text,
         history,
       });
+
+      const action = data.action
+        ? { ...data.action, batchId: data.action.batch_id }
+        : null;
+
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: data.reply, action: data.action || null },
+        { role: "assistant", content: data.reply, action },
       ]);
     } catch (err) {
       setMessages((prev) => [
@@ -49,24 +54,46 @@ function AIAssistantWidget() {
     }
   };
 
-  const downloadReport = async (period) => {
+  const downloadReport = async (action) => {
     setDownloading(true);
     try {
-      const response = await client.get(`/api/student/reports/${period}/download/`, {
-        responseType: "blob",
-      });
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const url =
+        action.type === "download_batch_report"
+          ? `/api/training/batches/${action.batchId}/assistant-report-download/${action.period}/`
+          : `/api/student/reports/${action.period}/download/`;
+
+      const response = await client.get(url, { responseType: "blob" });
+      const blobUrl = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement("a");
-      link.href = url;
-      link.download = `${period}_zone_report.xlsx`;
+      link.href = blobUrl;
+      link.download = `${action.period}_zone_report.xlsx`;
       document.body.appendChild(link);
       link.click();
       link.remove();
-      window.URL.revokeObjectURL(url);
+      window.URL.revokeObjectURL(blobUrl);
     } catch (err) {
       setMessages((prev) => [
         ...prev,
         { role: "assistant", content: "Couldn't download the report — try again from the Reports page." },
+      ]);
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const downloadCertificate = async (action) => {
+    setDownloading(true);
+    try {
+      const response = await client.get(`/api/documents/${action.document_id}/download/`, {
+        responseType: "blob",
+      });
+      const contentType = response.headers["content-type"] || "application/octet-stream";
+      const blobUrl = window.URL.createObjectURL(new Blob([response.data], { type: contentType }));
+      window.open(blobUrl, "_blank");
+    } catch (err) {
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: "Couldn't open the certificate — try again from the student's page." },
       ]);
     } finally {
       setDownloading(false);
@@ -107,7 +134,9 @@ function AIAssistantWidget() {
       <div className={`flex-1 overflow-y-auto p-4 flex flex-col gap-3 ${expanded ? "max-w-3xl w-full mx-auto" : ""}`}>
         {messages.length === 0 ? (
           <p className="text-sm text-gray-400 text-center mt-10">
-            Ask me about your attendance, assignments, or eligibility — or ask for your weekly/monthly report, or ask me to draft something.
+            Ask me about your batches, roster, attendance, task completion, mock interviews,
+            enquiries, fee status, certificates, or ask for a weekly/monthly report — or ask
+            me to draft something.
           </p>
         ) : (
           messages.map((m, i) => (
@@ -120,13 +149,22 @@ function AIAssistantWidget() {
                 >
                   {m.content}
                 </div>
-                {m.action?.type === "download_report" && (
+                {(m.action?.type === "download_report" || m.action?.type === "download_batch_report") && (
                   <button
-                    onClick={() => downloadReport(m.action.period)}
+                    onClick={() => downloadReport(m.action)}
                     disabled={downloading}
                     className="bg-green-600 text-white px-3 py-2 rounded-md text-xs font-semibold self-start disabled:opacity-60"
                   >
                     {downloading ? "Downloading…" : `Download ${m.action.period} Report`}
+                  </button>
+                )}
+                {m.action?.type === "download_certificate" && (
+                  <button
+                    onClick={() => downloadCertificate(m.action)}
+                    disabled={downloading}
+                    className="bg-green-600 text-white px-3 py-2 rounded-md text-xs font-semibold self-start disabled:opacity-60"
+                  >
+                    {downloading ? "Opening…" : "View Certificate"}
                   </button>
                 )}
               </div>

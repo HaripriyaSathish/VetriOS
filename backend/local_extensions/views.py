@@ -723,6 +723,9 @@ class SendWelcomeEmailView(APIView):
 
             personalized_body = body_template.replace("{{full_name}}", enquiry.name)
             if send_email(recipients, subject, personalized_body, cc_list):
+                enquiry.welcome_email_sent = True
+                enquiry.welcome_email_sent_at = timezone.now()
+                enquiry.save(update_fields=["welcome_email_sent", "welcome_email_sent_at"])
                 sent.append({"enquiry_id": enquiry_id, "name": enquiry.name})
             else:
                 skipped.append({"enquiry_id": enquiry_id, "reason": f"Send failed for {enquiry.name}."})

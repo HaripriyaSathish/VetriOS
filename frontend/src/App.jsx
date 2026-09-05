@@ -39,7 +39,9 @@ import StudentProgress from "./modules/student/pages/Progress";
 import StudentAssignments from "./modules/student/pages/Assignments";
 import StudentRecordings from "./modules/student/pages/Recordings";
 import StudentReports from "./modules/student/pages/Reports";
-
+import AllStudentsList from "./modules/training/pages/AllStudentsList";
+import StudentDetail from "./modules/training/pages/StudentDetail";
+import InternshipApprovals from "./modules/training/pages/InternshipApprovals";
 // Route table for the whole app. Everything under AppLayout requires a
 // signed-in user (ProtectedRoute); each module route is additionally
 // gated by the same requirement Sidebar uses to decide what to show
@@ -139,6 +141,11 @@ function App() {
             <WelcomeEmails />
           </PermissionGate>
         } />
+        <Route path="/training/internship-approvals" element={
+  <PermissionGate requirement={{ type: "role", value: "Business Team" }}>
+    <InternshipApprovals />
+  </PermissionGate>
+} />
         <Route path="/training/attendance" element={
           <PermissionGate requirement={{ type: "role", value: "Employee" }}>
             <TrainingAttendance />
@@ -173,6 +180,16 @@ function App() {
           <PermissionGate requirement={{ type: "perm", value: "TRAINING_VIEW" }}>
             <DropoutTracking />
           </PermissionGate>
+        } />
+        <Route path="/training/students" element={
+          <PermissionGate requirement={{ type: "role", value: ["Business Team", "System Administrator"] }}>
+         <AllStudentsList />
+          </PermissionGate>
+        } />
+         <Route path="/training/students/:personId" element={
+         <PermissionGate requirement={{ type: "role", value: ["Business Team", "System Administrator"] }}>
+         <StudentDetail />
+         </PermissionGate>
         } />
         <Route path="/student/dashboard" element={
           <PermissionGate requirement={{ type: "role", value: "Student" }}>

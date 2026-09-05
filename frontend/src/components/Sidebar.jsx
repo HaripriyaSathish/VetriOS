@@ -163,6 +163,16 @@ function Sidebar() {
                 </span>
                 Permissions
               </NavLink>
+
+              <NavLink
+                to="/training/students"
+                className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
+              >
+                <span className="nav-icon">
+                  <FileText size={14} />
+                </span>
+                All Students
+              </NavLink>
             </div>
           )}
 
@@ -367,8 +377,14 @@ function Sidebar() {
         </>
       )}
 
-      {hasAccess(businessTeamRequirement, user) && (
+            {hasAccess(businessTeamRequirement, user) && (
         <>
+          <NavLink to="/training/students" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+            <span className="nav-icon"><FileText size={16} /></span> All Students
+          </NavLink>
+          <NavLink to="/training/internship-approvals" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+            <span className="nav-icon">🎓</span> Internship Approvals
+          </NavLink>
           <NavLink to="/training/enquiries" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
             <span className="nav-icon">📋</span> Enquiries
           </NavLink>

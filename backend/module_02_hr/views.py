@@ -7,6 +7,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from module_01_identity_access.models import (
+    Branch,
     Department,
     Designation,
     Employee,
@@ -20,6 +21,7 @@ from module_01_identity_access.models import (
 from .permissions import IsHRorSystemAdministrator
 from .serializers import (
     AttendanceRecordSerializer,
+    BranchSerializer,
     DepartmentSerializer,
     DepartmentWriteSerializer,
     DesignationSerializer,
@@ -201,6 +203,14 @@ class DepartmentDetailView(generics.RetrieveUpdateDestroyAPIView):
         instance.updated_at = timezone.now()
         instance.save(update_fields=["is_active", "updated_at"])
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+# Feeds the Branch dropdown on the "+ New Employee"/Edit Employee forms —
+# only active branches, since inactive ones shouldn't be newly assignable.
+class BranchListView(generics.ListAPIView):
+    permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
+    queryset = Branch.objects.filter(is_active=True).order_by("branch_name")
+    serializer_class = BranchSerializer
 
 
 # Feeds the employment-type dropdown on the "+ New Employee" form.

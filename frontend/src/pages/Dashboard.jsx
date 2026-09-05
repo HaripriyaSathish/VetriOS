@@ -17,8 +17,14 @@ function Dashboard() {
       <div className="dash-body">
         <h1 className="dash-welcome">Welcome, {user.full_name}</h1>
         <p className="dash-subtitle">
-          {user.designation ? `${user.designation} · ` : ""}
-          Use Attendance to check in/out, or Apply Leave to request time off.
+          {user.employee_code ? (
+            <>
+              {user.designation ? `${user.designation} · ` : ""}
+              Use Attendance to check in/out, or Apply Leave to request time off.
+            </>
+          ) : (
+            "No employee record is linked to your account yet — check with your administrator."
+          )}
         </p>
       </div>
     );

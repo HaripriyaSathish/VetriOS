@@ -549,6 +549,13 @@
   gap: 4px;
 }
 
+/* Wider variant for the Employee create/edit/view modals — they carry
+   more fields (branch, designation, department, dates...) than the
+   Department/Designation forms, which stay at the default width. */
+.hr-modal-wide {
+  max-width: 780px;
+}
+
 .hr-modal-x {
   position: absolute;
   top: 16px;

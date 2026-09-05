@@ -2,9 +2,11 @@ from django.utils import timezone
 from rest_framework import serializers
 
 from module_01_identity_access.models import (
+    Branch,
     Department,
     Designation,
     Employee,
+    EmployeeBranchHistory,
     EmploymentType,
     LeaveType,
     Person,
@@ -80,6 +82,12 @@ class LeaveRequestWriteSerializer(serializers.Serializer):
         if attrs["end_date"] < attrs["start_date"]:
             raise serializers.ValidationError({"end_date": ["End date can't be before the start date."]})
         return attrs
+
+
+class BranchSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Branch
+        fields = ["branch_id", "branch_code", "branch_name", "location", "is_active"]
 
 
 class DepartmentSerializer(serializers.ModelSerializer):
@@ -214,6 +222,40 @@ def _set_current_department(person_id, department_id):
     )
 
 
+# Branch is tightly linked to the employee (not the person) — only
+# full-time offline staff have one. Same "dated history, is_current
+# marks the active row" pattern as department above.
+def _current_branch_history(employee_id):
+    return EmployeeBranchHistory.objects.filter(employee_id=employee_id, is_current=True).first()
+
+
+# Closes out whichever branch row is currently open for this employee
+# (if any) and opens a new one, denormalizing the branch's code/name/
+# location onto the history row. No-ops if they're already at that
+# branch. branch_id=None leaves their branch untouched.
+def _set_current_branch(employee_id, branch_id):
+    if branch_id is None:
+        return
+    branch = Branch.objects.get(pk=branch_id)
+    current = _current_branch_history(employee_id)
+    if current and current.branch_code == branch.branch_code:
+        return
+    today = timezone.now().date()
+    if current:
+        current.is_current = False
+        current.effective_to = today
+        current.save(update_fields=["is_current", "effective_to"])
+    EmployeeBranchHistory.objects.create(
+        employee_id=employee_id,
+        branch_code=branch.branch_code,
+        branch_name=branch.branch_name,
+        location=branch.location,
+        effective_from=today,
+        is_current=True,
+        created_at=timezone.now(),
+    )
+
+
 # Row shape for the HR employee list — one query per list (person,
 # designation, employment_type all select_related'd by the view).
 class EmployeeListSerializer(serializers.ModelSerializer):
@@ -229,6 +271,8 @@ class EmployeeListSerializer(serializers.ModelSerializer):
     employment_type_name = serializers.SerializerMethodField()
     department_id = serializers.SerializerMethodField()
     department_name = serializers.SerializerMethodField()
+    branch_id = serializers.SerializerMethodField()
+    branch_name = serializers.SerializerMethodField()
 
     class Meta:
         model = Employee
@@ -245,6 +289,8 @@ class EmployeeListSerializer(serializers.ModelSerializer):
             "employment_type_name",
             "department_id",
             "department_name",
+            "branch_id",
+            "branch_name",
             "joining_date",
             "status",
         ]
@@ -272,6 +318,17 @@ class EmployeeListSerializer(serializers.ModelSerializer):
         current = _current_department_history(obj.person_id)
         return current.department.department_name if current else None
 
+    def get_branch_id(self, obj):
+        current = _current_branch_history(obj.employee_id)
+        if not current:
+            return None
+        branch = Branch.objects.filter(branch_code=current.branch_code).first()
+        return branch.branch_id if branch else None
+
+    def get_branch_name(self, obj):
+        current = _current_branch_history(obj.employee_id)
+        return current.branch_name if current else None
+
 
 # Full detail for one employee — flat shape (person fields alongside
 # employee fields) so the View/Edit modals can populate directly from
@@ -294,6 +351,9 @@ class EmployeeDetailSerializer(serializers.ModelSerializer):
     employment_type_name = serializers.SerializerMethodField()
     department_id = serializers.SerializerMethodField()
     department_name = serializers.SerializerMethodField()
+    branch_id = serializers.SerializerMethodField()
+    branch_name = serializers.SerializerMethodField()
+    branch_location = serializers.SerializerMethodField()
 
     class Meta:
         model = Employee
@@ -314,6 +374,9 @@ class EmployeeDetailSerializer(serializers.ModelSerializer):
             "employment_type_name",
             "department_id",
             "department_name",
+            "branch_id",
+            "branch_name",
+            "branch_location",
             "joining_date",
             "confirmation_date",
             "status",
@@ -354,6 +417,21 @@ class EmployeeDetailSerializer(serializers.ModelSerializer):
         current = _current_department_history(obj.person_id)
         return current.department.department_name if current else None
 
+    def get_branch_id(self, obj):
+        current = _current_branch_history(obj.employee_id)
+        if not current:
+            return None
+        branch = Branch.objects.filter(branch_code=current.branch_code).first()
+        return branch.branch_id if branch else None
+
+    def get_branch_name(self, obj):
+        current = _current_branch_history(obj.employee_id)
+        return current.branch_name if current else None
+
+    def get_branch_location(self, obj):
+        current = _current_branch_history(obj.employee_id)
+        return current.location if current else None
+
 
 # Creates a new employee — always alongside a brand-new person record,
 # same "this human doesn't exist in VetriOS yet" pattern Identity &
@@ -369,6 +447,7 @@ class EmployeeWriteSerializer(serializers.Serializer):
     designation_id = serializers.IntegerField()
     employment_type_id = serializers.IntegerField()
     department_id = serializers.IntegerField(required=False, allow_null=True)
+    branch_id = serializers.IntegerField(required=False, allow_null=True)
     joining_date = serializers.DateField()
     confirmation_date = serializers.DateField(required=False, allow_null=True)
 
@@ -390,6 +469,11 @@ class EmployeeWriteSerializer(serializers.Serializer):
     def validate_department_id(self, value):
         if value is not None and not Department.objects.filter(pk=value, is_active=True).exists():
             raise serializers.ValidationError("Unknown department.")
+        return value
+
+    def validate_branch_id(self, value):
+        if value is not None and not Branch.objects.filter(pk=value, is_active=True).exists():
+            raise serializers.ValidationError("Unknown branch.")
         return value
 
     def create(self, validated_data):
@@ -416,6 +500,7 @@ class EmployeeWriteSerializer(serializers.Serializer):
             updated_at=now,
         )
         _set_current_department(person.person_id, validated_data.get("department_id"))
+        _set_current_branch(employee.employee_id, validated_data.get("branch_id"))
         return employee
 
 
@@ -433,6 +518,7 @@ class EmployeeUpdateSerializer(serializers.Serializer):
     designation_id = serializers.IntegerField(required=False)
     employment_type_id = serializers.IntegerField(required=False)
     department_id = serializers.IntegerField(required=False, allow_null=True)
+    branch_id = serializers.IntegerField(required=False, allow_null=True)
     joining_date = serializers.DateField(required=False)
     confirmation_date = serializers.DateField(required=False, allow_null=True)
     status = serializers.CharField(max_length=50, required=False)
@@ -460,6 +546,11 @@ class EmployeeUpdateSerializer(serializers.Serializer):
             raise serializers.ValidationError("Unknown department.")
         return value
 
+    def validate_branch_id(self, value):
+        if value is not None and not Branch.objects.filter(pk=value, is_active=True).exists():
+            raise serializers.ValidationError("Unknown branch.")
+        return value
+
     def update(self, instance, validated_data):
         now = timezone.now()
 
@@ -475,6 +566,9 @@ class EmployeeUpdateSerializer(serializers.Serializer):
 
         if "department_id" in validated_data:
             _set_current_department(person.person_id, validated_data["department_id"])
+
+        if "branch_id" in validated_data:
+            _set_current_branch(instance.employee_id, validated_data["branch_id"])
 
         for field in (
             "employee_code",

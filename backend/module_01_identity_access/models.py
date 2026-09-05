@@ -101,6 +101,50 @@ class Employee(models.Model):
         db_table = "employee"
 
 
+# Reference list of company branches/offices. Only full-time employees
+# working from a physical office need a branch assignment — WFH staff,
+# interns, and students don't.
+class Branch(models.Model):
+    branch_id = models.BigAutoField(primary_key=True)
+    branch_code = models.CharField(max_length=20)
+    branch_name = models.CharField(max_length=150)
+    location = models.CharField(max_length=255, blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(blank=True, null=True)
+    updated_at = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = "branch"
+
+    def __str__(self):
+        return self.branch_name
+
+
+# Dated history of which branch an employee works from — mirrors
+# PersonDepartmentHistory's "is_current" pattern below. branch_code/name/
+# location are stored denormalized (not a branch_id FK) since that's how
+# the table was created; employee_id has no DB-level FK (db_constraint=
+# False) because the DA team's permissions don't allow adding a
+# REFERENCES constraint onto their employee table.
+class EmployeeBranchHistory(models.Model):
+    assignment_id = models.BigAutoField(primary_key=True)
+    employee = models.ForeignKey(
+        "Employee", on_delete=models.DO_NOTHING, db_column="employee_id", db_constraint=False
+    )
+    branch_code = models.CharField(max_length=20)
+    branch_name = models.CharField(max_length=150)
+    location = models.CharField(max_length=255, blank=True, null=True)
+    effective_from = models.DateField()
+    effective_to = models.DateField(blank=True, null=True)
+    is_current = models.BooleanField(default=True)
+    created_at = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = "employee_branch_history"
+
+
 # A person's department isn't a direct FK on employee — it's tracked
 # here as a dated history, with is_current marking the active row, so
 # department moves keep their own record over time.

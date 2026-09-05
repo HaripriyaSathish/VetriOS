@@ -21,6 +21,7 @@ const EMPTY_FILTERS = {
   department_id: "",
   designation_id: "",
   employment_type_id: "",
+  branch_id: "",
   status: "",
   joined_from: "",
   joined_to: "",
@@ -41,6 +42,7 @@ const EMPTY_FORM = {
   designation_id: "",
   employment_type_id: "",
   department_id: "",
+  branch_id: "",
   joining_date: "",
   confirmation_date: "",
 };
@@ -69,9 +71,9 @@ function suggestNextEmployeeCode(employees) {
 }
 
 function toCsv(rows) {
-  const header = ["Name", "Email", "Code", "Designation", "Department", "Employment Type", "Joining Date", "Status"];
+  const header = ["Name", "Email", "Code", "Designation", "Department", "Branch", "Employment Type", "Joining Date", "Status"];
   const lines = rows.map((r) =>
-    [r.full_name, r.email, r.employee_code, r.designation_name, r.department_name, r.employment_type_name, r.joining_date, r.status]
+    [r.full_name, r.email, r.employee_code, r.designation_name, r.department_name, r.branch_name, r.employment_type_name, r.joining_date, r.status]
       .map((v) => `"${(v ?? "").toString().replace(/"/g, '""')}"`)
       .join(",")
   );
@@ -99,6 +101,7 @@ function HRDashboard() {
   const [departments, setDepartments] = useState([]);
   const [designations, setDesignations] = useState([]);
   const [employmentTypes, setEmploymentTypes] = useState([]);
+  const [branches, setBranches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -134,6 +137,7 @@ function HRDashboard() {
   // Departments tab — search + CRUD, same shape as the Employees tab's
   // create/edit/confirm state, just for department instead.
   const [deptSearch, setDeptSearch] = useState("");
+  const [deptPage, setDeptPage] = useState(1);
   const [deptModalOpen, setDeptModalOpen] = useState(false);
   const [editingDept, setEditingDept] = useState(null);
   const [deptForm, setDeptForm] = useState(EMPTY_DEPT_FORM);
@@ -144,6 +148,7 @@ function HRDashboard() {
 
   // Designations tab — same pattern.
   const [desigSearch, setDesigSearch] = useState("");
+  const [desigPage, setDesigPage] = useState(1);
   const [desigModalOpen, setDesigModalOpen] = useState(false);
   const [editingDesig, setEditingDesig] = useState(null);
   const [desigForm, setDesigForm] = useState(EMPTY_DESIG_FORM);
@@ -163,16 +168,18 @@ function HRDashboard() {
     setLoading(true);
     setError("");
     try {
-      const [empRes, deptRes, desRes, typeRes] = await Promise.all([
+      const [empRes, deptRes, desRes, typeRes, branchRes] = await Promise.all([
         client.get("/api/hr/employees/"),
         client.get("/api/hr/departments/"),
         client.get("/api/hr/designations/"),
         client.get("/api/hr/employment-types/"),
+        client.get("/api/hr/branches/"),
       ]);
       setEmployees(empRes.data);
       setDepartments(deptRes.data);
       setDesignations(desRes.data);
       setEmploymentTypes(typeRes.data);
+      setBranches(branchRes.data);
     } catch (err) {
       setError("Couldn't load HR data.");
     } finally {
@@ -221,6 +228,7 @@ function HRDashboard() {
         designation_id: data.designation_id || "",
         employment_type_id: data.employment_type_id || "",
         department_id: data.department_id || "",
+        branch_id: data.branch_id || "",
         joining_date: data.joining_date || "",
         confirmation_date: data.confirmation_date || "",
       });
@@ -260,6 +268,7 @@ function HRDashboard() {
       const payload = {
         ...form,
         department_id: form.department_id === "" ? null : Number(form.department_id),
+        branch_id: form.branch_id === "" ? null : Number(form.branch_id),
         date_of_birth: form.date_of_birth || null,
         confirmation_date: form.confirmation_date || null,
       };
@@ -487,6 +496,7 @@ function HRDashboard() {
 
   const activeDepartments = useMemo(() => departments.filter((d) => d.is_active), [departments]);
   const activeDesignations = useMemo(() => designations.filter((d) => d.is_active), [designations]);
+  const activeBranches = useMemo(() => branches.filter((b) => b.is_active), [branches]);
 
   useEffect(() => {
     setPage(1);
@@ -505,6 +515,7 @@ function HRDashboard() {
       if (filters.designation_id && String(emp.designation_id ?? "") !== filters.designation_id) return false;
       if (filters.employment_type_id && String(emp.employment_type_id ?? "") !== filters.employment_type_id)
         return false;
+      if (filters.branch_id && String(emp.branch_id ?? "") !== filters.branch_id) return false;
       if (filters.status && emp.status !== filters.status) return false;
       if (filters.joined_from && (!emp.joining_date || emp.joining_date < filters.joined_from)) return false;
       if (filters.joined_to && (!emp.joining_date || emp.joining_date > filters.joined_to)) return false;
@@ -625,6 +636,19 @@ function HRDashboard() {
                     ))}
                   </select>
 
+                  <label>Branch</label>
+                  <select
+                    value={filters.branch_id}
+                    onChange={(e) => setFilters({ ...filters, branch_id: e.target.value })}
+                  >
+                    <option value="">All</option>
+                    {branches.map((b) => (
+                      <option key={b.branch_id} value={b.branch_id}>
+                        {b.branch_name}
+                      </option>
+                    ))}
+                  </select>
+
                   <label>Status</label>
                   <select value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}>
                     <option value="">All</option>
@@ -709,6 +733,7 @@ function HRDashboard() {
                       {columns.email && <th>Email</th>}
                       {columns.phone && <th>Phone</th>}
                       <th>Department</th>
+                      <th>Branch</th>
                       <th>Employment Type</th>
                       <th>Joined</th>
                       <th>Status</th>
@@ -716,7 +741,7 @@ function HRDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {paginate(filteredEmployees, page).map((emp) => {
+                    {paginate(filteredEmployees, page, 6).map((emp) => {
                       return (
                         <tr key={emp.employee_id}>
                           <td>
@@ -732,6 +757,7 @@ function HRDashboard() {
                           {columns.email && <td>{emp.email || "—"}</td>}
                           {columns.phone && <td>{emp.phone || "—"}</td>}
                           <td>{emp.department_name || "—"}</td>
+                          <td>{emp.branch_name || "—"}</td>
                           <td>{emp.employment_type_name || "—"}</td>
                           <td className="hr-mono">{emp.joining_date || "—"}</td>
                           <td>
@@ -778,7 +804,7 @@ function HRDashboard() {
                   </tbody>
                 </table>
               </div>
-              <Pagination page={page} totalItems={filteredEmployees.length} onPageChange={setPage} />
+              <Pagination page={page} totalItems={filteredEmployees.length} onPageChange={setPage} pageSize={6} />
             </>
           )}
         </div>
@@ -792,7 +818,10 @@ function HRDashboard() {
               <input
                 placeholder="Search departments…"
                 value={deptSearch}
-                onChange={(e) => setDeptSearch(e.target.value)}
+                onChange={(e) => {
+                  setDeptSearch(e.target.value);
+                  setDeptPage(1);
+                }}
               />
             </div>
             <button type="button" className="hr-btn-accent hr-btn-accent-sm" onClick={openCreateDept}>
@@ -809,6 +838,7 @@ function HRDashboard() {
                 : `No departments match "${deptSearch}".`}
             </p>
           ) : (
+            <>
             <div className="hr-table-scroll">
               <table className="hr-table">
                 <thead>
@@ -820,7 +850,7 @@ function HRDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredDepartments.map((d) => (
+                  {paginate(filteredDepartments, deptPage, 6).map((d) => (
                     <tr key={d.department_id}>
                       <td className="hr-name">{d.department_name}</td>
                       <td className="hr-sub">{d.description || "—"}</td>
@@ -856,6 +886,8 @@ function HRDashboard() {
                 </tbody>
               </table>
             </div>
+            <Pagination page={deptPage} totalItems={filteredDepartments.length} onPageChange={setDeptPage} pageSize={6} />
+            </>
           )}
         </div>
       )}
@@ -868,7 +900,10 @@ function HRDashboard() {
               <input
                 placeholder="Search designations…"
                 value={desigSearch}
-                onChange={(e) => setDesigSearch(e.target.value)}
+                onChange={(e) => {
+                  setDesigSearch(e.target.value);
+                  setDesigPage(1);
+                }}
               />
             </div>
             <button type="button" className="hr-btn-accent hr-btn-accent-sm" onClick={openCreateDesig}>
@@ -885,6 +920,7 @@ function HRDashboard() {
                 : `No designations match "${desigSearch}".`}
             </p>
           ) : (
+            <>
             <div className="hr-table-scroll">
               <table className="hr-table">
                 <thead>
@@ -897,7 +933,7 @@ function HRDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredDesignations.map((d) => (
+                  {paginate(filteredDesignations, desigPage, 6).map((d) => (
                     <tr key={d.designation_id}>
                       <td className="hr-name">{d.designation_name}</td>
                       <td className="hr-sub">{d.description || "—"}</td>
@@ -934,13 +970,15 @@ function HRDashboard() {
                 </tbody>
               </table>
             </div>
+            <Pagination page={desigPage} totalItems={filteredDesignations.length} onPageChange={setDesigPage} pageSize={6} />
+            </>
           )}
         </div>
       )}
 
       {modalOpen && (
         <div className="hr-modal-backdrop" onClick={closeModal}>
-          <form className="hr-modal" onClick={(e) => e.stopPropagation()} onSubmit={handleSubmit}>
+          <form className="hr-modal hr-modal-wide" onClick={(e) => e.stopPropagation()} onSubmit={handleSubmit}>
             <button type="button" className="hr-modal-x" onClick={closeModal} aria-label="Close">
               ✕
             </button>
@@ -1069,6 +1107,19 @@ function HRDashboard() {
               ))}
             </select>
 
+            <label>Branch</label>
+            <select
+              value={form.branch_id}
+              onChange={(e) => setForm({ ...form, branch_id: e.target.value })}
+            >
+              <option value="">Unassigned (WFH / Intern / Student)</option>
+              {activeBranches.map((b) => (
+                <option key={b.branch_id} value={b.branch_id}>
+                  {b.branch_name}
+                </option>
+              ))}
+            </select>
+
             <div className="hr-form-row">
               <div>
                 <label>Joining date</label>
@@ -1105,7 +1156,7 @@ function HRDashboard() {
 
       {viewEmployee && (
         <div className="hr-modal-backdrop" onClick={closeView}>
-          <div className="hr-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="hr-modal hr-modal-wide" onClick={(e) => e.stopPropagation()}>
             <button type="button" className="hr-modal-x" onClick={closeView} aria-label="Close">
               ✕
             </button>
@@ -1154,6 +1205,10 @@ function HRDashboard() {
                 <div>
                   <span className="hr-view-label">Department</span>
                   <span className="hr-view-value">{viewEmployee.department_name || "—"}</span>
+                </div>
+                <div>
+                  <span className="hr-view-label">Branch</span>
+                  <span className="hr-view-value">{viewEmployee.branch_name || "—"}</span>
                 </div>
                 <div>
                   <span className="hr-view-label">Employment type</span>

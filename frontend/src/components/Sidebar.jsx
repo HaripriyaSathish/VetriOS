@@ -68,8 +68,11 @@ function Sidebar() {
 
       {/* Self-service Attendance/Leave for anyone without the full HR
           module (Employee, Manager, Viewer) — HR Administrator/System
-          Administrator use the real HR module's Attendance/Leave instead. */}
-      {!isSystemAdministrator && !canSeeHR && (
+          Administrator use the real HR module's Attendance/Leave instead.
+          Also requires an actual Employee record (employee_code on /me) —
+          accounts like Training applicants/test logins have a login but
+          no Employee row, so these pages would just show a dead end. */}
+      {!isSystemAdministrator && !canSeeHR && !!user?.employee_code && (
         <>
           <NavLink
             to="/my/attendance"

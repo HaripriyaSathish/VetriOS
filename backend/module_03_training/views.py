@@ -9,7 +9,7 @@ from .serializers import (
 from django.http import FileResponse
 from .training_log_excel import build_training_log_excel
 from local_extensions.models import TopicLog
-from .models import Course
+from .models import Course, CourseModule
 from django.utils import timezone
 from decimal import Decimal
 from local_extensions.models import Task, StudentTask, GeneratedReport
@@ -19,11 +19,17 @@ from django.db import transaction
 from local_extensions.models import Message
 from module_03_training.models import Assessment, StudentAssessment
 from local_extensions.models import TaskSubmissionDetail
-
-
+from datetime import timedelta
+import re
+from local_extensions.models import Enquiry
+from local_extensions.email_utils import send_email
+from local_extensions.models import MockInterviewDetail
 CATEGORY_LABELS = {"task": "Daily Task", "mini_project": "Mini Project", "main_project": "Main Project", "seminar": "Seminar"}
 ADMIN_ROLES = {"System Administrator", "Manager", "Business Team"}
 
+def _extract_round_number(assessment_code):
+    m = re.search(r'-R(\d+)-', assessment_code or "")
+    return int(m.group(1)) if m else 1
 
 def _can_access_batch(user, batch):
     """A trainer may only touch their own batch; System Administrator,
@@ -69,12 +75,17 @@ class TrainerDashboardView(APIView):
             if b.trainer:
                 tp = b.trainer.user.person
                 trainer_name = f"{tp.first_name} {tp.last_name or ''}".strip()
+
+            students_enrolled = Enrollment.objects.filter(batch=b, status="ACTIVE").count()
+
             batch_data.append({
                 "batch_id": b.batch_id,
                 "batch_name": b.batch_name,
                 "course_name": b.course.course_name,
                 "trainer_name": trainer_name,
                 "status": b.status,
+                "start_date": b.start_date,
+                "students_enrolled": students_enrolled,
             })
 
         return Response({
@@ -628,9 +639,8 @@ class SavedReportDownloadView(APIView):
         )    
 
 class BatchMockInterviewsView(APIView):
-    """List/create mock interview 'assessments' for a batch — one
-    Assessment row per interview round, one StudentAssessment per
-    invited student."""
+    """List mock interview rounds for a batch — one Assessment row per
+    round, with per-round invite/pass/fail/pending counts."""
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request, batch_id):
@@ -641,67 +651,108 @@ class BatchMockInterviewsView(APIView):
         if not _can_access_batch(request.user, batch):
             return Response({"detail": "Not authorized."}, status=403)
 
-        # Mock interview Assessments aren't tied to a course_module in
-        # any meaningful way, so we find them via students already
-        # enrolled in this batch having a MOCK_INTERVIEW StudentAssessment.
         enrollment_ids = Enrollment.objects.filter(batch=batch).values_list("enrollment_id", flat=True)
         assessment_ids = StudentAssessment.objects.filter(
             enrollment_id__in=enrollment_ids, assessment__assessment_type="MOCK_INTERVIEW"
         ).values_list("assessment_id", flat=True).distinct()
 
-        assessments = Assessment.objects.filter(assessment_id__in=assessment_ids).order_by("-assessment_date")
-        return Response([
-            {
+        assessments = Assessment.objects.filter(assessment_id__in=assessment_ids)
+        data = []
+        for a in assessments:
+            results = StudentAssessment.objects.filter(assessment=a, enrollment_id__in=enrollment_ids)
+            data.append({
                 "assessment_id": a.assessment_id,
+                "round_number": _extract_round_number(a.assessment_code),
                 "assessment_name": a.assessment_name,
                 "assessment_date": a.assessment_date,
                 "description": a.description,
-            }
-            for a in assessments
-        ])
+                "invited_count": results.count(),
+                "passed_count": results.filter(result_status="PASS").count(),
+                "failed_count": results.filter(result_status="FAIL").count(),
+                "pending_count": results.filter(result_status="PENDING").count(),
+            })
+        data.sort(key=lambda r: r["round_number"])
+        return Response(data)
 
 
 class InviteToMockInterviewView(APIView):
-    """Creates the mock interview Assessment (if not passed an existing
-    one) and a StudentAssessment row per selected, eligible student.
-    Eligibility = 85%+ attendance, matching the student-facing threshold."""
+    """GET: eligibility list for a given round (?round=N, default 1).
+    Round 1 uses 85% attendance; round 2+ requires a PASS in the
+    immediately preceding round. POST: creates that round's Assessment
+    (only if it doesn't already exist for this batch) and a
+    StudentAssessment per selected, eligible student."""
     permission_classes = [permissions.IsAuthenticated]
-
     ELIGIBILITY_THRESHOLD = 85
 
+    def _get_round_assessment(self, batch, round_number):
+        enrollment_ids = Enrollment.objects.filter(batch=batch).values_list("enrollment_id", flat=True)
+        assessment_ids = StudentAssessment.objects.filter(
+            enrollment_id__in=enrollment_ids, assessment__assessment_type="MOCK_INTERVIEW"
+        ).values_list("assessment_id", flat=True).distinct()
+        for a in Assessment.objects.filter(assessment_id__in=assessment_ids):
+            if _extract_round_number(a.assessment_code) == round_number:
+                return a
+        return None
+
     def get(self, request, batch_id):
-        """Eligibility list — attendance % per active enrollment, plus
-        whether they're already invited to any mock interview."""
         try:
             batch = Batch.objects.get(batch_id=batch_id)
         except Batch.DoesNotExist:
             return Response({"detail": "Batch not found."}, status=404)
         if not _can_access_batch(request.user, batch):
-            return Response({"detail": "Not authorized."}, status=403)
+            return Response({"detail": "Not authorized to view this batch."}, status=403)
+
+        try:
+            round_number = int(request.query_params.get("round", 1))
+        except (TypeError, ValueError):
+            round_number = 1
 
         enrollments = Enrollment.objects.filter(batch=batch, status="ACTIVE").select_related("student__person")
+
+        prev_assessment = None
+        if round_number > 1:
+            prev_assessment = self._get_round_assessment(batch, round_number - 1)
+            if not prev_assessment:
+                return Response(
+                    {"detail": f"Round {round_number - 1} hasn't been run yet — can't open round {round_number}."},
+                    status=400,
+                )
+
+        current_assessment = self._get_round_assessment(batch, round_number)
+
         data = []
         for e in enrollments:
-            att = StudentAttendance.objects.filter(enrollment=e)
-            total = att.count()
-            present = att.filter(attendance_status="PRESENT").count()
-            pct = round((present / total) * 100, 1) if total > 0 else 0
+            if round_number == 1:
+                att = StudentAttendance.objects.filter(enrollment=e)
+                total = att.count()
+                present = att.filter(attendance_status="PRESENT").count()
+                pct = round((present / total) * 100, 1) if total > 0 else 0
+                eligible = pct >= self.ELIGIBILITY_THRESHOLD
+                eligibility_note = f"{pct}% attendance"
+            else:
+                prev_result = StudentAssessment.objects.filter(assessment=prev_assessment, enrollment=e).first()
+                eligible = bool(prev_result and prev_result.result_status == "PASS")
+                pct = None
+                eligibility_note = "Passed previous round" if eligible else "Did not pass previous round"
 
-            existing = StudentAssessment.objects.filter(
-                enrollment=e, assessment__assessment_type="MOCK_INTERVIEW"
-            ).select_related("assessment").order_by("-assessed_at").first()
+            existing = None
+            if current_assessment:
+                existing = StudentAssessment.objects.filter(assessment=current_assessment, enrollment=e).first()
 
             person = e.student.person
+            existing_detail = getattr(existing, "interview_detail", None) if existing else None
             data.append({
                 "enrollment_id": e.enrollment_id,
                 "student_name": f"{person.first_name} {person.last_name or ''}".strip(),
                 "attendance_percentage": pct,
-                "eligible": pct >= self.ELIGIBILITY_THRESHOLD,
+                "eligible": eligible,
+                "eligibility_note": eligibility_note,
                 "invited": existing is not None,
                 "student_assessment_id": existing.student_assessment_id if existing else None,
                 "result_status": existing.result_status if existing else None,
                 "score": existing.score if existing else None,
                 "feedback": existing.feedback if existing else None,
+                "meeting_link": existing_detail.meeting_link if existing_detail else None,
             })
         return Response(data)
 
@@ -716,6 +767,11 @@ class InviteToMockInterviewView(APIView):
         interview_date = request.data.get("interview_date")
         enrollment_ids = request.data.get("enrollment_ids", [])
         questions = request.data.get("questions", "")
+        try:
+            round_number = int(request.data.get("round_number", 1))
+        except (TypeError, ValueError):
+            round_number = 1
+
         if not interview_date or not enrollment_ids:
             return Response({"detail": "interview_date and enrollment_ids are required."}, status=400)
 
@@ -723,20 +779,23 @@ class InviteToMockInterviewView(APIView):
         if not course_module:
             return Response({"detail": "This course has no modules set up — mock interviews need one to attach to."}, status=400)
 
+        assessment = self._get_round_assessment(batch, round_number)
+
         with transaction.atomic():
-            assessment = Assessment.objects.create(
-                course_module=course_module,
-                assessment_code=f"MOCK-{batch.batch_code}-{int(timezone.now().timestamp())}",
-                assessment_name=f"Mock Interview — {batch.batch_name}",
-                assessment_type="MOCK_INTERVIEW",
-                description=questions,
-                max_score=100,
-                passing_score=50,
-                assessment_date=interview_date,
-                is_active=True,
-                created_at=timezone.now(),
-                updated_at=timezone.now(),
-            )
+            if not assessment:
+                assessment = Assessment.objects.create(
+                    course_module=course_module,
+                    assessment_code=f"MOCK-R{round_number}-{batch.batch_code}-{int(timezone.now().timestamp())}",
+                    assessment_name=f"Mock Interview Round {round_number} — {batch.batch_name}",
+                    assessment_type="MOCK_INTERVIEW",
+                    description=questions,
+                    max_score=100,
+                    passing_score=50,
+                    assessment_date=interview_date,
+                    is_active=True,
+                    created_at=timezone.now(),
+                    updated_at=timezone.now(),
+                )
 
             created = 0
             for eid in enrollment_ids:
@@ -744,18 +803,80 @@ class InviteToMockInterviewView(APIView):
                     enrollment = Enrollment.objects.get(enrollment_id=eid, batch=batch)
                 except Enrollment.DoesNotExist:
                     continue
-                StudentAssessment.objects.create(
+                _, was_created = StudentAssessment.objects.get_or_create(
                     assessment=assessment, enrollment=enrollment, attempt_no=1,
-                    result_status="PENDING", created_at=timezone.now(), updated_at=timezone.now(),
+                    defaults={"result_status": "PENDING", "created_at": timezone.now(), "updated_at": timezone.now()},
                 )
-                created += 1
+                if was_created:
+                    created += 1
 
-        return Response({"assessment_id": assessment.assessment_id, "invited_count": created}, status=201)
+        return Response({
+            "assessment_id": assessment.assessment_id,
+            "round_number": round_number,
+            "invited_count": created,
+        }, status=201)
+class NotifyMockInterviewInvitesView(APIView):
+    """Sends the (trainer-edited) mock interview invite email to each
+    selected student's personal AND official email, if present —
+    falls back to the person's plain email field when no Enquiry
+    record exists (e.g. seed-data students created outside the
+    enquiry pipeline)."""
+    permission_classes = [permissions.IsAuthenticated]
 
+    def post(self, request, batch_id):
+        try:
+            batch = Batch.objects.get(batch_id=batch_id)
+        except Batch.DoesNotExist:
+            return Response({"detail": "Batch not found."}, status=404)
+        if not _is_batch_trainer(request.user, batch):
+            return Response({"detail": "Only this batch's trainer can send mock interview invites."}, status=403)
+
+        enrollment_ids = request.data.get("enrollment_ids", [])
+        subject = (request.data.get("subject") or "").strip()
+        body_template = request.data.get("body", "")
+        cc_raw = request.data.get("cc", "")
+
+        if not enrollment_ids or not subject or not body_template:
+            return Response({"detail": "enrollment_ids, subject, and body are required."}, status=400)
+
+        cc_list = [c.strip() for c in cc_raw.split(",") if c.strip()] if cc_raw else None
+
+        sent, skipped = [], []
+        for eid in enrollment_ids:
+            try:
+                enrollment = Enrollment.objects.select_related("student__person").get(enrollment_id=eid, batch=batch)
+            except Enrollment.DoesNotExist:
+                skipped.append({"enrollment_id": eid, "reason": "Not found in this batch."})
+                continue
+
+            person = enrollment.student.person
+            full_name = f"{person.first_name} {person.last_name or ''}".strip()
+
+            enquiry = Enquiry.objects.filter(person_id=person.person_id).first()
+            recipients = []
+            if enquiry:
+                recipients = [e for e in [enquiry.personal_email, enquiry.official_email] if e]
+            if not recipients and person.email:
+                recipients = [person.email]
+
+            if not recipients:
+                skipped.append({"enrollment_id": eid, "reason": f"No email on file for {full_name}."})
+                continue
+
+            personalized_body = body_template.replace("{{full_name}}", full_name)
+            personalized_subject = subject.replace("{{full_name}}", full_name)
+
+            if send_email(recipients, personalized_subject, personalized_body, cc_list):
+                sent.append({"enrollment_id": eid, "name": full_name})
+            else:
+                skipped.append({"enrollment_id": eid, "reason": f"Send failed for {full_name}."})
+
+        return Response({"sent": sent, "sent_count": len(sent), "skipped": skipped})
 
 class UpdateMockInterviewResultView(APIView):
-    """Record the outcome — score, PASS/FAIL/ABSENT, feedback (which can
-    include the meeting link, since there's no dedicated column)."""
+    """Record the outcome — score, PASS/FAIL/ABSENT, internal feedback
+    (trainer-only), and a separately-stored meeting link (student-
+    visible)."""
     permission_classes = [permissions.IsAuthenticated]
 
     def patch(self, request, student_assessment_id):
@@ -778,12 +899,41 @@ class UpdateMockInterviewResultView(APIView):
         sa.updated_at = timezone.now()
         sa.save()
 
+        meeting_link = None
+        if "meeting_link" in request.data:
+            detail, _ = MockInterviewDetail.objects.get_or_create(student_assessment=sa)
+            detail.meeting_link = request.data["meeting_link"]
+            detail.save()
+            meeting_link = detail.meeting_link
+        else:
+            detail = getattr(sa, "interview_detail", None)
+            meeting_link = detail.meeting_link if detail else None
+
         return Response({
             "student_assessment_id": sa.student_assessment_id,
-            "result_status": sa.result_status, "score": sa.score, "feedback": sa.feedback,
-        })    
+            "result_status": sa.result_status, "score": sa.score,
+            "feedback": sa.feedback, "meeting_link": meeting_link,
+        })  
 
+class RevokeMockInterviewInviteView(APIView):
+    """Deletes an invite — only allowed while the result is still
+    PENDING, so a recorded PASS/FAIL/ABSENT can't be silently erased."""
+    permission_classes = [permissions.IsAuthenticated]
 
+    def delete(self, request, student_assessment_id):
+        try:
+            sa = StudentAssessment.objects.select_related("enrollment__batch").get(student_assessment_id=student_assessment_id)
+        except StudentAssessment.DoesNotExist:
+            return Response({"detail": "Not found."}, status=404)
+
+        if not _is_batch_trainer(request.user, sa.enrollment.batch):
+            return Response({"detail": "Only this batch's trainer can revoke this invite."}, status=403)
+
+        if sa.result_status not in (None, "PENDING"):
+            return Response({"detail": "Can't revoke — a result has already been recorded for this student."}, status=400)
+
+        sa.delete()
+        return Response(status=204)
 
 class GenerateMockInterviewQuestionsView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -824,3 +974,48 @@ class GenerateMockInterviewQuestionsView(APIView):
             return Response({"detail": f"AI generation failed: {e}"}, status=500)
 
         return Response({"topic": topic, "count": count, "level": level, "questions": content})
+
+class AssistantBatchReportDownloadView(APIView):
+    """Trainer report-download hit specifically from the AI assistant's
+    button — same computation as ZoneReportView, just date-ranged
+    automatically instead of asking for explicit start/end."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, batch_id, period):
+        if period not in ("weekly", "monthly"):
+            return Response({"detail": "Invalid period."}, status=400)
+
+        try:
+            batch = Batch.objects.get(batch_id=batch_id)
+        except Batch.DoesNotExist:
+            return Response({"detail": "Batch not found."}, status=404)
+        if not _can_access_batch(request.user, batch):
+            return Response({"detail": "Not authorized."}, status=403)
+
+        today = timezone.now().date()
+        if period == "weekly":
+            monday = today - timedelta(days=today.weekday())
+            start, end = monday, monday + timedelta(days=6)
+        else:
+            start = today.replace(day=1)
+            next_month = (start.replace(day=28) + timedelta(days=4)).replace(day=1)
+            end = next_month - timedelta(days=1)
+
+        rows = _compute_zone_report_rows(batch)
+        if not rows:
+            return Response({"detail": "No enrolled students found."}, status=400)
+
+        GeneratedReport.objects.create(
+            batch=batch, period=period, start_date=start, end_date=end,
+            generated_by=request.user, rows_json=rows,
+        )
+
+        title = f"{batch.batch_name} - {period.capitalize()} Production Report"
+        excel_buffer = build_zone_report_excel(rows, title)
+        filename = f"{batch.batch_name.replace(' ', '_')}_{period}_zone_report.xlsx"
+        return FileResponse(
+            excel_buffer, as_attachment=True, filename=filename,
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )   
+
+     

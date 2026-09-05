@@ -1,5 +1,6 @@
 .sidebar {
-  width: 220px;
+  box-sizing: border-box;
+  width: 250px;
   flex: none;
   background: #163c52;
   color: #dce7ee;
@@ -13,6 +14,10 @@
   align-self: flex-start;
   height: 100vh;
   overflow-y: auto;
+  /* Reserves the scrollbar's width permanently, so content (e.g. the
+     Training menu expanded) that makes the sidebar need to scroll
+     doesn't shrink the visible width when the scrollbar appears. */
+  scrollbar-gutter: stable;
 }
 
 .sidebar-brand {

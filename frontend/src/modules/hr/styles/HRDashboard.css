@@ -514,6 +514,15 @@
   cursor: not-allowed;
 }
 
+.hr-btn-accent-sm {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  padding: 7px 12px;
+  margin-left: auto;
+}
+
 /* Modal */
 .hr-modal-backdrop {
   position: fixed;
@@ -538,6 +547,13 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+/* Wider variant for the Employee create/edit/view modals — they carry
+   more fields (branch, designation, department, dates...) than the
+   Department/Designation forms, which stay at the default width. */
+.hr-modal-wide {
+  max-width: 780px;
 }
 
 .hr-modal-x {
@@ -586,7 +602,8 @@
 }
 
 .hr-modal input,
-.hr-modal select {
+.hr-modal select,
+.hr-textarea {
   border: 1px solid #c2cad8;
   border-radius: 8px;
   padding: 9px 11px;
@@ -595,6 +612,10 @@
   font-family: inherit;
   width: 100%;
   box-sizing: border-box;
+}
+
+.hr-textarea {
+  resize: vertical;
 }
 
 .hr-modal input:focus,

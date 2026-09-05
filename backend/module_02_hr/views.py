@@ -7,24 +7,34 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from module_01_identity_access.models import (
+    Branch,
     Department,
     Designation,
     Employee,
     EmployeeAttendance,
     EmployeeLeave,
     EmployeeLeaveBalance,
+    EmployeeWorklog,
     EmploymentType,
     LeaveType,
     UserAccount,
 )
+from local_extensions.email_utils import send_email
 from .permissions import IsHRorSystemAdministrator
 from .serializers import (
     AttendanceRecordSerializer,
+    BranchSerializer,
     DepartmentSerializer,
+    DepartmentWriteSerializer,
     DesignationSerializer,
+    DesignationWriteSerializer,
     EmployeeDetailSerializer,
     EmployeeListSerializer,
     EmployeeUpdateSerializer,
+    EmployeeWorklogSerializer,
+    EmployeeWorklogWriteSerializer,
+    HRWorklogSerializer,
+    TeamWorklogSerializer,
     EmployeeWriteSerializer,
     EmploymentTypeSerializer,
     LeaveBalanceSerializer,
@@ -32,6 +42,7 @@ from .serializers import (
     LeaveRequestWriteSerializer,
     LeaveTypeSerializer,
     _current_department_history,
+    _resolve_worklog_recipient,
 )
 
 
@@ -111,21 +122,102 @@ class EmployeeAvatarUploadView(APIView):
         return Response({"avatar_url": result["secure_url"]})
 
 
-# Feeds both the "+ New Employee" designation dropdown and the read-only
-# Designations tab on the Employees screen — active only for now (no
-# CRUD yet, that's a later stage).
-class DesignationListView(generics.ListAPIView):
+# Feeds both the "+ New Employee" designation dropdown and the
+# Designations tab on the Employees screen. Lists every designation
+# (active and inactive — the tab shows status, same as Employees); the
+# frontend filters to active-only for the New Employee dropdown itself.
+class DesignationListView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
-    queryset = Designation.objects.filter(is_active=True).order_by("level_number")
-    serializer_class = DesignationSerializer
+    queryset = Designation.objects.all().order_by("level_number", "designation_name")
+
+    def get_serializer_class(self):
+        if self.request.method == "POST":
+            return DesignationWriteSerializer
+        return DesignationSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        designation = serializer.save()
+        return Response(DesignationSerializer(designation).data, status=status.HTTP_201_CREATED)
 
 
-# Feeds the read-only Departments tab on the Employees screen — no CRUD
-# yet, that's a later stage.
-class DepartmentListView(generics.ListAPIView):
+# Edit or deactivate one designation. DELETE is a soft delete
+# (is_active=False) — same convention as Employee/UserAccount, avoids
+# breaking employee rows that reference this designation_id.
+class DesignationDetailView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
-    queryset = Department.objects.filter(is_active=True).order_by("department_name")
-    serializer_class = DepartmentSerializer
+    queryset = Designation.objects.all()
+
+    def get_serializer_class(self):
+        if self.request.method in ("PUT", "PATCH"):
+            return DesignationWriteSerializer
+        return DesignationSerializer
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        designation = serializer.save()
+        return Response(DesignationSerializer(designation).data)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        instance.is_active = False
+        instance.updated_at = timezone.now()
+        instance.save(update_fields=["is_active", "updated_at"])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+# Feeds both the "+ New Employee" department dropdown and the
+# Departments tab — same "list everything, frontend filters active-only
+# for the dropdown" pattern as designations above.
+class DepartmentListView(generics.ListCreateAPIView):
+    permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
+    queryset = Department.objects.all().order_by("department_name")
+
+    def get_serializer_class(self):
+        if self.request.method == "POST":
+            return DepartmentWriteSerializer
+        return DepartmentSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        department = serializer.save()
+        return Response(DepartmentSerializer(department).data, status=status.HTTP_201_CREATED)
+
+
+class DepartmentDetailView(generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
+    queryset = Department.objects.all()
+
+    def get_serializer_class(self):
+        if self.request.method in ("PUT", "PATCH"):
+            return DepartmentWriteSerializer
+        return DepartmentSerializer
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        department = serializer.save()
+        return Response(DepartmentSerializer(department).data)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        instance.is_active = False
+        instance.updated_at = timezone.now()
+        instance.save(update_fields=["is_active", "updated_at"])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+# Feeds the Branch dropdown on the "+ New Employee"/Edit Employee forms —
+# only active branches, since inactive ones shouldn't be newly assignable.
+class BranchListView(generics.ListAPIView):
+    permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
+    queryset = Branch.objects.filter(is_active=True).order_by("branch_name")
+    serializer_class = BranchSerializer
 
 
 # Feeds the employment-type dropdown on the "+ New Employee" form.
@@ -432,13 +524,52 @@ def _leave_request_row(leave):
     }
 
 
-# Feeds the "Leave type" dropdown on the New request form.
+# MATERNITY only makes sense for the person requesting it — everyone
+# else (male, other, or gender not on file) never sees it as an option
+# or gets a balance card for it. "Requesting it for someone else" isn't
+# a thing here: every leave request is always for the logged-in
+# account's own employee record.
+def _selectable_leave_codes_for(employee):
+    if employee and (employee.person.gender or "").strip().upper() == "FEMALE":
+        return SELECTABLE_LEAVE_CODES
+    return [code for code in SELECTABLE_LEAVE_CODES if code != "MATERNITY"]
+
+
+# Feeds the "Leave type" dropdown on the New request form — used by both
+# the HR Leave screen and the self-service Employee Dashboard. Any
+# authenticated account can read it; which types come back depends on
+# the requesting account's own linked employee (see
+# _selectable_leave_codes_for above).
 class LeaveTypeListView(generics.ListAPIView):
-    permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
-    queryset = LeaveType.objects.filter(is_active=True, leave_type_code__in=SELECTABLE_LEAVE_CODES).order_by(
-        "leave_type_name"
-    )
+    permission_classes = [IsAuthenticated]
     serializer_class = LeaveTypeSerializer
+
+    def get_queryset(self):
+        employee = _employee_for_user(self.request.user)
+        codes = _selectable_leave_codes_for(employee)
+        return LeaveType.objects.filter(is_active=True, leave_type_code__in=codes).order_by("leave_type_name")
+
+
+def _my_balances(employee, year):
+    balances = []
+    if not employee:
+        return balances
+    codes = _selectable_leave_codes_for(employee)
+    for leave_type in LeaveType.objects.filter(
+        is_active=True, leave_type_code__in=codes
+    ).order_by("leave_type_name"):
+        balance = _get_or_create_balance(employee, leave_type, year)
+        balances.append(
+            {
+                "leave_type_id": leave_type.leave_type_id,
+                "leave_type_code": leave_type.leave_type_code,
+                "leave_type_name": leave_type.leave_type_name,
+                "allocated_days": balance.allocated_days,
+                "used_days": balance.used_days,
+                "remaining_days": balance.remaining_days,
+            }
+        )
+    return balances
 
 
 # Backs the whole Leave screen in one call: the logged-in user's own
@@ -449,25 +580,8 @@ class LeaveSummaryView(APIView):
 
     def get(self, request):
         today = timezone.localdate()
-        year = today.year
-
         me = _employee_for_user(request.user)
-        my_balances = []
-        if me:
-            for leave_type in LeaveType.objects.filter(
-                is_active=True, leave_type_code__in=SELECTABLE_LEAVE_CODES
-            ).order_by("leave_type_name"):
-                balance = _get_or_create_balance(me, leave_type, year)
-                my_balances.append(
-                    {
-                        "leave_type_id": leave_type.leave_type_id,
-                        "leave_type_code": leave_type.leave_type_code,
-                        "leave_type_name": leave_type.leave_type_name,
-                        "allocated_days": balance.allocated_days,
-                        "used_days": balance.used_days,
-                        "remaining_days": balance.remaining_days,
-                    }
-                )
+        my_balances = _my_balances(me, today.year)
 
         all_requests = EmployeeLeave.objects.select_related("employee__person", "leave_type").order_by(
             "-created_at"
@@ -492,11 +606,44 @@ class LeaveSummaryView(APIView):
         )
 
 
-# Lists every leave request (HR view) / creates one for the logged-in
-# user's own employee record (self-service, same pattern as attendance
-# check-in — the employee is derived from the account, never the body).
+# Backs the Employee Dashboard's "Apply Leave" panel — the logged-in
+# user's own balances and own request history only (not HR-gated, same
+# self-service pattern as MyAttendanceView).
+class MyLeaveView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        today = timezone.localdate()
+        me = _employee_for_user(request.user)
+        my_balances = _my_balances(me, today.year)
+
+        my_requests = []
+        if me:
+            my_requests = list(
+                EmployeeLeave.objects.filter(employee=me)
+                .select_related("employee__person", "leave_type")
+                .order_by("-created_at")
+            )
+
+        return Response(
+            {
+                "employee_id": me.employee_id if me else None,
+                "my_balances": LeaveBalanceSerializer(my_balances, many=True).data,
+                "requests": LeaveRequestSerializer([_leave_request_row(r) for r in my_requests], many=True).data,
+            }
+        )
+
+
+# Lists every leave request (HR view, HR-gated) / creates one for the
+# logged-in user's own employee record (self-service, any authenticated
+# account — same pattern as attendance check-in, the employee is derived
+# from the account, never the body). Different gating per method, so
+# permission_classes is resolved per-request instead of at class level.
 class LeaveRequestListCreateView(APIView):
-    permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
+    def get_permissions(self):
+        if self.request.method == "POST":
+            return [IsAuthenticated()]
+        return [IsAuthenticated(), IsHRorSystemAdministrator()]
 
     def get(self, request):
         all_requests = EmployeeLeave.objects.select_related("employee__person", "leave_type").order_by(
@@ -572,6 +719,13 @@ class LeaveRequestApproveView(APIView):
         return Response(_leave_request_row(leave))
 
 
+# employee_leave has one "reason" column, already used for the
+# employee's own reason for requesting the leave — there's no separate
+# column for why HR rejected it. Rather than alter that DA-owned table,
+# the rejection reason is folded into the same field: appended below
+# the original reason if there was one, or standing alone as just
+# "Rejected" if the employee left their reason blank (their intent is
+# gone either way once rejected, so nothing to append the HR reason to).
 class LeaveRequestRejectView(APIView):
     permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
 
@@ -584,7 +738,159 @@ class LeaveRequestRejectView(APIView):
         if leave.status != "PENDING":
             return Response({"detail": "Only pending requests can be rejected."}, status=status.HTTP_400_BAD_REQUEST)
 
+        rejection_reason = (request.data.get("reason") or "").strip()
+        if not rejection_reason:
+            return Response({"reason": ["This field is required."]}, status=status.HTTP_400_BAD_REQUEST)
+
+        if leave.reason:
+            leave.reason = f"{leave.reason}\n\n[Rejected: {rejection_reason}]"
+        else:
+            leave.reason = "Rejected"
+
         leave.status = "REJECTED"
         leave.updated_at = timezone.now()
-        leave.save(update_fields=["status", "updated_at"])
+        leave.save(update_fields=["reason", "status", "updated_at"])
         return Response(_leave_request_row(leave))
+
+
+WORKLOG_HISTORY_DAYS = 30
+
+
+def _worklog_email_html(employee, work_date, entries):
+    rows = "".join(
+        f"<tr><td style='padding:4px 10px;border:1px solid #ddd;'>{e.get('sno', i)}</td>"
+        f"<td style='padding:4px 10px;border:1px solid #ddd;'>{e['start_time']} – {e['end_time']}</td>"
+        f"<td style='padding:4px 10px;border:1px solid #ddd;'>{e['description']}</td></tr>"
+        for i, e in enumerate(entries, start=1)
+    )
+    return (
+        f"<p>Good evening,</p>"
+        f"<p>Worklog for <b>{employee.person}</b> — {work_date.strftime('%d-%m-%Y')}</p>"
+        f"<table style='border-collapse:collapse;'>"
+        f"<tr><th style='padding:4px 10px;border:1px solid #ddd;'>S.No</th>"
+        f"<th style='padding:4px 10px;border:1px solid #ddd;'>Time</th>"
+        f"<th style='padding:4px 10px;border:1px solid #ddd;'>Work</th></tr>"
+        f"{rows}</table>"
+    )
+
+
+# Self-service — view my own worklog history, and submit/re-submit
+# today's (or a given day's) entries. Re-posting the same work_date
+# overwrites that day's row rather than creating a duplicate — one row
+# per employee per day, enforced by uq_employee_worklog_employee_date.
+class MyWorklogView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        employee = _employee_for_user(request.user)
+        if not employee:
+            return Response({"employee_id": None, "history": []})
+
+        today = timezone.localdate()
+        since = today - timezone.timedelta(days=WORKLOG_HISTORY_DAYS - 1)
+        records = EmployeeWorklog.objects.filter(
+            employee=employee, work_date__gte=since, work_date__lte=today
+        ).select_related("reported_to_employee__person").order_by("-work_date")
+
+        return Response(
+            {
+                "employee_id": employee.employee_id,
+                "history": EmployeeWorklogSerializer(records, many=True).data,
+            }
+        )
+
+    def post(self, request):
+        employee = _employee_for_user(request.user)
+        if not employee:
+            return Response(
+                {"detail": "No employee record is linked to your account."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = EmployeeWorklogWriteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        entries = data["entries"]
+        for i, entry in enumerate(entries, start=1):
+            entry.setdefault("sno", i)
+
+        work_date = data.get("work_date") or timezone.localdate()
+        login_time = data.get("login_time") or entries[0]["start_time"]
+        logout_time = data.get("logout_time") or entries[-1]["end_time"]
+
+        recipient = _resolve_worklog_recipient(employee)
+        now = timezone.now()
+
+        worklog = EmployeeWorklog.objects.filter(employee=employee, work_date=work_date).first()
+        if worklog:
+            worklog.login_time = login_time
+            worklog.logout_time = logout_time
+            worklog.entries = entries
+            worklog.reported_to_employee_id = recipient.employee_id if recipient else None
+            worklog.updated_at = now
+            worklog.save()
+        else:
+            worklog = EmployeeWorklog.objects.create(
+                employee=employee,
+                work_date=work_date,
+                login_time=login_time,
+                logout_time=logout_time,
+                entries=entries,
+                reported_to_employee_id=recipient.employee_id if recipient else None,
+                created_at=now,
+                updated_at=now,
+            )
+
+        if recipient and recipient.person.email:
+            send_email(
+                to=recipient.person.email,
+                subject=f"Worklog – {employee.person} – {work_date.strftime('%d-%m-%Y')}",
+                html_body=_worklog_email_html(employee, work_date, entries),
+            )
+
+        return Response(EmployeeWorklogSerializer(worklog).data, status=status.HTTP_200_OK)
+
+
+# Self-service, not HR-gated — scoped entirely by reported_to_employee_id
+# rather than a role check. Whoever's logged in only ever sees worklogs
+# that were actually routed to them (via _resolve_worklog_recipient at
+# submission time), which is naturally either nothing (not a lead) or
+# their team's, so there's no separate permission needed on top.
+class TeamWorklogsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        employee = _employee_for_user(request.user)
+        if not employee:
+            return Response({"employee_id": None, "worklogs": []})
+
+        worklogs = (
+            EmployeeWorklog.objects.filter(reported_to_employee_id=employee.employee_id)
+            .select_related("employee__person", "employee__designation")
+            .order_by("-work_date", "employee_id")
+        )
+        return Response(
+            {
+                "employee_id": employee.employee_id,
+                "worklogs": TeamWorklogSerializer(worklogs, many=True).data,
+            }
+        )
+
+
+WORKLOG_ORG_HISTORY_DAYS = 30
+
+
+# Org-wide — every employee's submitted worklogs, same "include the
+# requester's own too" convention as the Attendance/Leave HR screens.
+class WorklogsOrgView(generics.ListAPIView):
+    permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
+    serializer_class = HRWorklogSerializer
+
+    def get_queryset(self):
+        since = timezone.localdate() - timezone.timedelta(days=WORKLOG_ORG_HISTORY_DAYS - 1)
+        return (
+            EmployeeWorklog.objects.filter(work_date__gte=since)
+            .select_related("employee__person", "employee__designation", "reported_to_employee__person")
+            .order_by("-work_date", "employee_id")
+        )

@@ -19,6 +19,7 @@ import {
   Video,
   UserMinus,
   MessageCircle,
+  UserCheck,
 } from "lucide-react";
 import { NAV_ITEMS, hasAccess } from "../config/nav";
 import "../components-styles/Sidebar.css";
@@ -45,7 +46,6 @@ function Sidebar() {
   const canSeeHR = hrItem && hasAccess(hrItem.requirement, user);
   const isOnHRPage = HR_PATHS.some((path) => location.pathname.startsWith(path));
   const [hrOpen, setHrOpen] = useState(isOnHRPage);
-  const [workspaceOpen, setWorkspaceOpen] = useState(isOnHRPage);
 
   return (
     <aside className="sidebar">
@@ -63,6 +63,68 @@ function Sidebar() {
             <LayoutDashboard size={16} />
           </span>
           Dashboard
+        </NavLink>
+      )}
+
+      {/* Self-service Attendance/Leave for anyone without the full HR
+          module (Employee, Manager, Viewer) — HR Administrator/System
+          Administrator use the real HR module's Attendance/Leave instead.
+          Also requires an actual Employee record (employee_code on /me) —
+          accounts like Training applicants/test logins have a login but
+          no Employee row, so these pages would just show a dead end. */}
+      {!isSystemAdministrator && !canSeeHR && !!user?.employee_code && (
+        <>
+          <NavLink
+            to="/my/attendance"
+            className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
+          >
+            <span className="nav-icon">
+              <CalendarCheck size={16} />
+            </span>
+            Attendance
+          </NavLink>
+
+          <NavLink
+            to="/my/leave"
+            className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
+          >
+            <span className="nav-icon">
+              <Palmtree size={16} />
+            </span>
+            Apply Leave
+          </NavLink>
+        </>
+      )}
+
+      {/* Worklog is personal to every employee, HR Administrator
+          included — unlike Attendance/Leave, the HR-wide Worklogs page
+          is read-only (no embedded "submit mine" control), so HR still
+          needs this self-service link. Only System Administrator (a
+          pure system-access account, not really "staff") skips it. */}
+      {!isSystemAdministrator && !!user?.employee_code && (
+        <NavLink
+          to="/my/worklog"
+          className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
+        >
+          <span className="nav-icon">
+            <ClipboardList size={16} />
+          </span>
+          Worklog
+        </NavLink>
+      )}
+
+      {/* Not tied to a role — shown to whoever is currently listed as a
+          department's lead in department_lead, regardless of their RBAC
+          role (a lead is still just "Employee" in this schema). */}
+      {!!user?.is_department_lead && (
+        <NavLink
+          to="/my/team-worklogs"
+          className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
+        >
+          <span className="nav-icon">
+            <Users size={16} />
+          </span>
+          Team Worklogs
         </NavLink>
       )}
 
@@ -159,74 +221,66 @@ function Sidebar() {
 
           {hrOpen && (
             <div className="nav-subgroup">
-              <button
-                type="button"
-                className={"nav-item nav-subitem nav-group-toggle" + (workspaceOpen ? " open" : "")}
-                onClick={() => setWorkspaceOpen((prev) => !prev)}
+              <NavLink
+                to="/hr"
+                end
+                className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
               >
                 <span className="nav-icon">
                   <LayoutDashboard size={14} />
                 </span>
-                Workspace
-                <span className="nav-chevron">
-                  <ChevronDown size={13} />
+                HR Dashboard
+              </NavLink>
+
+              <NavLink
+                to="/hr/employees"
+                className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
+              >
+                <span className="nav-icon">
+                  <Users size={14} />
                 </span>
-              </button>
+                Employees
+              </NavLink>
 
-              {workspaceOpen && (
-                <div className="nav-subgroup nav-subgroup-nested">
-                  <NavLink
-                    to="/hr"
-                    end
-                    className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
-                  >
-                    <span className="nav-icon">
-                      <LayoutDashboard size={13} />
-                    </span>
-                    HR Dashboard
-                  </NavLink>
+              <NavLink
+                to="/hr/attendance"
+                className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
+              >
+                <span className="nav-icon">
+                  <CalendarCheck size={14} />
+                </span>
+                Attendance
+              </NavLink>
 
-                  <NavLink
-                    to="/hr/employees"
-                    className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
-                  >
-                    <span className="nav-icon">
-                      <Users size={13} />
-                    </span>
-                    Employees
-                  </NavLink>
+              <NavLink
+                to="/hr/leave"
+                className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
+              >
+                <span className="nav-icon">
+                  <Palmtree size={14} />
+                </span>
+                Leave
+              </NavLink>
 
-                  <NavLink
-                    to="/hr/attendance"
-                    className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
-                  >
-                    <span className="nav-icon">
-                      <CalendarCheck size={13} />
-                    </span>
-                    Attendance
-                  </NavLink>
+              <NavLink
+                to="/hr/worklogs"
+                className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
+              >
+                <span className="nav-icon">
+                  <ClipboardList size={14} />
+                </span>
+                Worklogs
+              </NavLink>
 
-                  <NavLink
-                    to="/hr/leave"
-                    className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
-                  >
-                    <span className="nav-icon">
-                      <Palmtree size={13} />
-                    </span>
-                    Leave
-                  </NavLink>
-
-                  <NavLink
-                    to="/hr/worklogs"
-                    className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
-                  >
-                    <span className="nav-icon">
-                      <ClipboardList size={13} />
-                    </span>
-                    Worklogs
-                  </NavLink>
-                </div>
-              )}
+              <NavLink
+                to="/hr/onboarding"
+                className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
+              >
+                <span className="nav-icon">
+                  <UserCheck size={14} />
+                </span>
+                Onboarding
+              </NavLink>
             </div>
           )}
         </>

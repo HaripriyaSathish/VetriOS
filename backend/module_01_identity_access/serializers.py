@@ -3,7 +3,17 @@ import re
 from django.utils import timezone
 from rest_framework import serializers
 
-from .models import Permission, Person, Role, RolePermission, UserAccount, UserRole
+from .models import (
+    DepartmentLead,
+    Employee,
+    Permission,
+    Person,
+    PersonDepartmentHistory,
+    Role,
+    RolePermission,
+    UserAccount,
+    UserRole,
+)
 
 # 3-30 characters, starts with a letter, otherwise letters/digits/._- only
 # — mirrors the existing seeded usernames (maya.san, testadmin, hradmin).
@@ -137,15 +147,31 @@ class RoleDetailSerializer(serializers.ModelSerializer):
 # The identity + role/permission summary returned by both login and
 # /me/ — the shape every other module reads to decide what to show.
 class MeSerializer(serializers.ModelSerializer):
-    # These three are computed per-request (not plain model fields), since
-    # roles/permissions depend on today's date via active_roles().
+    # These are computed per-request (not plain model fields), since
+    # roles/permissions depend on today's date via active_roles(), and
+    # designation/employee_code come from the linked HR employee record
+    # (module_02_hr), not user_account itself.
     roles = serializers.SerializerMethodField()
     permissions = serializers.SerializerMethodField()
     full_name = serializers.SerializerMethodField()
+    designation = serializers.SerializerMethodField()
+    department = serializers.SerializerMethodField()
+    employee_code = serializers.SerializerMethodField()
+    is_department_lead = serializers.SerializerMethodField()
 
     class Meta:
         model = UserAccount
-        fields = ["user_id", "username", "full_name", "roles", "permissions"]
+        fields = [
+            "user_id",
+            "username",
+            "full_name",
+            "roles",
+            "permissions",
+            "designation",
+            "department",
+            "employee_code",
+            "is_department_lead",
+        ]
 
     def get_full_name(self, obj):
         # Person.__str__ already formats "first_name last_name".
@@ -156,6 +182,29 @@ class MeSerializer(serializers.ModelSerializer):
 
     def get_permissions(self, obj):
         return sorted(obj.active_permission_codes())
+
+    def get_designation(self, obj):
+        return obj.current_designation_name()
+
+    def get_department(self, obj):
+        history = (
+            PersonDepartmentHistory.objects.filter(person_id=obj.person_id, is_current=True)
+            .select_related("department")
+            .first()
+        )
+        return history.department.department_name if history else None
+
+    def get_employee_code(self, obj):
+        employee = Employee.objects.filter(person_id=obj.person_id).only("employee_code").first()
+        return employee.employee_code if employee else None
+
+    def get_is_department_lead(self, obj):
+        # Whether this person is anyone's department lead right now —
+        # controls whether the "Team worklogs" nav link shows at all.
+        employee = Employee.objects.filter(person_id=obj.person_id).only("employee_id").first()
+        if not employee:
+            return False
+        return DepartmentLead.objects.filter(employee_id=employee.employee_id).exists()
 
 
 # Row shape for the User & Accounts table — read-only, one query per list

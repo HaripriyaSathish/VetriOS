@@ -101,6 +101,106 @@ class Employee(models.Model):
         db_table = "employee"
 
 
+# Reference list of company branches/offices. Only full-time employees
+# working from a physical office need a branch assignment — WFH staff,
+# interns, and students don't.
+class Branch(models.Model):
+    branch_id = models.BigAutoField(primary_key=True)
+    branch_code = models.CharField(max_length=20)
+    branch_name = models.CharField(max_length=150)
+    location = models.CharField(max_length=255, blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(blank=True, null=True)
+    updated_at = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = "branch"
+
+    def __str__(self):
+        return self.branch_name
+
+
+# Dated history of which branch an employee works from — mirrors
+# PersonDepartmentHistory's "is_current" pattern below. branch_code/name/
+# location are stored denormalized (not a branch_id FK) since that's how
+# the table was created; employee_id has no DB-level FK (db_constraint=
+# False) because the DA team's permissions don't allow adding a
+# REFERENCES constraint onto their employee table.
+class EmployeeBranchHistory(models.Model):
+    assignment_id = models.BigAutoField(primary_key=True)
+    employee = models.ForeignKey(
+        "Employee", on_delete=models.DO_NOTHING, db_column="employee_id", db_constraint=False
+    )
+    branch_code = models.CharField(max_length=20)
+    branch_name = models.CharField(max_length=150)
+    location = models.CharField(max_length=255, blank=True, null=True)
+    effective_from = models.DateField()
+    effective_to = models.DateField(blank=True, null=True)
+    is_current = models.BooleanField(default=True)
+    created_at = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = "employee_branch_history"
+
+
+# Who currently leads each department — one row per department, no
+# history (just "who leads it right now"). Used to route a submitted
+# worklog to the right recipient. employee_id has no DB-level FK for the
+# same reason as EmployeeBranchHistory above.
+class DepartmentLead(models.Model):
+    department_lead_id = models.BigAutoField(primary_key=True)
+    department = models.ForeignKey(
+        Department, on_delete=models.DO_NOTHING, db_column="department_id", db_constraint=False
+    )
+    employee = models.ForeignKey(
+        "Employee", on_delete=models.DO_NOTHING, db_column="employee_id", db_constraint=False
+    )
+    updated_at = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = "department_lead"
+
+
+# One row per employee per calendar day — a daily worklog report, not a
+# generic notes field. entries holds the whole "S.No | Time | Work" table
+# as JSON (start_time/end_time/description/is_break per row) since no one
+# queries individual time-blocks — splitting them into their own table
+# would be unused complexity. reported_to_employee_id snapshots who this
+# day's log actually went to at submission time, so the answer stays
+# correct even if the department's lead changes later.
+class EmployeeWorklog(models.Model):
+    worklog_id = models.BigAutoField(primary_key=True)
+    employee = models.ForeignKey(
+        "Employee", on_delete=models.DO_NOTHING, db_column="employee_id", db_constraint=False
+    )
+    work_date = models.DateField()
+    # Free text, not a real time value — same as entries' start_time/
+    # end_time below. No time picker on the form, just whatever the
+    # employee typed (e.g. "9:30 am"), so nothing here is parseable/
+    # validatable as an actual time.
+    login_time = models.CharField(max_length=20, blank=True, null=True)
+    logout_time = models.CharField(max_length=20, blank=True, null=True)
+    entries = models.JSONField(default=list)
+    reported_to_employee = models.ForeignKey(
+        "Employee",
+        on_delete=models.DO_NOTHING,
+        db_column="reported_to_employee_id",
+        db_constraint=False,
+        related_name="+",
+        blank=True,
+        null=True,
+    )
+    created_at = models.DateTimeField(blank=True, null=True)
+    updated_at = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = "employee_worklog"
+
+
 # A person's department isn't a direct FK on employee — it's tracked
 # here as a dated history, with is_current marking the active row, so
 # department moves keep their own record over time.

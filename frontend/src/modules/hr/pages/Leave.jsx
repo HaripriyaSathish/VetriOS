@@ -38,8 +38,13 @@ function Leave() {
   const [formError, setFormError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  const [actionBusyId, setActionBusyId] = useState(null);
   const [actionError, setActionError] = useState("");
+
+  // { leave, action: "approve" | "reject" } — null when no confirm modal
+  // is open. reject requires typing a reason before it can be confirmed.
+  const [confirmTarget, setConfirmTarget] = useState(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [confirming, setConfirming] = useState(false);
 
   const loadData = async () => {
     setLoading(true);
@@ -85,29 +90,32 @@ function Leave() {
     }
   };
 
-  const handleApprove = async (leaveId) => {
-    setActionBusyId(leaveId);
+  const openConfirm = (leave, action) => {
+    setConfirmTarget({ leave, action });
+    setRejectReason("");
     setActionError("");
-    try {
-      await client.post(`/api/hr/leave/requests/${leaveId}/approve/`);
-      await loadData();
-    } catch (err) {
-      setActionError(err.response?.data?.detail || "Couldn't approve that request.");
-    } finally {
-      setActionBusyId(null);
-    }
   };
 
-  const handleReject = async (leaveId) => {
-    setActionBusyId(leaveId);
+  const closeConfirm = () => setConfirmTarget(null);
+
+  const handleConfirm = async () => {
+    if (!confirmTarget) return;
+    const { leave, action } = confirmTarget;
+    setConfirming(true);
     setActionError("");
     try {
-      await client.post(`/api/hr/leave/requests/${leaveId}/reject/`);
+      if (action === "approve") {
+        await client.post(`/api/hr/leave/requests/${leave.leave_id}/approve/`);
+      } else {
+        await client.post(`/api/hr/leave/requests/${leave.leave_id}/reject/`, { reason: rejectReason });
+      }
+      setConfirmTarget(null);
       await loadData();
     } catch (err) {
-      setActionError(err.response?.data?.detail || "Couldn't reject that request.");
+      const data = err.response?.data;
+      setActionError(data?.reason?.[0] || data?.detail || `Couldn't ${action} that request.`);
     } finally {
-      setActionBusyId(null);
+      setConfirming(false);
     }
   };
 
@@ -255,8 +263,7 @@ function Leave() {
                             type="button"
                             className="lv-action-btn lv-action-approve"
                             title="Approve"
-                            disabled={actionBusyId === r.leave_id}
-                            onClick={() => handleApprove(r.leave_id)}
+                            onClick={() => openConfirm(r, "approve")}
                           >
                             <Check size={14} /> Approve
                           </button>
@@ -264,8 +271,7 @@ function Leave() {
                             type="button"
                             className="lv-action-btn lv-action-reject"
                             title="Reject"
-                            disabled={actionBusyId === r.leave_id}
-                            onClick={() => handleReject(r.leave_id)}
+                            onClick={() => openConfirm(r, "reject")}
                           >
                             <X size={14} /> Reject
                           </button>
@@ -345,6 +351,50 @@ function Leave() {
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {confirmTarget && (
+        <div className="hr-modal-backdrop" onClick={closeConfirm}>
+          <div className="hr-modal hr-confirm" onClick={(e) => e.stopPropagation()}>
+            <h2>
+              {confirmTarget.action === "approve" ? "Approve" : "Reject"} {confirmTarget.leave.full_name}'s request?
+            </h2>
+            <p>
+              {confirmTarget.leave.leave_type_name} · {formatDateRange(confirmTarget.leave.start_date, confirmTarget.leave.end_date)} ·{" "}
+              {confirmTarget.leave.total_days} {confirmTarget.leave.total_days === 1 ? "day" : "days"}
+            </p>
+
+            {confirmTarget.action === "reject" && (
+              <>
+                <label>Reason for rejecting</label>
+                <textarea
+                  className="lv-textarea"
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  rows={3}
+                  autoFocus
+                  required
+                />
+              </>
+            )}
+
+            {actionError && <p className="hr-error">{actionError}</p>}
+
+            <div className="hr-modal-actions">
+              <button type="button" className="hr-btn-sm" onClick={closeConfirm}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className={confirmTarget.action === "reject" ? "hr-btn-sm hr-btn-danger" : "hr-btn-accent"}
+                onClick={handleConfirm}
+                disabled={confirming || (confirmTarget.action === "reject" && !rejectReason.trim())}
+              >
+                {confirming ? "Working…" : confirmTarget.action === "approve" ? "Approve" : "Reject"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -312,6 +312,59 @@ class EmployeeWorklogSerializer(serializers.ModelSerializer):
         return str(obj.reported_to_employee.person) if obj.reported_to_employee_id else None
 
 
+# Row shape for a department lead's "Team worklogs" list — same day
+# record, plus who submitted it (the org-wide Employee list serializer
+# doesn't fit here since this is scoped to reported_to_employee_id, not
+# a department roster).
+class TeamWorklogSerializer(serializers.ModelSerializer):
+    employee_name = serializers.SerializerMethodField()
+    employee_code = serializers.SerializerMethodField()
+    employee_designation = serializers.SerializerMethodField()
+
+    class Meta:
+        model = EmployeeWorklog
+        fields = [
+            "worklog_id",
+            "employee_id",
+            "employee_name",
+            "employee_code",
+            "employee_designation",
+            "work_date",
+            "login_time",
+            "logout_time",
+            "entries",
+            "created_at",
+        ]
+
+    def get_employee_name(self, obj):
+        return str(obj.employee.person)
+
+    def get_employee_code(self, obj):
+        return obj.employee.employee_code
+
+    def get_employee_designation(self, obj):
+        return obj.employee.designation.designation_name if obj.employee.designation_id else None
+
+
+# Org-wide row shape for HR's Worklogs tab — every employee's
+# submissions, same idea as the org-wide Attendance/Leave screens
+# (includes the requester's own if they happen to have an Employee
+# record too, same as those screens).
+class HRWorklogSerializer(TeamWorklogSerializer):
+    department_name = serializers.SerializerMethodField()
+    reported_to_name = serializers.SerializerMethodField()
+
+    class Meta(TeamWorklogSerializer.Meta):
+        fields = TeamWorklogSerializer.Meta.fields + ["department_name", "reported_to_name"]
+
+    def get_department_name(self, obj):
+        history = _current_department_history(obj.employee.person_id)
+        return history.department.department_name if history else None
+
+    def get_reported_to_name(self, obj):
+        return str(obj.reported_to_employee.person) if obj.reported_to_employee_id else None
+
+
 # Submits (or re-submits) one day's worklog. login_time/logout_time are
 # optional — if left blank they're derived from the first entry's
 # start_time and the last entry's end_time, same as how the day reads in

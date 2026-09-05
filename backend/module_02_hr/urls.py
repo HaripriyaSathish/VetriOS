@@ -21,6 +21,8 @@ from .views import (
     MyAttendanceView,
     MyLeaveView,
     MyWorklogView,
+    TeamWorklogsView,
+    WorklogsOrgView,
 )
 
 urlpatterns = [
@@ -43,5 +45,7 @@ urlpatterns = [
     path("leave/requests/<int:pk>/approve/", LeaveRequestApproveView.as_view(), name="leave-request-approve"),
     path("leave/requests/<int:pk>/reject/", LeaveRequestRejectView.as_view(), name="leave-request-reject"),
     path("leave/me/", MyLeaveView.as_view(), name="leave-me"),
+    path("worklogs/", WorklogsOrgView.as_view(), name="worklog-org"),
     path("worklogs/me/", MyWorklogView.as_view(), name="worklog-me"),
+    path("worklogs/team/", TeamWorklogsView.as_view(), name="worklog-team"),
 ]

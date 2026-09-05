@@ -49,8 +49,14 @@ function AppLayout() {
             <div className="app-user-menu" ref={menuRef}>
               <button type="button" className="app-user-trigger" onClick={() => setMenuOpen((v) => !v)}>
                 <span className="app-topbar-identity">
-                  <span className="app-topbar-user">{user?.full_name}</span>
-                  {user?.designation && <span className="app-topbar-designation">{user.designation}</span>}
+                  <span className="app-topbar-user">
+                    {user?.full_name}
+                    {[user?.department, user?.designation].filter(Boolean).length > 0 &&
+                      ` (${[user?.department, user?.designation].filter(Boolean).join(". ")})`}
+                  </span>
+                  {user?.roles?.length > 0 && (
+                    <span className="app-topbar-designation">Role: {user.roles.join(", ")}</span>
+                  )}
                 </span>
                 <ChevronDown size={15} className={"app-user-chevron" + (menuOpen ? " open" : "")} />
               </button>

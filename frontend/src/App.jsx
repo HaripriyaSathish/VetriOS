@@ -10,9 +10,11 @@ import TrainingRouter from "./modules/training/pages/TrainingRouter";
 import HRDashboard from "./modules/hr/pages/HRDashboard";
 import Attendance from "./modules/hr/pages/Attendance";
 import Leave from "./modules/hr/pages/Leave";
+import Worklogs from "./modules/hr/pages/Worklogs";
 import MyAttendance from "./modules/hr/pages/MyAttendance";
 import MyLeave from "./modules/hr/pages/MyLeave";
 import MyWorklog from "./modules/hr/pages/MyWorklog";
+import TeamWorklogs from "./modules/hr/pages/TeamWorklogs";
 import ProtectedRoute from "./components/ProtectedRoute";
 import PermissionGate from "./components/PermissionGate";
 import AppLayout from "./components/AppLayout";
@@ -66,6 +68,7 @@ function App() {
         <Route path="/my/attendance" element={<MyAttendance />} />
         <Route path="/my/leave" element={<MyLeave />} />
         <Route path="/my/worklog" element={<MyWorklog />} />
+        <Route path="/my/team-worklogs" element={<TeamWorklogs />} />
 
         <Route
           path="/identity/users"
@@ -254,7 +257,15 @@ function App() {
           path="/hr/worklogs"
           element={
             <PermissionGate requirement={{ type: "role", value: ["HR Administrator", "System Administrator"] }}>
-              <ModulePlaceholder name="Worklogs" />
+              <Worklogs />
+            </PermissionGate>
+          }
+        />
+        <Route
+          path="/hr/onboarding"
+          element={
+            <PermissionGate requirement={{ type: "role", value: ["HR Administrator", "System Administrator"] }}>
+              <ModulePlaceholder name="Onboarding" />
             </PermissionGate>
           }
         />

@@ -33,6 +33,8 @@ from .serializers import (
     EmployeeUpdateSerializer,
     EmployeeWorklogSerializer,
     EmployeeWorklogWriteSerializer,
+    HRWorklogSerializer,
+    TeamWorklogSerializer,
     EmployeeWriteSerializer,
     EmploymentTypeSerializer,
     LeaveBalanceSerializer,
@@ -848,3 +850,47 @@ class MyWorklogView(APIView):
             )
 
         return Response(EmployeeWorklogSerializer(worklog).data, status=status.HTTP_200_OK)
+
+
+# Self-service, not HR-gated — scoped entirely by reported_to_employee_id
+# rather than a role check. Whoever's logged in only ever sees worklogs
+# that were actually routed to them (via _resolve_worklog_recipient at
+# submission time), which is naturally either nothing (not a lead) or
+# their team's, so there's no separate permission needed on top.
+class TeamWorklogsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        employee = _employee_for_user(request.user)
+        if not employee:
+            return Response({"employee_id": None, "worklogs": []})
+
+        worklogs = (
+            EmployeeWorklog.objects.filter(reported_to_employee_id=employee.employee_id)
+            .select_related("employee__person", "employee__designation")
+            .order_by("-work_date", "employee_id")
+        )
+        return Response(
+            {
+                "employee_id": employee.employee_id,
+                "worklogs": TeamWorklogSerializer(worklogs, many=True).data,
+            }
+        )
+
+
+WORKLOG_ORG_HISTORY_DAYS = 30
+
+
+# Org-wide — every employee's submitted worklogs, same "include the
+# requester's own too" convention as the Attendance/Leave HR screens.
+class WorklogsOrgView(generics.ListAPIView):
+    permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
+    serializer_class = HRWorklogSerializer
+
+    def get_queryset(self):
+        since = timezone.localdate() - timezone.timedelta(days=WORKLOG_ORG_HISTORY_DAYS - 1)
+        return (
+            EmployeeWorklog.objects.filter(work_date__gte=since)
+            .select_related("employee__person", "employee__designation", "reported_to_employee__person")
+            .order_by("-work_date", "employee_id")
+        )

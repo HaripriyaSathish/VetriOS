@@ -12,6 +12,9 @@ import Attendance from "./modules/hr/pages/Attendance";
 import Leave from "./modules/hr/pages/Leave";
 import Worklogs from "./modules/hr/pages/Worklogs";
 import Onboarding from "./modules/hr/pages/Onboarding";
+import Promotions from "./modules/hr/pages/Promotions";
+import PayrollReferences from "./modules/hr/pages/PayrollReferences";
+import ExitManagement from "./modules/hr/pages/ExitManagement";
 import MyAttendance from "./modules/hr/pages/MyAttendance";
 import MyLeave from "./modules/hr/pages/MyLeave";
 import MyWorklog from "./modules/hr/pages/MyWorklog";
@@ -267,6 +270,30 @@ function App() {
           element={
             <PermissionGate requirement={{ type: "role", value: ["HR Administrator", "System Administrator"] }}>
               <Onboarding />
+            </PermissionGate>
+          }
+        />
+        <Route
+          path="/hr/promotions"
+          element={
+            <PermissionGate requirement={{ type: "role", value: ["HR Administrator", "System Administrator"] }}>
+              <Promotions />
+            </PermissionGate>
+          }
+        />
+        <Route
+          path="/hr/payroll-references"
+          element={
+            <PermissionGate requirement={{ type: "role", value: ["HR Administrator", "System Administrator"] }}>
+              <PayrollReferences />
+            </PermissionGate>
+          }
+        />
+        <Route
+          path="/hr/exit-management"
+          element={
+            <PermissionGate requirement={{ type: "role", value: ["HR Administrator", "System Administrator"] }}>
+              <ExitManagement />
             </PermissionGate>
           }
         />

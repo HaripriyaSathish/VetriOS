@@ -9,8 +9,12 @@ from .models import (
     Department,
     DepartmentLead,
     Designation,
+    DesignationDepartmentMap,
     Employee,
     EmployeeBranchHistory,
+    EmployeeExit,
+    EmployeePayrollReference,
+    EmployeePromotion,
     EmployeeWorklog,
     EmploymentType,
     InternOnboarding,
@@ -131,7 +135,12 @@ class DepartmentWriteSerializer(serializers.ModelSerializer):
         return instance
 
 
+# department_ids: which departments this designation is restricted to
+# (via DesignationDepartmentMap). Empty list means cross-department — the
+# Onboarding "assign designation" step shows it under every department.
 class DesignationSerializer(serializers.ModelSerializer):
+    department_ids = serializers.SerializerMethodField()
+
     class Meta:
         model = Designation
         fields = [
@@ -141,7 +150,14 @@ class DesignationSerializer(serializers.ModelSerializer):
             "description",
             "level_number",
             "is_active",
+            "department_ids",
         ]
+
+    def get_department_ids(self, obj):
+        return list(
+            DesignationDepartmentMap.objects.filter(designation_id=obj.designation_id)
+            .values_list("department_id", flat=True)
+        )
 
 
 # Create/edit for the Designations tab — designation_code and
@@ -729,12 +745,16 @@ class OnboardingInternSerializer(serializers.ModelSerializer):
     email = serializers.SerializerMethodField()
     designation_id = serializers.SerializerMethodField()
     designation_name = serializers.SerializerMethodField()
+    department_id = serializers.SerializerMethodField()
+    department_name = serializers.SerializerMethodField()
     stipend_amount = serializers.SerializerMethodField()
     documents_shared = serializers.SerializerMethodField()
     signed_documents_received = serializers.SerializerMethodField()
     documents_verified = serializers.SerializerMethodField()
+    designation_stipend_assigned = serializers.SerializerMethodField()
     welcome_email_sent = serializers.SerializerMethodField()
     offer_letter_acknowledged = serializers.SerializerMethodField()
+    login_credentials_provided = serializers.SerializerMethodField()
     progress_percent = serializers.SerializerMethodField()
 
     class Meta:
@@ -748,12 +768,16 @@ class OnboardingInternSerializer(serializers.ModelSerializer):
             "status",
             "designation_id",
             "designation_name",
+            "department_id",
+            "department_name",
             "stipend_amount",
             "documents_shared",
             "signed_documents_received",
             "documents_verified",
+            "designation_stipend_assigned",
             "welcome_email_sent",
             "offer_letter_acknowledged",
+            "login_credentials_provided",
             "progress_percent",
         ]
 
@@ -776,6 +800,14 @@ class OnboardingInternSerializer(serializers.ModelSerializer):
         onboarding = self._onboarding(obj)
         return onboarding.designation.designation_name if onboarding and onboarding.designation_id else None
 
+    def get_department_id(self, obj):
+        onboarding = self._onboarding(obj)
+        return onboarding.department_id if onboarding else None
+
+    def get_department_name(self, obj):
+        onboarding = self._onboarding(obj)
+        return onboarding.department.department_name if onboarding and onboarding.department_id else None
+
     def get_stipend_amount(self, obj):
         onboarding = self._onboarding(obj)
         return onboarding.stipend_amount if onboarding else None
@@ -792,6 +824,10 @@ class OnboardingInternSerializer(serializers.ModelSerializer):
         onboarding = self._onboarding(obj)
         return onboarding.documents_verified if onboarding else False
 
+    def get_designation_stipend_assigned(self, obj):
+        onboarding = self._onboarding(obj)
+        return onboarding.designation_stipend_assigned if onboarding else False
+
     def get_welcome_email_sent(self, obj):
         onboarding = self._onboarding(obj)
         return onboarding.welcome_email_sent if onboarding else False
@@ -800,11 +836,16 @@ class OnboardingInternSerializer(serializers.ModelSerializer):
         onboarding = self._onboarding(obj)
         return onboarding.offer_letter_acknowledged if onboarding else False
 
-    # Five-step checklist, in process order: documents shared, signed
-    # documents received, document verification, offer letter email sent,
-    # signed acknowledgement received. welcome_email_sent isn't HR-toggleable
-    # yet (no send action built), so it stays false until that's built —
-    # progress simply can't reach 100% until then.
+    def get_login_credentials_provided(self, obj):
+        onboarding = self._onboarding(obj)
+        return onboarding.login_credentials_provided if onboarding else False
+
+    # Seven-step checklist, in process order: documents shared, signed
+    # documents received, document verification, designation/department/
+    # stipend assigned, offer letter email sent, signed acknowledgement
+    # received, login credentials provided. welcome_email_sent and
+    # login_credentials_provided are manual HR checkboxes for now — see
+    # InternOnboardingUpdateSerializer.
     def get_progress_percent(self, obj):
         onboarding = self._onboarding(obj)
         if not onboarding:
@@ -813,25 +854,259 @@ class OnboardingInternSerializer(serializers.ModelSerializer):
             onboarding.documents_shared,
             onboarding.signed_documents_received,
             onboarding.documents_verified,
+            onboarding.designation_stipend_assigned,
             onboarding.welcome_email_sent,
             onboarding.offer_letter_acknowledged,
+            onboarding.login_credentials_provided,
         ])
-        return round(done / 5 * 100)
+        return round(done / 7 * 100)
 
 
 # Updates (or creates, on first save) the InternOnboarding row for one
-# intern — designation/stipend assignment and four of the five checklist
-# steps. welcome_email_sent is deliberately excluded: it isn't HR-toggleable,
-# it'll be set programmatically once the email-send action is built.
+# intern — designation/department/stipend assignment and all seven
+# checklist steps. welcome_email_sent and login_credentials_provided are
+# manual HR checkboxes for now (placeholders) until the real email-send
+# action and System Administrator credential flow are built.
 class InternOnboardingUpdateSerializer(serializers.Serializer):
     designation_id = serializers.IntegerField(required=False, allow_null=True)
+    department_id = serializers.IntegerField(required=False, allow_null=True)
     stipend_amount = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
     documents_shared = serializers.BooleanField(required=False)
     signed_documents_received = serializers.BooleanField(required=False)
     documents_verified = serializers.BooleanField(required=False)
+    designation_stipend_assigned = serializers.BooleanField(required=False)
+    welcome_email_sent = serializers.BooleanField(required=False)
     offer_letter_acknowledged = serializers.BooleanField(required=False)
+    login_credentials_provided = serializers.BooleanField(required=False)
 
     def validate_designation_id(self, value):
         if value is not None and not Designation.objects.filter(pk=value, is_active=True).exists():
             raise serializers.ValidationError("Unknown designation.")
         return value
+
+    def validate_department_id(self, value):
+        if value is not None and not Department.objects.filter(pk=value, is_active=True).exists():
+            raise serializers.ValidationError("Unknown department.")
+        return value
+
+
+# Promotions — DRAFT isn't used by this app (HR creates straight into
+# PENDING); CANCELLED isn't exposed either, only PENDING/APPROVED/REJECTED
+# matter for the flow HR actually uses.
+class PromotionListSerializer(serializers.ModelSerializer):
+    employee_code = serializers.CharField(source="employee.employee_code", read_only=True)
+    person_id = serializers.IntegerField(source="employee.person_id", read_only=True)
+    full_name = serializers.SerializerMethodField()
+    previous_designation_name = serializers.SerializerMethodField()
+    new_designation_name = serializers.SerializerMethodField()
+    approved_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = EmployeePromotion
+        fields = [
+            "promotion_id",
+            "employee_id",
+            "employee_code",
+            "person_id",
+            "full_name",
+            "previous_designation_id",
+            "previous_designation_name",
+            "new_designation_id",
+            "new_designation_name",
+            "effective_date",
+            "reason",
+            "status",
+            "approved_by_name",
+            "approval_date",
+            "remarks",
+            "created_at",
+        ]
+
+    def get_full_name(self, obj):
+        return str(obj.employee.person)
+
+    def get_previous_designation_name(self, obj):
+        return obj.previous_designation.designation_name if obj.previous_designation_id else None
+
+    def get_new_designation_name(self, obj):
+        return obj.new_designation.designation_name
+
+    def get_approved_by_name(self, obj):
+        return str(obj.approved_by.person) if obj.approved_by_id else None
+
+
+# HR fills in employee + new designation + effective date; previous
+# designation is snapshotted server-side from the employee's current
+# designation at request time, not client-supplied.
+class PromotionCreateSerializer(serializers.Serializer):
+    employee_id = serializers.IntegerField()
+    new_designation_id = serializers.IntegerField()
+    effective_date = serializers.DateField()
+    reason = serializers.CharField(required=False, allow_blank=True)
+
+    def validate_employee_id(self, value):
+        if not Employee.objects.filter(pk=value).exists():
+            raise serializers.ValidationError("Unknown employee.")
+        return value
+
+    def validate_new_designation_id(self, value):
+        if not Designation.objects.filter(pk=value, is_active=True).exists():
+            raise serializers.ValidationError("Unknown designation.")
+        return value
+
+    def validate(self, attrs):
+        employee = Employee.objects.get(pk=attrs["employee_id"])
+        if employee.designation_id == attrs["new_designation_id"]:
+            raise serializers.ValidationError(
+                {"new_designation_id": ["Employee already holds this designation."]}
+            )
+        return attrs
+
+
+class PromotionDecisionSerializer(serializers.Serializer):
+    remarks = serializers.CharField(required=False, allow_blank=True)
+
+
+PAYROLL_PROVIDERS = ["Gusto", "Deel", "ADP"]
+
+
+# Payroll references — status is DB-constrained to ACTIVE/INACTIVE only;
+# "Expired" is derived here from effective_to, never stored, so it stays
+# correct without a cron job flipping rows over.
+class PayrollReferenceSerializer(serializers.ModelSerializer):
+    employee_code = serializers.CharField(source="employee.employee_code", read_only=True)
+    person_id = serializers.IntegerField(source="employee.person_id", read_only=True)
+    full_name = serializers.SerializerMethodField()
+    status = serializers.SerializerMethodField()
+
+    class Meta:
+        model = EmployeePayrollReference
+        fields = [
+            "payroll_reference_id",
+            "employee_id",
+            "employee_code",
+            "person_id",
+            "full_name",
+            "payroll_provider",
+            "external_employee_id",
+            "external_reference",
+            "effective_from",
+            "effective_to",
+            "status",
+        ]
+
+    def get_full_name(self, obj):
+        return str(obj.employee.person)
+
+    def get_status(self, obj):
+        if obj.status == "ACTIVE" and obj.effective_to and obj.effective_to < timezone.localdate():
+            return "EXPIRED"
+        return obj.status
+
+
+class PayrollReferenceWriteSerializer(serializers.Serializer):
+    employee_id = serializers.IntegerField()
+    payroll_provider = serializers.CharField(max_length=100)
+    external_employee_id = serializers.CharField(max_length=100)
+    external_reference = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    effective_from = serializers.DateField()
+    effective_to = serializers.DateField(required=False, allow_null=True)
+    status = serializers.ChoiceField(choices=["ACTIVE", "INACTIVE"], required=False)
+
+    def validate_employee_id(self, value):
+        if not Employee.objects.filter(pk=value).exists():
+            raise serializers.ValidationError("Unknown employee.")
+        return value
+
+    def validate(self, attrs):
+        if attrs.get("effective_to") and attrs.get("effective_from") and attrs["effective_to"] < attrs["effective_from"]:
+            raise serializers.ValidationError({"effective_to": ["Can't be before the effective-from date."]})
+
+        provider = attrs.get("payroll_provider")
+        external_id = attrs.get("external_employee_id")
+        if provider and external_id:
+            existing = EmployeePayrollReference.objects.filter(
+                payroll_provider=provider, external_employee_id=external_id
+            )
+            if self.instance:
+                existing = existing.exclude(pk=self.instance.pk)
+            if existing.exists():
+                raise serializers.ValidationError(
+                    {"external_employee_id": ["Already mapped to this provider."]}
+                )
+        return attrs
+
+
+EXIT_TYPES = ["RESIGNATION", "TERMINATION", "RETIREMENT", "CONTRACT_END", "ABSCONDING", "OTHER"]
+
+
+# Exit management — one record per employee (DB-enforced unique on
+# employee_id). status is derived, never stored: PENDING until System
+# Administrator approves, IN_PROGRESS once approved but the exit
+# interview isn't done yet, COMPLETED once it is.
+class ExitListSerializer(serializers.ModelSerializer):
+    employee_code = serializers.CharField(source="employee.employee_code", read_only=True)
+    person_id = serializers.IntegerField(source="employee.person_id", read_only=True)
+    full_name = serializers.SerializerMethodField()
+    approved_by_name = serializers.SerializerMethodField()
+    status = serializers.SerializerMethodField()
+
+    class Meta:
+        model = EmployeeExit
+        fields = [
+            "exit_id",
+            "employee_id",
+            "employee_code",
+            "person_id",
+            "full_name",
+            "exit_type",
+            "exit_date",
+            "last_working_date",
+            "notice_period_days",
+            "reason",
+            "exit_interview_completed",
+            "approved_by_name",
+            "approval_date",
+            "remarks",
+            "status",
+        ]
+
+    def get_full_name(self, obj):
+        return str(obj.employee.person)
+
+    def get_approved_by_name(self, obj):
+        return str(obj.approved_by.person) if obj.approved_by_id else None
+
+    def get_status(self, obj):
+        if not obj.approved_by_id:
+            return "PENDING"
+        if not obj.exit_interview_completed:
+            return "IN_PROGRESS"
+        return "COMPLETED"
+
+
+class ExitWriteSerializer(serializers.Serializer):
+    employee_id = serializers.IntegerField(required=False)
+    exit_date = serializers.DateField(required=False)
+    exit_type = serializers.ChoiceField(choices=EXIT_TYPES, required=False)
+    reason = serializers.CharField(required=False, allow_blank=True)
+    notice_period_days = serializers.IntegerField(required=False, allow_null=True, min_value=0)
+    last_working_date = serializers.DateField(required=False, allow_null=True)
+    remarks = serializers.CharField(required=False, allow_blank=True)
+    exit_interview_completed = serializers.BooleanField(required=False)
+
+    def validate_employee_id(self, value):
+        if not Employee.objects.filter(pk=value).exists():
+            raise serializers.ValidationError("Unknown employee.")
+        if EmployeeExit.objects.filter(employee_id=value).exists():
+            raise serializers.ValidationError("This employee already has an exit record.")
+        return value
+
+    def validate(self, attrs):
+        last_working_date = attrs.get("last_working_date")
+        exit_date = attrs.get("exit_date") or (self.instance.exit_date if self.instance else None)
+        if last_working_date and exit_date and last_working_date > exit_date:
+            raise serializers.ValidationError(
+                {"last_working_date": ["Can't be after the exit date."]}
+            )
+        return attrs

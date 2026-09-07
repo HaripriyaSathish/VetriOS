@@ -345,7 +345,7 @@ function MyWorklog() {
       <div className="att-head">
         <div>
           <span className="att-eyebrow">My workspace</span>
-          <h1>Worklog</h1>
+          <h1>My Worklogs</h1>
           <p>Submit your daily worklog — it's sent straight to your reporting lead.</p>
         </div>
       </div>

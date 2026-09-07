@@ -36,6 +36,7 @@ function Onboarding() {
   const [tab, setTab] = useState("interns"); // "interns" | "external"
   const [interns, setInterns] = useState([]);
   const [designations, setDesignations] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [page, setPage] = useState(1);
@@ -64,17 +65,35 @@ function Onboarding() {
       .get("/api/hr/designations/")
       .then(({ data }) => setDesignations(data.filter((d) => d.is_active)))
       .catch(() => {});
+    client
+      .get("/api/hr/departments/")
+      .then(({ data }) => setDepartments(data.filter((d) => d.is_active)))
+      .catch(() => {});
   }, []);
+
+  // A designation with no department_ids at all is cross-department (shown
+  // everywhere, e.g. Team Lead/Project Lead) — one that DOES have
+  // department_ids only shows once that specific department is picked.
+  // No department picked yet -> only the cross-department ones show.
+  const visibleDesignations = (departmentId) =>
+    designations.filter((d) => {
+      if (!d.department_ids || d.department_ids.length === 0) return true;
+      return departmentId !== "" && d.department_ids.some((id) => String(id) === String(departmentId));
+    });
 
   const openChecklist = (intern) => {
     setChecklistIntern(intern);
     setChecklistDraft({
       designation_id: intern.designation_id || "",
+      department_id: intern.department_id || "",
       stipend_amount: intern.stipend_amount ?? "",
       documents_shared: intern.documents_shared,
       signed_documents_received: intern.signed_documents_received,
       documents_verified: intern.documents_verified,
+      designation_stipend_assigned: intern.designation_stipend_assigned,
+      welcome_email_sent: intern.welcome_email_sent,
       offer_letter_acknowledged: intern.offer_letter_acknowledged,
+      login_credentials_provided: intern.login_credentials_provided,
     });
     setSaveError("");
   };
@@ -90,11 +109,15 @@ function Onboarding() {
     try {
       const payload = {
         designation_id: checklistDraft.designation_id === "" ? null : Number(checklistDraft.designation_id),
+        department_id: checklistDraft.department_id === "" ? null : Number(checklistDraft.department_id),
         stipend_amount: checklistDraft.stipend_amount === "" ? null : checklistDraft.stipend_amount,
         documents_shared: checklistDraft.documents_shared,
         signed_documents_received: checklistDraft.signed_documents_received,
         documents_verified: checklistDraft.documents_verified,
+        designation_stipend_assigned: checklistDraft.designation_stipend_assigned,
+        welcome_email_sent: checklistDraft.welcome_email_sent,
         offer_letter_acknowledged: checklistDraft.offer_letter_acknowledged,
+        login_credentials_provided: checklistDraft.login_credentials_provided,
       };
       await client.patch(`/api/hr/onboarding/interns/${checklistIntern.intern_id}/`, payload);
       closeChecklist();
@@ -186,33 +209,12 @@ function Onboarding() {
 
       {checklistIntern && (
         <div className="hr-modal-backdrop" onClick={closeChecklist}>
-          <div className="hr-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="hr-modal hr-modal-wide" onClick={(e) => e.stopPropagation()}>
             <button type="button" className="hr-modal-x" onClick={closeChecklist} aria-label="Close">
               ✕
             </button>
             <h2>{checklistIntern.full_name} - Onboarding checklist</h2>
             <p className="hr-hint">Intern ID: {checklistIntern.intern_code}</p>
-
-            <label>Designation</label>
-            <select
-              value={checklistDraft.designation_id}
-              onChange={(e) => setChecklistDraft({ ...checklistDraft, designation_id: e.target.value })}
-            >
-              <option value="">Not assigned</option>
-              {designations.map((d) => (
-                <option key={d.designation_id} value={d.designation_id}>
-                  {d.designation_name}
-                </option>
-              ))}
-            </select>
-
-            <label>Stipend amount</label>
-            <input
-              type="number"
-              min="0"
-              value={checklistDraft.stipend_amount}
-              onChange={(e) => setChecklistDraft({ ...checklistDraft, stipend_amount: e.target.value })}
-            />
 
             <div className="ob-checklist-row">
               <input
@@ -253,14 +255,78 @@ function Onboarding() {
               />
               <label htmlFor="documents_verified">Step 3 · Document verification</label>
             </div>
-            <div className="ob-checklist-row ob-checklist-row-disabled">
-              <input type="checkbox" checked={checklistIntern.welcome_email_sent} disabled readOnly />
-              <label>
-                Step 4 · Offer letter email sent
-                <span className="ob-step-hint">
-                  {checklistIntern.welcome_email_sent ? "Sent" : "Not sent yet"}
-                </span>
-              </label>
+
+            <div className="ob-checklist-row">
+              <input
+                type="checkbox"
+                id="designation_stipend_assigned"
+                checked={checklistDraft.designation_stipend_assigned}
+                onChange={(e) =>
+                  setChecklistDraft({ ...checklistDraft, designation_stipend_assigned: e.target.checked })
+                }
+              />
+              <label htmlFor="designation_stipend_assigned">Step 4 · Assign designation, department &amp; stipend</label>
+            </div>
+            <div className="ob-assign-fields">
+              <div>
+                <label>Department</label>
+                <select
+                  value={checklistDraft.department_id}
+                  onChange={(e) => {
+                    const department_id = e.target.value;
+                    const stillValid = visibleDesignations(department_id).some(
+                      (d) => String(d.designation_id) === String(checklistDraft.designation_id)
+                    );
+                    setChecklistDraft({
+                      ...checklistDraft,
+                      department_id,
+                      designation_id: stillValid ? checklistDraft.designation_id : "",
+                    });
+                  }}
+                >
+                  <option value="">Not assigned</option>
+                  {departments.map((d) => (
+                    <option key={d.department_id} value={d.department_id}>
+                      {d.department_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label>Designation</label>
+                <select
+                  value={checklistDraft.designation_id}
+                  onChange={(e) => setChecklistDraft({ ...checklistDraft, designation_id: e.target.value })}
+                >
+                  <option value="">Not assigned</option>
+                  {visibleDesignations(checklistDraft.department_id).map((d) => (
+                    <option key={d.designation_id} value={d.designation_id}>
+                      {d.designation_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label>Stipend amount</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={checklistDraft.stipend_amount}
+                  onChange={(e) => setChecklistDraft({ ...checklistDraft, stipend_amount: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="ob-checklist-row">
+              <input
+                type="checkbox"
+                id="welcome_email_sent"
+                checked={checklistDraft.welcome_email_sent}
+                onChange={(e) =>
+                  setChecklistDraft({ ...checklistDraft, welcome_email_sent: e.target.checked })
+                }
+              />
+              <label htmlFor="welcome_email_sent">Step 5 · Offer letter sent</label>
             </div>
             <div className="ob-checklist-row">
               <input
@@ -271,7 +337,18 @@ function Onboarding() {
                   setChecklistDraft({ ...checklistDraft, offer_letter_acknowledged: e.target.checked })
                 }
               />
-              <label htmlFor="offer_letter_acknowledged">Step 5 · Signed acknowledgement received</label>
+              <label htmlFor="offer_letter_acknowledged">Step 6 · Signed acknowledgement received</label>
+            </div>
+            <div className="ob-checklist-row">
+              <input
+                type="checkbox"
+                id="login_credentials_provided"
+                checked={checklistDraft.login_credentials_provided}
+                onChange={(e) =>
+                  setChecklistDraft({ ...checklistDraft, login_credentials_provided: e.target.checked })
+                }
+              />
+              <label htmlFor="login_credentials_provided">Step 7 · Login credentials provided</label>
             </div>
 
             {saveError && <p className="hr-error">{saveError}</p>}

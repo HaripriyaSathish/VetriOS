@@ -20,6 +20,9 @@ import {
   UserMinus,
   MessageCircle,
   UserCheck,
+  TrendingUp,
+  Link2,
+  LogOut,
 } from "lucide-react";
 import { NAV_ITEMS, hasAccess } from "../config/nav";
 import "../components-styles/Sidebar.css";
@@ -113,7 +116,7 @@ function Sidebar() {
           <span className="nav-icon">
             <ClipboardList size={16} />
           </span>
-          Worklog
+          My Worklogs
         </NavLink>
       )}
 
@@ -284,6 +287,36 @@ function Sidebar() {
                   <UserCheck size={14} />
                 </span>
                 Onboarding
+              </NavLink>
+
+              <NavLink
+                to="/hr/promotions"
+                className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
+              >
+                <span className="nav-icon">
+                  <TrendingUp size={14} />
+                </span>
+                Promotions
+              </NavLink>
+
+              <NavLink
+                to="/hr/payroll-references"
+                className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
+              >
+                <span className="nav-icon">
+                  <Link2 size={14} />
+                </span>
+                Payroll References
+              </NavLink>
+
+              <NavLink
+                to="/hr/exit-management"
+                className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
+              >
+                <span className="nav-icon">
+                  <LogOut size={14} />
+                </span>
+                Exit Management
               </NavLink>
             </div>
           )}

@@ -1,6 +1,6 @@
 from django.db import models
 
-from module_01_identity_access.models import Person
+from module_01_identity_access.models import Person, UserAccount
 
 
 # HR-owned tables (department, designation, employee) — mapped read-only
@@ -39,6 +39,27 @@ class Designation(models.Model):
 
     def __str__(self):
         return self.designation_name
+
+
+# Which designations belong to which department, e.g. Junior/Senior
+# Developer -> Development. A designation with NO rows here is a
+# cross-department role (Team Lead, Project Lead, Product Manager,
+# Intern, ...) and shows up for every department in the onboarding
+# "assign designation" step — only designations that DO have at least
+# one mapping row get filtered down to just their department(s).
+class DesignationDepartmentMap(models.Model):
+    map_id = models.BigAutoField(primary_key=True)
+    designation = models.ForeignKey(
+        Designation, on_delete=models.DO_NOTHING, db_column="designation_id", db_constraint=False
+    )
+    department = models.ForeignKey(
+        Department, on_delete=models.DO_NOTHING, db_column="department_id", db_constraint=False
+    )
+    created_at = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = "designation_department_map"
 
 
 class EmploymentType(models.Model):
@@ -306,3 +327,83 @@ class EmployeeLeaveBalance(models.Model):
     class Meta:
         managed = False
         db_table = "employee_leave_balance"
+
+
+# DA-owned table (public schema) — HR Administrator requests a promotion
+# as PENDING; only System Administrator can approve/reject it (see
+# permissions.IsSystemAdministrator). On approval, the employee's real
+# designation is updated to match (see PromotionApproveView).
+class EmployeePromotion(models.Model):
+    promotion_id = models.BigAutoField(primary_key=True)
+    employee = models.ForeignKey(Employee, on_delete=models.DO_NOTHING, db_column="employee_id")
+    previous_designation = models.ForeignKey(
+        Designation, on_delete=models.DO_NOTHING, db_column="previous_designation_id",
+        related_name="+", blank=True, null=True,
+    )
+    new_designation = models.ForeignKey(
+        Designation, on_delete=models.DO_NOTHING, db_column="new_designation_id", related_name="+",
+    )
+    effective_date = models.DateField()
+    reason = models.TextField(blank=True, null=True)
+    approved_by = models.ForeignKey(
+        UserAccount, on_delete=models.DO_NOTHING, db_column="approved_by_user_id", blank=True, null=True,
+    )
+    approval_date = models.DateField(blank=True, null=True)
+    status = models.CharField(max_length=20)
+    remarks = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField()
+
+    class Meta:
+        managed = False
+        db_table = "employee_promotion"
+
+
+# DA-owned table (public schema) — maps one employee to their record in
+# an external payroll provider (Gusto, Deel, ADP, ...). payroll_provider
+# is plain text, not a lookup table, since the DB schema stores it that
+# way. status is DB-constrained to ACTIVE/INACTIVE only — "Expired" (an
+# effective_to date that's already passed) is derived, not stored; see
+# PayrollReferenceSerializer.get_status.
+class EmployeePayrollReference(models.Model):
+    payroll_reference_id = models.BigAutoField(primary_key=True)
+    employee = models.ForeignKey(Employee, on_delete=models.DO_NOTHING, db_column="employee_id")
+    payroll_provider = models.CharField(max_length=100)
+    external_employee_id = models.CharField(max_length=100)
+    external_reference = models.CharField(max_length=255, blank=True, null=True)
+    effective_from = models.DateField()
+    effective_to = models.DateField(blank=True, null=True)
+    status = models.CharField(max_length=20)
+    created_at = models.DateTimeField()
+    updated_at = models.DateTimeField()
+
+    class Meta:
+        managed = False
+        db_table = "employee_payroll_reference"
+
+
+# DA-owned table (public schema) — one exit record per employee
+# (employee_id is DB-unique). No status column: it's derived (see
+# ExitListSerializer.get_status) from approved_by_id and
+# exit_interview_completed, same "HR drafts, System Administrator
+# approves" split as EmployeePromotion — approving just records who/when,
+# there's no reject here since the DB has nowhere to store it.
+class EmployeeExit(models.Model):
+    exit_id = models.BigAutoField(primary_key=True)
+    employee = models.ForeignKey(Employee, on_delete=models.DO_NOTHING, db_column="employee_id")
+    exit_date = models.DateField()
+    exit_type = models.CharField(max_length=30)
+    reason = models.TextField(blank=True, null=True)
+    notice_period_days = models.IntegerField(blank=True, null=True)
+    last_working_date = models.DateField(blank=True, null=True)
+    approved_by = models.ForeignKey(
+        UserAccount, on_delete=models.DO_NOTHING, db_column="approved_by_user_id", blank=True, null=True,
+    )
+    approval_date = models.DateField(blank=True, null=True)
+    exit_interview_completed = models.BooleanField(default=False)
+    remarks = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField()
+    updated_at = models.DateTimeField()
+
+    class Meta:
+        managed = False
+        db_table = "employee_exit"

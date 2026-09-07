@@ -11,6 +11,7 @@ import HRDashboard from "./modules/hr/pages/HRDashboard";
 import Attendance from "./modules/hr/pages/Attendance";
 import Leave from "./modules/hr/pages/Leave";
 import Worklogs from "./modules/hr/pages/Worklogs";
+import Onboarding from "./modules/hr/pages/Onboarding";
 import MyAttendance from "./modules/hr/pages/MyAttendance";
 import MyLeave from "./modules/hr/pages/MyLeave";
 import MyWorklog from "./modules/hr/pages/MyWorklog";
@@ -265,7 +266,7 @@ function App() {
           path="/hr/onboarding"
           element={
             <PermissionGate requirement={{ type: "role", value: ["HR Administrator", "System Administrator"] }}>
-              <ModulePlaceholder name="Onboarding" />
+              <Onboarding />
             </PermissionGate>
           }
         />

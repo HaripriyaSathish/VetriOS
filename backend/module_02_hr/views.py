@@ -16,10 +16,12 @@ from module_01_identity_access.models import (
     EmployeeLeaveBalance,
     EmployeeWorklog,
     EmploymentType,
+    InternOnboarding,
     LeaveType,
     UserAccount,
 )
 from local_extensions.email_utils import send_email
+from module_04_interns.models import Intern
 from .permissions import IsHRorSystemAdministrator
 from .serializers import (
     AttendanceRecordSerializer,
@@ -34,6 +36,8 @@ from .serializers import (
     EmployeeWorklogSerializer,
     EmployeeWorklogWriteSerializer,
     HRWorklogSerializer,
+    InternOnboardingUpdateSerializer,
+    OnboardingInternSerializer,
     TeamWorklogSerializer,
     EmployeeWriteSerializer,
     EmploymentTypeSerializer,
@@ -894,3 +898,50 @@ class WorklogsOrgView(generics.ListAPIView):
             .select_related("employee__person", "employee__designation", "reported_to_employee__person")
             .order_by("-work_date", "employee_id")
         )
+
+
+# Onboarding → Interns tab, step 1: every ACTIVE intern, name only. Intern
+# rows are Haripriya's (module_04_interns) — read-only from here.
+class OnboardingInternsView(generics.ListAPIView):
+    permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
+    serializer_class = OnboardingInternSerializer
+    queryset = Intern.objects.filter(status="ACTIVE").select_related("student__person").order_by("-created_at")
+
+
+# Updates one intern's onboarding checklist (documents verified / offer
+# letter acknowledged) and designation/stipend assignment — creates the
+# InternOnboarding row on first save, updates it after. The welcome
+# email is a separate action, not part of this endpoint yet.
+class InternOnboardingUpdateView(APIView):
+    permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
+
+    def patch(self, request, intern_id):
+        try:
+            intern = Intern.objects.select_related("student__person").get(pk=intern_id)
+        except Intern.DoesNotExist:
+            return Response({"detail": "Intern not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = InternOnboardingUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        now = timezone.now()
+        onboarding = InternOnboarding.objects.filter(intern_id=intern_id).first()
+        if onboarding:
+            for field in ("designation_id", "stipend_amount", "documents_verified", "offer_letter_acknowledged"):
+                if field in data:
+                    setattr(onboarding, field, data[field])
+            onboarding.updated_at = now
+            onboarding.save()
+        else:
+            onboarding = InternOnboarding.objects.create(
+                intern_id=intern_id,
+                designation_id=data.get("designation_id"),
+                stipend_amount=data.get("stipend_amount"),
+                documents_verified=data.get("documents_verified", False),
+                offer_letter_acknowledged=data.get("offer_letter_acknowledged", False),
+                created_at=now,
+                updated_at=now,
+            )
+
+        return Response(OnboardingInternSerializer(intern).data)

@@ -20,7 +20,9 @@ from .views import (
     LeaveTypeListView,
     MyAttendanceView,
     MyLeaveView,
+    InternOnboardingUpdateView,
     MyWorklogView,
+    OnboardingInternsView,
     TeamWorklogsView,
     WorklogsOrgView,
 )
@@ -48,4 +50,6 @@ urlpatterns = [
     path("worklogs/", WorklogsOrgView.as_view(), name="worklog-org"),
     path("worklogs/me/", MyWorklogView.as_view(), name="worklog-me"),
     path("worklogs/team/", TeamWorklogsView.as_view(), name="worklog-team"),
+    path("onboarding/interns/", OnboardingInternsView.as_view(), name="onboarding-interns-list"),
+    path("onboarding/interns/<int:intern_id>/", InternOnboardingUpdateView.as_view(), name="onboarding-intern-update"),
 ]

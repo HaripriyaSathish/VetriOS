@@ -398,6 +398,129 @@
   color: #96271f;
 }
 
+.hr-pill.warn {
+  background: #fdf0dc;
+  color: #93590c;
+}
+
+/* Onboarding — card grid, one card per intern (or, later, external
+   applicant), matching the reference design: avatar + status pill,
+   name/designation, a progress bar, and an "Open checklist" action. */
+.ob-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.ob-card {
+  background: #fff;
+  border: 1px solid #d9dfe8;
+  border-radius: 12px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ob-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ob-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #e4eef3;
+  color: #235777;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Sora", sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.ob-card-body h3 {
+  margin: 0 0 2px;
+  font-size: 15px;
+  font-family: "Sora", sans-serif;
+  color: #161a26;
+}
+
+.ob-card-body p {
+  margin: 0;
+  font-size: 12px;
+  color: #8a93a6;
+}
+
+.ob-progress-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 12px;
+  color: #8a93a6;
+  margin-bottom: 6px;
+}
+
+.ob-progress-row strong {
+  color: #235777;
+  font-size: 13px;
+}
+
+.ob-progress-track {
+  height: 6px;
+  border-radius: 999px;
+  background: #eaeef4;
+  overflow: hidden;
+}
+
+.ob-progress-fill {
+  height: 100%;
+  background: #235777;
+  border-radius: 999px;
+  transition: width 0.2s ease;
+}
+
+.ob-checklist-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  border: 1px solid #d9dfe8;
+  background: #fff;
+  color: #161a26;
+  font-weight: 600;
+  font-size: 13px;
+  padding: 9px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.ob-checklist-btn:hover {
+  background: #f5f7fa;
+}
+
+.ob-checklist-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid #eaeef4;
+}
+
+.ob-checklist-row:first-child {
+  border-top: none;
+}
+
+.ob-checklist-row label {
+  font-size: 13px;
+  color: #161a26;
+  cursor: pointer;
+}
+
 .hr-row-actions {
   display: flex;
   gap: 4px;

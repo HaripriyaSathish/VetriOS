@@ -201,6 +201,32 @@ class EmployeeWorklog(models.Model):
         db_table = "employee_worklog"
 
 
+# HR's onboarding record for one intern (module_04_interns' Intern row —
+# a different app, hence the plain unconstrained intern_id rather than a
+# real FK). One row per intern: which designation/stipend they were
+# onboarded with, whether their documents have been verified, and
+# whether the welcome email has gone out yet.
+class InternOnboarding(models.Model):
+    onboarding_id = models.BigAutoField(primary_key=True)
+    intern_id = models.BigIntegerField(unique=True)
+    designation = models.ForeignKey(
+        Designation, on_delete=models.DO_NOTHING, db_column="designation_id", db_constraint=False,
+        blank=True, null=True,
+    )
+    stipend_amount = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
+    documents_verified = models.BooleanField(default=False)
+    offer_letter_acknowledged = models.BooleanField(default=False)
+    welcome_email_sent = models.BooleanField(default=False)
+    welcome_email_sent_at = models.DateTimeField(blank=True, null=True)
+    onboarded_by_user_id = models.BigIntegerField(blank=True, null=True)
+    created_at = models.DateTimeField(blank=True, null=True)
+    updated_at = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = "intern_onboarding"
+
+
 # A person's department isn't a direct FK on employee — it's tracked
 # here as a dated history, with is_current marking the active row, so
 # department moves keep their own record over time.

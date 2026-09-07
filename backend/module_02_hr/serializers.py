@@ -10,10 +10,12 @@ from module_01_identity_access.models import (
     EmployeeBranchHistory,
     EmployeeWorklog,
     EmploymentType,
+    InternOnboarding,
     LeaveType,
     Person,
     PersonDepartmentHistory,
 )
+from module_04_interns.models import Intern
 
 
 # Row shape for the Attendance screen's "Daily records" table — built by
@@ -708,3 +710,105 @@ class EmployeeUpdateSerializer(serializers.Serializer):
         instance.updated_at = now
         instance.save()
         return instance
+
+
+# Onboarding → Interns tab, step 1: just the name. Intern is Haripriya's
+# module (module_04_interns) — read-only here, we don't own that table.
+def _onboarding_for_intern(intern_id):
+    return InternOnboarding.objects.filter(intern_id=intern_id).select_related("designation").first()
+
+
+# Step 2 adds the onboarding record's own fields (designation/stipend
+# assigned during onboarding, document-verification and welcome-email
+# state) alongside step 1's plain intern fields. One row per intern may
+# not exist yet — every getter treats "no InternOnboarding row" as "not
+# started", not an error.
+class OnboardingInternSerializer(serializers.ModelSerializer):
+    full_name = serializers.SerializerMethodField()
+    email = serializers.SerializerMethodField()
+    designation_id = serializers.SerializerMethodField()
+    designation_name = serializers.SerializerMethodField()
+    stipend_amount = serializers.SerializerMethodField()
+    documents_verified = serializers.SerializerMethodField()
+    offer_letter_acknowledged = serializers.SerializerMethodField()
+    welcome_email_sent = serializers.SerializerMethodField()
+    progress_percent = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Intern
+        fields = [
+            "intern_id",
+            "intern_code",
+            "full_name",
+            "email",
+            "internship_start_date",
+            "status",
+            "designation_id",
+            "designation_name",
+            "stipend_amount",
+            "documents_verified",
+            "offer_letter_acknowledged",
+            "welcome_email_sent",
+            "progress_percent",
+        ]
+
+    def get_full_name(self, obj):
+        return str(obj.student.person)
+
+    def get_email(self, obj):
+        return obj.student.person.email
+
+    def _onboarding(self, obj):
+        if not hasattr(obj, "_onboarding_cache"):
+            obj._onboarding_cache = _onboarding_for_intern(obj.intern_id)
+        return obj._onboarding_cache
+
+    def get_designation_id(self, obj):
+        onboarding = self._onboarding(obj)
+        return onboarding.designation_id if onboarding else None
+
+    def get_designation_name(self, obj):
+        onboarding = self._onboarding(obj)
+        return onboarding.designation.designation_name if onboarding and onboarding.designation_id else None
+
+    def get_stipend_amount(self, obj):
+        onboarding = self._onboarding(obj)
+        return onboarding.stipend_amount if onboarding else None
+
+    def get_documents_verified(self, obj):
+        onboarding = self._onboarding(obj)
+        return onboarding.documents_verified if onboarding else False
+
+    def get_offer_letter_acknowledged(self, obj):
+        onboarding = self._onboarding(obj)
+        return onboarding.offer_letter_acknowledged if onboarding else False
+
+    def get_welcome_email_sent(self, obj):
+        onboarding = self._onboarding(obj)
+        return onboarding.welcome_email_sent if onboarding else False
+
+    # Two checklist items right now (documents verified, offer letter
+    # acknowledged) — 0/50/100. The welcome email isn't part of this yet
+    # (that step is on hold), so it doesn't count toward progress.
+    def get_progress_percent(self, obj):
+        onboarding = self._onboarding(obj)
+        if not onboarding:
+            return 0
+        done = sum([onboarding.documents_verified, onboarding.offer_letter_acknowledged])
+        return round(done / 2 * 100)
+
+
+# Updates (or creates, on first save) the InternOnboarding row for one
+# intern — designation/stipend assignment and the two checklist items.
+# Sending the welcome email is on hold, so it's not part of this
+# serializer yet.
+class InternOnboardingUpdateSerializer(serializers.Serializer):
+    designation_id = serializers.IntegerField(required=False, allow_null=True)
+    stipend_amount = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
+    documents_verified = serializers.BooleanField(required=False)
+    offer_letter_acknowledged = serializers.BooleanField(required=False)
+
+    def validate_designation_id(self, value):
+        if value is not None and not Designation.objects.filter(pk=value, is_active=True).exists():
+            raise serializers.ValidationError("Unknown designation.")
+        return value

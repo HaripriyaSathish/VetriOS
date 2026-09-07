@@ -24,6 +24,7 @@ import {
   Link2,
   LogOut,
   FolderKanban,
+  PieChart,
 } from "lucide-react";
 import { NAV_ITEMS, hasAccess } from "../config/nav";
 import "../components-styles/Sidebar.css";
@@ -320,6 +321,16 @@ function Sidebar() {
                   <LogOut size={14} />
                 </span>
                 Exit Management
+              </NavLink>
+
+              <NavLink
+                to="/hr/reports"
+                className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
+              >
+                <span className="nav-icon">
+                  <PieChart size={14} />
+                </span>
+                Employee Reports
               </NavLink>
             </div>
           )}

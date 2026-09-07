@@ -37,6 +37,20 @@ class AttendanceRecordSerializer(serializers.Serializer):
     status = serializers.CharField()
 
 
+# Attendance overview report — one employee-day per row across a whole
+# month, unlike AttendanceRecordSerializer's one-row-per-employee-today.
+class AttendanceReportRowSerializer(serializers.Serializer):
+    employee_id = serializers.IntegerField()
+    person_id = serializers.IntegerField()
+    full_name = serializers.CharField()
+    department_name = serializers.CharField(allow_null=True)
+    date = serializers.DateField()
+    status = serializers.CharField()
+    check_in_time = serializers.DateTimeField(allow_null=True)
+    check_out_time = serializers.DateTimeField(allow_null=True)
+    hours = serializers.FloatField(allow_null=True)
+
+
 class LeaveTypeSerializer(serializers.ModelSerializer):
     class Meta:
         model = LeaveType
@@ -1048,6 +1062,8 @@ class ExitListSerializer(serializers.ModelSerializer):
     employee_code = serializers.CharField(source="employee.employee_code", read_only=True)
     person_id = serializers.IntegerField(source="employee.person_id", read_only=True)
     full_name = serializers.SerializerMethodField()
+    department_id = serializers.SerializerMethodField()
+    department_name = serializers.SerializerMethodField()
     approved_by_name = serializers.SerializerMethodField()
     status = serializers.SerializerMethodField()
 
@@ -1059,6 +1075,8 @@ class ExitListSerializer(serializers.ModelSerializer):
             "employee_code",
             "person_id",
             "full_name",
+            "department_id",
+            "department_name",
             "exit_type",
             "exit_date",
             "last_working_date",
@@ -1073,6 +1091,14 @@ class ExitListSerializer(serializers.ModelSerializer):
 
     def get_full_name(self, obj):
         return str(obj.employee.person)
+
+    def get_department_id(self, obj):
+        history = _current_department_history(obj.employee.person_id)
+        return history.department_id if history else None
+
+    def get_department_name(self, obj):
+        history = _current_department_history(obj.employee.person_id)
+        return history.department.department_name if history else None
 
     def get_approved_by_name(self, obj):
         return str(obj.approved_by.person) if obj.approved_by_id else None

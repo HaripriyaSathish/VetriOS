@@ -1,4 +1,8 @@
+import calendar
+import datetime
+
 import cloudinary.uploader
+from django.http import FileResponse
 from django.utils import timezone
 from rest_framework import generics, status
 from rest_framework.parsers import MultiPartParser
@@ -8,6 +12,7 @@ from rest_framework.views import APIView
 
 from module_01_identity_access.models import UserAccount
 from local_extensions.email_utils import send_email
+from .excel_exports import build_attendance_excel, build_exit_excel, build_onboarding_excel
 from module_04_interns.models import Intern
 from .models import (
     Branch,
@@ -28,6 +33,7 @@ from .models import (
 from .permissions import IsHRorSystemAdministrator, IsSystemAdministrator
 from .serializers import (
     AttendanceRecordSerializer,
+    AttendanceReportRowSerializer,
     BranchSerializer,
     DepartmentSerializer,
     DepartmentWriteSerializer,
@@ -283,6 +289,77 @@ def _attendance_status(att, is_on_leave, has_login=True):
     return "HALF_DAY", hours
 
 
+# Shared by the Attendance overview's preview (JSON) and export (xlsx) —
+# one employee-day per row across a whole calendar month, same derivation
+# as AttendanceTodayView but repeated per day instead of just today.
+# Future dates in the current month are skipped (nothing happened yet).
+def _attendance_report_rows(period, department_id=None, status_filter=None):
+    try:
+        year, month = (int(p) for p in period.split("-"))
+        start = datetime.date(year, month, 1)
+    except (ValueError, AttributeError):
+        today = timezone.localdate()
+        start = today.replace(day=1)
+
+    last_day = calendar.monthrange(start.year, start.month)[1]
+    end = min(datetime.date(start.year, start.month, last_day), timezone.localdate())
+    if end < start:
+        return []
+
+    employees = list(Employee.objects.filter(status="ACTIVE").select_related("person"))
+    if department_id:
+        filtered = []
+        for e in employees:
+            dept_history = _current_department_history(e.person_id)
+            if dept_history and dept_history.department_id == int(department_id):
+                filtered.append(e)
+        employees = filtered
+
+    employee_ids = [e.employee_id for e in employees]
+    person_ids = [e.person_id for e in employees]
+
+    attendance_by_key = {
+        (a.employee_id, a.attendance_date): a
+        for a in EmployeeAttendance.objects.filter(
+            employee_id__in=employee_ids, attendance_date__gte=start, attendance_date__lte=end
+        )
+    }
+    leaves = list(
+        EmployeeLeave.objects.filter(
+            employee_id__in=employee_ids, status="APPROVED", start_date__lte=end, end_date__gte=start
+        )
+    )
+    person_ids_with_login = set(
+        UserAccount.objects.filter(person_id__in=person_ids).values_list("person_id", flat=True)
+    )
+
+    rows = []
+    day_count = (end - start).days + 1
+    for emp in employees:
+        dept_name = _department_name(emp.person_id)
+        has_login = emp.person_id in person_ids_with_login
+        emp_leaves = [l for l in leaves if l.employee_id == emp.employee_id]
+        for offset in range(day_count):
+            day = start + datetime.timedelta(days=offset)
+            att = attendance_by_key.get((emp.employee_id, day))
+            is_on_leave = any(l.start_date <= day <= l.end_date for l in emp_leaves)
+            day_status, hours = _attendance_status(att, is_on_leave, has_login)
+            if status_filter and day_status != status_filter:
+                continue
+            rows.append({
+                "employee_id": emp.employee_id,
+                "person_id": emp.person_id,
+                "full_name": str(emp.person),
+                "department_name": dept_name,
+                "date": day,
+                "status": day_status,
+                "check_in_time": att.check_in_time if att else None,
+                "check_out_time": att.check_out_time if att else None,
+                "hours": hours,
+            })
+    return rows
+
+
 # Backs the whole Attendance screen in one call: today's org-wide
 # records + roll-up stats for the summary cards + the logged-in user's
 # own check-in/out state (for the "Check in" button and greeting banner).
@@ -366,6 +443,36 @@ class AttendanceTodayView(APIView):
                     "check_out_time": my_attendance.check_out_time if my_attendance else None,
                 },
             }
+        )
+
+
+# Attendance overview — filterable by month/department/status, backs
+# both the on-page "Preview report" table and the "Export report" xlsx
+# download (same _attendance_report_rows query, two renderings).
+class AttendanceReportView(APIView):
+    permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
+
+    def get(self, request):
+        rows = _attendance_report_rows(
+            request.query_params.get("period"),
+            request.query_params.get("department_id"),
+            request.query_params.get("status"),
+        )
+        return Response(AttendanceReportRowSerializer(rows, many=True).data)
+
+
+class AttendanceReportExportView(APIView):
+    permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
+
+    def get(self, request):
+        period = request.query_params.get("period") or timezone.localdate().strftime("%Y-%m")
+        rows = _attendance_report_rows(
+            period, request.query_params.get("department_id"), request.query_params.get("status")
+        )
+        buffer = build_attendance_excel(rows, f"Attendance overview — {period}")
+        return FileResponse(
+            buffer, as_attachment=True, filename=f"Attendance_Overview_{period}.xlsx",
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
 
 
@@ -918,6 +1025,47 @@ class OnboardingInternsView(generics.ListAPIView):
     queryset = Intern.objects.filter(status="ACTIVE").select_related("student__person").order_by("-created_at")
 
 
+def _onboarding_status_label(progress_percent):
+    if progress_percent >= 100:
+        return "Completed"
+    if progress_percent > 0:
+        return "On track"
+    return "Needs action"
+
+
+# Onboarding overview export — same interns OnboardingInternsView shows,
+# filtered by department/status/start-month and rendered as colored xlsx
+# instead of JSON.
+class OnboardingReportExportView(APIView):
+    permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
+
+    def get(self, request):
+        department_id = request.query_params.get("department_id")
+        status_filter = request.query_params.get("status")  # "Needs action" | "On track" | "Completed"
+        period = request.query_params.get("period")
+
+        interns = Intern.objects.filter(status="ACTIVE").select_related("student__person").order_by("-created_at")
+        rows = []
+        for intern in interns:
+            data = OnboardingInternSerializer(intern).data
+            if department_id and str(data.get("department_id")) != str(department_id):
+                continue
+            status_label = _onboarding_status_label(data["progress_percent"])
+            if status_filter and status_label != status_filter:
+                continue
+            if period and (not data["internship_start_date"] or data["internship_start_date"][:7] != period):
+                continue
+            rows.append({**data, "status_label": status_label})
+
+        title = f"Onboarding overview{f' — {period}' if period else ''}"
+        buffer = build_onboarding_excel(rows, title)
+        filename = f"Onboarding_Overview{f'_{period}' if period else ''}.xlsx"
+        return FileResponse(
+            buffer, as_attachment=True, filename=filename,
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+
+
 # Updates one intern's onboarding checklist (documents verified / offer
 # letter acknowledged) and designation/stipend assignment — creates the
 # InternOnboarding row on first save, updates it after. The welcome
@@ -1134,6 +1282,16 @@ class PayrollReferenceDetailView(generics.RetrieveUpdateDestroyAPIView):
 # exactly these values (ACTIVE, ON_NOTICE, ON_LEAVE, SUSPENDED, RESIGNED,
 # TERMINATED, RETIRED, INACTIVE), and this is the only place that ever
 # writes the "left" ones.
+EXIT_TYPE_LABEL_MAP = {
+    "RESIGNATION": "Resignation",
+    "TERMINATION": "Termination",
+    "RETIREMENT": "Retirement",
+    "CONTRACT_END": "Contract end",
+    "ABSCONDING": "Absconding",
+    "OTHER": "Other",
+}
+STATUS_LABEL_MAP = {"PENDING": "Pending", "IN_PROGRESS": "In progress", "COMPLETED": "Completed"}
+
 EXIT_TYPE_TO_EMPLOYEE_STATUS = {
     "RESIGNATION": "RESIGNED",
     "TERMINATION": "TERMINATED",
@@ -1238,3 +1396,43 @@ class ExitApproveView(APIView):
         )
 
         return Response(ExitListSerializer(exit_record).data)
+
+
+# Exit overview export — same records ExitListCreateView shows, filtered
+# by department/status/exit-month and rendered as colored xlsx.
+class ExitReportExportView(APIView):
+    permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
+
+    def get(self, request):
+        department_id = request.query_params.get("department_id")
+        status_filter = request.query_params.get("status")  # "Pending" | "In progress" | "Completed"
+        period = request.query_params.get("period")
+
+        exits = EmployeeExit.objects.select_related("employee__person").order_by("-exit_date")
+        rows = []
+        for e in exits:
+            data = ExitListSerializer(e).data
+            if department_id and str(data["department_id"]) != str(department_id):
+                continue
+            status_label = STATUS_LABEL_MAP.get(data["status"], data["status"])
+            if status_filter and status_label != status_filter:
+                continue
+            if period and str(data["exit_date"])[:7] != period:
+                continue
+            rows.append({
+                "full_name": data["full_name"],
+                "department_name": data["department_name"],
+                "exit_type_label": EXIT_TYPE_LABEL_MAP.get(data["exit_type"], data["exit_type"]),
+                "exit_date": data["exit_date"],
+                "last_working_date": data["last_working_date"],
+                "exit_interview_completed": data["exit_interview_completed"],
+                "status_label": status_label,
+            })
+
+        title = f"Exit overview{f' — {period}' if period else ''}"
+        buffer = build_exit_excel(rows, title)
+        filename = f"Exit_Overview{f'_{period}' if period else ''}.xlsx"
+        return FileResponse(
+            buffer, as_attachment=True, filename=filename,
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )

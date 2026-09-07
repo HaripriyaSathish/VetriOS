@@ -1,0 +1,251 @@
+/* Document Generator module — same design tokens as the rest of VetriOS
+   (Sora headings, Manrope body, #235777 accent, #d98c2b action buttons),
+   kept in its own stylesheet rather than importing HR's so the two
+   modules don't depend on each other's CSS. */
+
+.doc-screen {
+  font-family: "Manrope", ui-sans-serif, system-ui, sans-serif;
+}
+
+.doc-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.doc-eyebrow {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #8a93a6;
+}
+
+.doc-head h1 {
+  font-family: "Sora", sans-serif;
+  font-size: 24px;
+  font-weight: 700;
+  color: #161a26;
+  margin: 4px 0 4px;
+}
+
+.doc-head p {
+  font-size: 13px;
+  color: #3a4152;
+  margin: 0;
+}
+
+.doc-btn-accent {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #d98c2b;
+  border: 1px solid #d98c2b;
+  color: #241505;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.doc-btn-accent:hover {
+  background: #b06f1c;
+  border-color: #b06f1c;
+  color: #fff;
+}
+
+.doc-btn-accent:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.doc-btn-sm {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: #fff;
+  border: 1px solid #d9dfe8;
+  color: #3a4152;
+  font-weight: 600;
+  font-size: 12.5px;
+  padding: 9px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.doc-btn-sm:hover {
+  background: #f5f7fa;
+}
+
+.doc-panel {
+  background: #fff;
+  border: 1px solid #d9dfe8;
+  border-radius: 10px;
+}
+
+.doc-panel-head {
+  padding: 16px 18px;
+  border-bottom: 1px solid #eaeef4;
+}
+
+.doc-panel-head h3 {
+  margin: 0;
+  font-size: 14px;
+  font-family: "Sora", sans-serif;
+  color: #161a26;
+}
+
+.doc-panel-head p {
+  margin: 3px 0 0;
+  font-size: 12px;
+  color: #8a93a6;
+}
+
+.doc-panel-body {
+  padding: 18px;
+}
+
+.doc-empty {
+  padding: 24px;
+  text-align: center;
+  color: #8a93a6;
+  font-size: 13px;
+}
+
+.doc-error {
+  background: #fbe7e5;
+  color: #96271f;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12.5px;
+  margin: 0 0 16px;
+}
+
+.doc-form label {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #3a4152;
+  margin: 14px 0 6px;
+}
+
+.doc-form label:first-child {
+  margin-top: 0;
+}
+
+.doc-form select,
+.doc-form input,
+.doc-form textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #c2cad8;
+  border-radius: 8px;
+  padding: 9px 11px;
+  font-size: 13.5px;
+  font-family: inherit;
+  background: #fff;
+  color: #161a26;
+}
+
+.doc-form textarea {
+  resize: vertical;
+  min-height: 64px;
+}
+
+.doc-field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.doc-prefill-note {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  color: #1f6837;
+  background: #e3f5e9;
+  border-radius: 7px;
+  padding: 7px 10px;
+  margin-top: 8px;
+}
+
+.doc-generator-grid {
+  display: grid;
+  grid-template-columns: 420px 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .doc-generator-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.doc-preview {
+  background: #fbfbfa;
+  border: 1px solid #eaeef4;
+  border-radius: 8px;
+  padding: 32px 36px;
+  margin: 18px;
+  font-size: 13.5px;
+  line-height: 1.8;
+  color: #262b36;
+  min-height: 360px;
+  white-space: pre-wrap;
+}
+
+.doc-preview-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 18px;
+  border-top: 1px solid #eaeef4;
+}
+
+.doc-history-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid #eaeef4;
+  font-size: 12.5px;
+}
+
+.doc-history-item:first-child {
+  border-top: none;
+}
+
+.doc-history-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.doc-history-dot.done {
+  background: #1f8a5f;
+}
+
+.doc-history-dot.fail {
+  background: #d03b3b;
+}
+
+.doc-history-dot.pending {
+  background: #d98c2b;
+}
+
+.doc-history-text {
+  flex: 1;
+  color: #3a4152;
+}
+
+.doc-history-time {
+  color: #8a93a6;
+  white-space: nowrap;
+}

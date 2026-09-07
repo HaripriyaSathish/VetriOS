@@ -61,6 +61,11 @@ import ChooseWorkspace from "./pages/ChooseWorkspace";
 import MyProject from "./modules/interns/pages/MyProject";
 import ProjectDashboard from "./modules/clients-projects/pages/ProjectDashboard";
 import ProjectTeam from "./modules/clients-projects/pages/ProjectTeam";
+import DocumentsLibrary from "./modules/documents/pages/Library";
+import AIGenerator from "./modules/documents/pages/AIGenerator";
+import DocumentTemplates from "./modules/documents/pages/Templates";
+import DocumentApprovals from "./modules/documents/pages/Approvals";
+import DocumentGovernance from "./modules/documents/pages/Governance";
 // Route table for the whole app. Everything under AppLayout requires a
 // signed-in user (ProtectedRoute); each module route is additionally
 // gated by the same requirement Sidebar uses to decide what to show
@@ -381,7 +386,49 @@ function App() {
           }
         />
 
-        {NAV_ITEMS.filter((item) => item.id !== "training" && item.id !== "hr").map((item) => (
+        {/* Document Generator group */}
+        <Route
+          path="/documents"
+          element={
+            <PermissionGate requirement={{ type: "perm", value: "DOCUMENT_VIEW" }}>
+              <DocumentsLibrary />
+            </PermissionGate>
+          }
+        />
+        <Route
+          path="/documents/ai-generator"
+          element={
+            <PermissionGate requirement={{ type: "perm", value: "DOCUMENT_VIEW" }}>
+              <AIGenerator />
+            </PermissionGate>
+          }
+        />
+        <Route
+          path="/documents/templates"
+          element={
+            <PermissionGate requirement={{ type: "perm", value: "DOCUMENT_VIEW" }}>
+              <DocumentTemplates />
+            </PermissionGate>
+          }
+        />
+        <Route
+          path="/documents/approvals"
+          element={
+            <PermissionGate requirement={{ type: "perm", value: "DOCUMENT_VIEW" }}>
+              <DocumentApprovals />
+            </PermissionGate>
+          }
+        />
+        <Route
+          path="/documents/governance"
+          element={
+            <PermissionGate requirement={{ type: "perm", value: "DOCUMENT_VIEW" }}>
+              <DocumentGovernance />
+            </PermissionGate>
+          }
+        />
+
+        {NAV_ITEMS.filter((item) => item.id !== "training" && item.id !== "hr" && item.id !== "documents").map((item) => (
           <Route
             key={item.id}
             path={item.path}

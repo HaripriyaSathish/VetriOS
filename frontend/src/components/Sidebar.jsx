@@ -25,6 +25,11 @@ import {
   LogOut,
   FolderKanban,
   PieChart,
+  Library,
+  Sparkles,
+  LayoutTemplate,
+  CheckSquare,
+  Scale,
 } from "lucide-react";
 import { NAV_ITEMS, hasAccess } from "../config/nav";
 import "../components-styles/Sidebar.css";
@@ -35,6 +40,7 @@ const BUSINESS_TEAM_PATHS = [
   "/training/students", "/training/internship-approvals", "/training/enquiries",
   "/training/fee-conversion", "/training/batches/new", "/training/welcome-emails",
 ];
+const DOCUMENTS_PATHS = ["/documents"];
 
 function Sidebar() {
   const user = JSON.parse(localStorage.getItem("user") || "null");
@@ -69,6 +75,11 @@ function Sidebar() {
 
   const isOnBusinessTeamPage = BUSINESS_TEAM_PATHS.some((path) => location.pathname.startsWith(path));
   const [businessTeamOpen, setBusinessTeamOpen] = useState(isOnBusinessTeamPage);
+
+  const documentsItem = NAV_ITEMS.find((item) => item.id === "documents");
+  const canSeeDocuments = documentsItem && hasAccess(documentsItem.requirement, user);
+  const isOnDocumentsPage = DOCUMENTS_PATHS.some((path) => location.pathname.startsWith(path));
+  const [documentsOpen, setDocumentsOpen] = useState(isOnDocumentsPage);
 
   return (
     <aside className="sidebar">
@@ -331,6 +342,79 @@ function Sidebar() {
                   <PieChart size={14} />
                 </span>
                 Employee Reports
+              </NavLink>
+            </div>
+          )}
+        </>
+      )}
+
+      {canSeeDocuments && (
+        <>
+          <button
+            type="button"
+            className={"nav-item nav-group-toggle" + (documentsOpen ? " open" : "")}
+            onClick={() => setDocumentsOpen((prev) => !prev)}
+          >
+            <span className="nav-icon">
+              <FileText size={16} />
+            </span>
+            Document Generator
+            <span className="nav-chevron">
+              <ChevronDown size={14} />
+            </span>
+          </button>
+
+          {documentsOpen && (
+            <div className="nav-subgroup">
+              <NavLink
+                to="/documents"
+                end
+                className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
+              >
+                <span className="nav-icon">
+                  <Library size={14} />
+                </span>
+                Library
+              </NavLink>
+
+              <NavLink
+                to="/documents/ai-generator"
+                className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
+              >
+                <span className="nav-icon">
+                  <Sparkles size={14} />
+                </span>
+                Vetri Tool (AI Generator)
+              </NavLink>
+
+              <NavLink
+                to="/documents/templates"
+                className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
+              >
+                <span className="nav-icon">
+                  <LayoutTemplate size={14} />
+                </span>
+                Templates
+              </NavLink>
+
+              <NavLink
+                to="/documents/approvals"
+                className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
+              >
+                <span className="nav-icon">
+                  <CheckSquare size={14} />
+                </span>
+                Approvals
+              </NavLink>
+
+              <NavLink
+                to="/documents/governance"
+                className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
+              >
+                <span className="nav-icon">
+                  <Scale size={14} />
+                </span>
+                Governance
               </NavLink>
             </div>
           )}

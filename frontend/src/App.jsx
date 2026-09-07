@@ -48,6 +48,18 @@ import StudentReports from "./modules/student/pages/Reports";
 import AllStudentsList from "./modules/training/pages/AllStudentsList";
 import StudentDetail from "./modules/training/pages/StudentDetail";
 import InternshipApprovals from "./modules/training/pages/InternshipApprovals";
+import MyInternship from "./modules/interns/pages/MyInternship";
+import MyInternAttendance from "./modules/interns/pages/MyAttendance";
+import MyTasks from "./modules/interns/pages/MyTasks";
+import MyInternWorklog from "./modules/interns/pages/MyWorklog";
+import AskProjectLead from "./modules/interns/pages/AskProjectLead";
+import TestingReports from "./modules/interns/pages/TestingReports";
+import ApplyLeave from "./modules/interns/pages/ApplyLeave";
+import MyPerformance from "./modules/interns/pages/MyPerformance";
+import ChooseWorkspace from "./pages/ChooseWorkspace";
+import MyProject from "./modules/interns/pages/MyProject";
+import ProjectDashboard from "./modules/clients-projects/pages/ProjectDashboard";
+import ProjectTeam from "./modules/clients-projects/pages/ProjectTeam";
 // Route table for the whole app. Everything under AppLayout requires a
 // signed-in user (ProtectedRoute); each module route is additionally
 // gated by the same requirement Sidebar uses to decide what to show
@@ -58,6 +70,14 @@ function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/identity/login" element={<Login />} />
       <Route path="/apply" element={<PublicEnquiryForm />} />
+      <Route
+        path="/choose-workspace"
+        element={
+          <ProtectedRoute>
+            <ChooseWorkspace />
+          </ProtectedRoute>
+        }
+      />
 
       <Route
         element={
@@ -124,12 +144,12 @@ function App() {
           </PermissionGate>
         } />
         <Route path="/training/fee-conversion" element={
-          <PermissionGate requirement={{ type: "role", value: "Business Team" }}>
+          <PermissionGate requirement={{ type: "role", value: ["Business Team", "System Administrator"] }}>
             <FeeConversion />
           </PermissionGate>
         } />
         <Route path="/training/fee-conversion/:enquiryId" element={
-          <PermissionGate requirement={{ type: "role", value: "Business Team" }}>
+          <PermissionGate requirement={{ type: "role", value: ["Business Team", "System Administrator"] }}>
             <FeeConvertDetail />
           </PermissionGate>
         } />
@@ -144,15 +164,15 @@ function App() {
           </PermissionGate>
         } />
         <Route path="/training/welcome-emails" element={
-          <PermissionGate requirement={{ type: "role", value: "Business Team" }}>
+          <PermissionGate requirement={{ type: "role", value: ["Business Team", "System Administrator"] }}>
             <WelcomeEmails />
           </PermissionGate>
         } />
         <Route path="/training/internship-approvals" element={
-  <PermissionGate requirement={{ type: "role", value: "Business Team" }}>
-    <InternshipApprovals />
-  </PermissionGate>
-} />
+          <PermissionGate requirement={{ type: "role", value: ["Business Team", "System Administrator"] }}>
+            <InternshipApprovals />
+          </PermissionGate>
+        } />
         <Route path="/training/attendance" element={
           <PermissionGate requirement={{ type: "role", value: "Employee" }}>
             <TrainingAttendance />
@@ -222,7 +242,61 @@ function App() {
         <Route path="/student/assignments" element={<PermissionGate requirement={{ type: "role", value: "Student" }}><StudentAssignments /></PermissionGate>} />
         <Route path="/student/recordings" element={<PermissionGate requirement={{ type: "role", value: "Student" }}><StudentRecordings /></PermissionGate>} />
         <Route path="/student/reports" element={<PermissionGate requirement={{ type: "role", value: "Student" }}><StudentReports /></PermissionGate>} />
-
+         <Route path="/intern/my-internship" element={
+  <PermissionGate requirement={{ type: "role", value: "Intern" }}>
+    <MyInternship />
+  </PermissionGate>
+} />
+<Route path="/intern/attendance" element={
+  <PermissionGate requirement={{ type: "role", value: "Intern" }}>
+    <MyInternAttendance />
+  </PermissionGate>
+} />
+<Route path="/intern/tasks" element={
+  <PermissionGate requirement={{ type: "role", value: "Intern" }}>
+    <MyTasks />
+  </PermissionGate>
+} />
+<Route path="/intern/project" element={
+  <PermissionGate requirement={{ type: "role", value: "Intern" }}>
+    <MyProject />
+  </PermissionGate>
+} />
+<Route path="/intern/worklog" element={
+  <PermissionGate requirement={{ type: "role", value: "Intern" }}>
+    <MyInternWorklog />
+  </PermissionGate>
+} />
+<Route path="/intern/ask-lead" element={
+  <PermissionGate requirement={{ type: "role", value: "Intern" }}>
+    <AskProjectLead />
+  </PermissionGate>
+} />
+<Route path="/intern/testing-reports" element={
+          <PermissionGate requirement={{ type: "role", value: "Intern" }}>
+            <TestingReports />
+          </PermissionGate>
+        } />
+        <Route path="/intern/leave" element={
+          <PermissionGate requirement={{ type: "role", value: "Intern" }}>
+            <ApplyLeave />
+          </PermissionGate>
+        } />
+        <Route path="/intern/performance" element={
+  <PermissionGate requirement={{ type: "role", value: "Intern" }}>
+    <MyPerformance />
+  </PermissionGate>
+} />
+<Route path="/project/dashboard" element={
+  <PermissionGate requirement={{ type: "role", value: ["Project Manager", "System Administrator"] }}>
+    <ProjectDashboard />
+  </PermissionGate>
+} />
+<Route path="/project/:projectId/team" element={
+  <PermissionGate requirement={{ type: "role", value: ["Project Manager", "System Administrator"] }}>
+    <ProjectTeam />
+  </PermissionGate>
+} />
         {/* Workspace (HR) group — HR Dashboard is still a placeholder;
             Employee is the one real page so far. */}
         <Route

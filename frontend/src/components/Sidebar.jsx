@@ -23,12 +23,17 @@ import {
   TrendingUp,
   Link2,
   LogOut,
+  FolderKanban,
 } from "lucide-react";
 import { NAV_ITEMS, hasAccess } from "../config/nav";
 import "../components-styles/Sidebar.css";
 
 const SYSADMIN_PATHS = ["/dashboard", "/identity/users", "/identity/roles", "/identity/permissions"];
 const HR_PATHS = ["/hr"];
+const BUSINESS_TEAM_PATHS = [
+  "/training/students", "/training/internship-approvals", "/training/enquiries",
+  "/training/fee-conversion", "/training/batches/new", "/training/welcome-emails",
+];
 
 function Sidebar() {
   const user = JSON.parse(localStorage.getItem("user") || "null");
@@ -36,19 +41,33 @@ function Sidebar() {
   const [trainingOpen, setTrainingOpen] = useState(true);
 
   const identityRequirement = { type: "role", value: "System Administrator" };
-  const businessTeamRequirement = { type: "role", value: "Business Team" };
+  const businessTeamRequirement = { type: "role", value: ["Business Team", "System Administrator"] };
   const trainerRequirement = { type: "role", value: "Employee" };
   const studentRequirement = { type: "role", value: "Student" };
+  const internRequirement = { type: "role", value: "Intern" };
+  const projectManagerRequirement = { type: "role", value: ["Project Manager", "System Administrator"] };
   const trainingItem = NAV_ITEMS.find((item) => item.id === "training");
   const hrItem = NAV_ITEMS.find((item) => item.id === "hr");
 
   const isSystemAdministrator = hasAccess(identityRequirement, user);
+  const isIntern = hasAccess(internRequirement, user);
+
+  // System Administrator always sees everything merged, no workspace
+  // filtering. Everyone else only sees the section matching whichever
+  // workspace they picked at login (or were auto-routed into, if they
+  // only had one option) — set in localStorage by Login.jsx/ChooseWorkspace.jsx.
+  const activeWorkspace = localStorage.getItem("active_workspace");
+  const inWorkspace = (key) => isSystemAdministrator || activeWorkspace === key;
+
   const isOnSysAdminPage = SYSADMIN_PATHS.some((path) => location.pathname.startsWith(path));
   const [sysAdminOpen, setSysAdminOpen] = useState(isOnSysAdminPage);
 
   const canSeeHR = hrItem && hasAccess(hrItem.requirement, user);
   const isOnHRPage = HR_PATHS.some((path) => location.pathname.startsWith(path));
   const [hrOpen, setHrOpen] = useState(isOnHRPage);
+
+  const isOnBusinessTeamPage = BUSINESS_TEAM_PATHS.some((path) => location.pathname.startsWith(path));
+  const [businessTeamOpen, setBusinessTeamOpen] = useState(isOnBusinessTeamPage);
 
   return (
     <aside className="sidebar">
@@ -69,46 +88,41 @@ function Sidebar() {
         </NavLink>
       )}
 
-      {/* Self-service Attendance for anyone with an actual Employee record
-          (employee_code on /me) — accounts like Training applicants/test
-          logins have a login but no Employee row, so this page would just
-          show a dead end for them. HR Administrator also gets this (their
-          HR-module Attendance page is org-wide today's records, not their
-          own history), labeled "My Attendance" to tell the two apart. Only
-          System Administrator (a pure system-access account, not really
-          "staff") skips it entirely. */}
-      {!isSystemAdministrator && !!user?.employee_code && (
-        <NavLink
-          to="/my/attendance"
-          className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
-        >
-          <span className="nav-icon">
-            <CalendarCheck size={16} />
-          </span>
-          My Attendance
-        </NavLink>
-      )}
+      {/* Self-service Attendance/Leave for anyone without the full HR
+          module (Employee, Manager, Viewer) — HR Administrator/System
+          Administrator use the real HR module's Attendance/Leave instead.
+          Interns are excluded — they have their own dedicated
+          /intern/attendance and /intern/leave pages instead. Also gated
+          to the "training" workspace, since that's the workspace these
+          self-service links belong to for a regular Employee. */}
+      {inWorkspace("training") && !isSystemAdministrator && !canSeeHR && !isIntern && !!user?.employee_code && (
+        <>
+          <NavLink
+            to="/my/attendance"
+            className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
+          >
+            <span className="nav-icon">
+              <CalendarCheck size={16} />
+            </span>
+            Attendance
+          </NavLink>
 
-      {/* Apply Leave stays HR-gated out — HR Administrator already manages
-          leave requests through the real HR module's Leave page. */}
-      {!isSystemAdministrator && !canSeeHR && !!user?.employee_code && (
-        <NavLink
-          to="/my/leave"
-          className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
-        >
-          <span className="nav-icon">
-            <Palmtree size={16} />
-          </span>
-          Apply Leave
-        </NavLink>
+          <NavLink
+            to="/my/leave"
+            className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
+          >
+            <span className="nav-icon">
+              <Palmtree size={16} />
+            </span>
+            Apply Leave
+          </NavLink>
+        </>
       )}
 
       {/* Worklog is personal to every employee, HR Administrator
-          included — unlike Attendance/Leave, the HR-wide Worklogs page
-          is read-only (no embedded "submit mine" control), so HR still
-          needs this self-service link. Only System Administrator (a
-          pure system-access account, not really "staff") skips it. */}
-      {!isSystemAdministrator && !!user?.employee_code && (
+          included. System Administrator and Interns both skip it —
+          same workspace-gating reasoning as above. */}
+      {inWorkspace("training") && !isSystemAdministrator && !isIntern && !!user?.employee_code && (
         <NavLink
           to="/my/worklog"
           className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
@@ -120,9 +134,8 @@ function Sidebar() {
         </NavLink>
       )}
 
-      {/* Not tied to a role — shown to whoever is currently listed as a
-          department's lead in department_lead, regardless of their RBAC
-          role (a lead is still just "Employee" in this schema). */}
+      {/* Not tied to a role or workspace — shown to whoever is
+          currently listed as a department's lead. */}
       {!!user?.is_department_lead && (
         <NavLink
           to="/my/team-worklogs"
@@ -192,16 +205,6 @@ function Sidebar() {
                 </span>
                 Permissions
               </NavLink>
-
-              <NavLink
-                to="/training/students"
-                className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
-              >
-                <span className="nav-icon">
-                  <FileText size={14} />
-                </span>
-                All Students
-              </NavLink>
             </div>
           )}
 
@@ -210,7 +213,7 @@ function Sidebar() {
         </>
       )}
 
-      {canSeeHR && (
+      {inWorkspace("hr") && canSeeHR && (
         <>
           <button
             type="button"
@@ -323,7 +326,7 @@ function Sidebar() {
         </>
       )}
 
-      {trainingItem && hasAccess(trainingItem.requirement, user) && (
+      {inWorkspace("training") && trainingItem && hasAccess(trainingItem.requirement, user) && (
         <>
           <button
             type="button"
@@ -428,30 +431,54 @@ function Sidebar() {
         </>
       )}
 
-            {hasAccess(businessTeamRequirement, user) && (
+      {inWorkspace("training") && hasAccess(businessTeamRequirement, user) && (
         <>
-          <NavLink to="/training/students" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
-            <span className="nav-icon"><FileText size={16} /></span> All Students
-          </NavLink>
-          <NavLink to="/training/internship-approvals" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
-            <span className="nav-icon">🎓</span> Internship Approvals
-          </NavLink>
-          <NavLink to="/training/enquiries" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
-            <span className="nav-icon">📋</span> Enquiries
-          </NavLink>
-          <NavLink to="/training/fee-conversion" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
-            <span className="nav-icon">💳</span> Fee & Conversion
-          </NavLink>
-          <NavLink to="/training/batches/new" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
-            <span className="nav-icon">➕</span> New Batch
-          </NavLink>
-          <NavLink to="/training/welcome-emails" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
-            <span className="nav-icon">✉️</span> Welcome Emails
-          </NavLink>
+          <button
+            type="button"
+            className={"nav-item nav-group-toggle" + (businessTeamOpen ? " open" : "")}
+            onClick={() => setBusinessTeamOpen((prev) => !prev)}
+          >
+            <span className="nav-icon">
+              <Briefcase size={16} />
+            </span>
+            Business Team
+            <span className="nav-chevron">
+              <ChevronDown size={14} />
+            </span>
+          </button>
+
+          {businessTeamOpen && (
+            <div className="nav-subgroup">
+              <NavLink to="/training/students" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
+                <span className="nav-icon"><FileText size={14} /></span>
+                All Students
+              </NavLink>
+              <NavLink to="/training/internship-approvals" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
+                <span className="nav-icon"><UserCheck size={14} /></span>
+                Internship Approvals
+              </NavLink>
+              <NavLink to="/training/enquiries" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
+                <span className="nav-icon"><ClipboardList size={14} /></span>
+                Enquiries
+              </NavLink>
+              <NavLink to="/training/fee-conversion" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
+                <span className="nav-icon"><Layers size={14} /></span>
+                Fee & Conversion
+              </NavLink>
+              <NavLink to="/training/batches/new" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
+                <span className="nav-icon"><GraduationCap size={14} /></span>
+                New Batch
+              </NavLink>
+              <NavLink to="/training/welcome-emails" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
+                <span className="nav-icon"><MessageCircle size={14} /></span>
+                Welcome Emails
+              </NavLink>
+            </div>
+          )}
         </>
       )}
 
-      {hasAccess(studentRequirement, user) && (
+      {inWorkspace("student") && hasAccess(studentRequirement, user) && !isIntern && (
         <>
           <NavLink to="/student/dashboard" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
             <span className="nav-icon">🎒</span> My Dashboard
@@ -478,6 +505,44 @@ function Sidebar() {
             <span className="nav-icon">📊</span> Reports
           </NavLink>
         </>
+      )}
+
+      {inWorkspace("intern") && isIntern && (
+        <>
+          <NavLink to="/intern/my-internship" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+            <span className="nav-icon">🎓</span> My Internship
+          </NavLink>
+          <NavLink to="/intern/attendance" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+            <span className="nav-icon">📅</span> My Attendance
+          </NavLink>
+          <NavLink to="/intern/tasks" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+            <span className="nav-icon">📝</span> My Tasks
+          </NavLink>
+          <NavLink to="/intern/testing-reports" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+            <span className="nav-icon">🧪</span> Testing Reports
+          </NavLink>
+          <NavLink to="/intern/worklog" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+            <span className="nav-icon">🕒</span> Daily Work Report
+          </NavLink>
+          <NavLink to="/intern/leave" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+            <span className="nav-icon">🌴</span> Apply Leave
+          </NavLink>
+          <NavLink to="/intern/ask-lead" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+            <span className="nav-icon">💬</span> Ask Project Lead
+          </NavLink>
+          <NavLink to="/intern/performance" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+            <span className="nav-icon">📊</span> My Performance
+          </NavLink>
+          <NavLink to="/intern/project" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+            <span className="nav-icon">📁</span> My Project
+          </NavLink>
+        </>
+      )}
+
+      {inWorkspace("project") && hasAccess(projectManagerRequirement, user) && (
+        <NavLink to="/project/dashboard" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+          <span className="nav-icon"><FolderKanban size={16} /></span> Project Management
+        </NavLink>
       )}
     </aside>
   );

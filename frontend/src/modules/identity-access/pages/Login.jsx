@@ -3,6 +3,19 @@ import { useNavigate } from "react-router-dom";
 import client from "../../../api/client";
 import "../styles/Login.css";
 
+// Maps a role name to the workspace it unlocks. System Administrator is
+// deliberately NOT in this map — they always get the merged "see
+// everything" sidebar directly, no switcher, regardless of what other
+// roles they also hold.
+const ROLE_WORKSPACE_MAP = {
+  "Student": { key: "student", label: "Student Portal", path: "/student/dashboard" },
+  "Intern": { key: "intern", label: "Intern Portal", path: "/intern/my-internship" },
+  "Employee": { key: "training", label: "Training Management", path: "/training" },
+  "Business Team": { key: "training", label: "Training Management", path: "/training" },
+  "HR Administrator": { key: "hr", label: "HR Management", path: "/hr" },
+  "Project Manager": { key: "project", label: "Project Management", path: "/project/dashboard" },
+};
+
 // Sign-in form: POSTs to /api/identity/login/, stores the returned JWT
 // pair, then sends the user on to the right landing page for their role.
 function Login() {
@@ -30,18 +43,44 @@ function Login() {
       localStorage.setItem("refresh_token", response.data.refresh);
       localStorage.setItem("user", JSON.stringify(response.data.user));
 
-      const roles = response.data.user?.roles || [];
+      let roles = response.data.user?.roles || [];
 
-      // Route to the module matching this person's role. Order matters —
-      // check the most senior/specific role first so someone holding
-      // several roles at once lands somewhere sensible by default. As
-      // more modules get their own landing page, add another
-      // "else if" line here for each new role.
+      // System Administrator always gets the merged, full-access
+      // dashboard directly — never the workspace chooser, even if they
+      // also hold other roles like Project Manager.
       if (roles.includes("System Administrator")) {
         navigate("/dashboard");
-      } else if (roles.includes("Employee")) {
-        navigate("/training");
+        return;
+      }
+
+      // Someone promoted from Student to Intern still keeps the
+      // underlying Student role active, but should only ever be routed
+      // as an Intern — same rule already applied to the topbar/sidebar.
+      if (roles.includes("Intern")) {
+        roles = roles.filter((r) => r !== "Student");
+      }
+
+      // Resolve each remaining role to its workspace, de-duplicating
+      // (Employee and Business Team both map to "training", for example).
+      const workspaces = [];
+      const seenKeys = new Set();
+      roles.forEach((role) => {
+        const ws = ROLE_WORKSPACE_MAP[role];
+        if (ws && !seenKeys.has(ws.key)) {
+          seenKeys.add(ws.key);
+          workspaces.push(ws);
+        }
+      });
+
+      if (workspaces.length > 1) {
+        // More than one workspace available — let them pick.
+        localStorage.setItem("available_workspaces", JSON.stringify(workspaces));
+        navigate("/choose-workspace");
+      } else if (workspaces.length === 1) {
+        localStorage.setItem("active_workspace", workspaces[0].key);
+        navigate(workspaces[0].path);
       } else {
+        // No mapped role at all — fall back to the generic dashboard.
         navigate("/dashboard");
       }
     } catch (err) {

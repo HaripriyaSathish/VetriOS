@@ -7,6 +7,7 @@ from .ai_service import ask_groq_chat
 from .assistant_tools import STUDENT_TOOLS, STUDENT_TOOL_FUNCTIONS
 from .assistant_tools_trainer import TRAINER_TOOLS, TRAINER_TOOL_FUNCTIONS
 from .assistant_tools_business import BUSINESS_TOOLS, BUSINESS_TOOL_FUNCTIONS
+from .assistant_tools_intern import INTERN_TOOLS, INTERN_TOOL_FUNCTIONS
 
 SYSTEM_PROMPT = (
     "You are the VetriOS Assistant, embedded in a training management platform. "
@@ -39,7 +40,10 @@ class AssistantChatView(APIView):
             return Response({"detail": "message is required."}, status=400)
 
         roles = request.user.active_role_names()
-        if "Employee" in roles:
+        if "Intern" in roles:
+            tools = INTERN_TOOLS
+            tool_functions = INTERN_TOOL_FUNCTIONS
+        elif "Employee" in roles:
             tools = TRAINER_TOOLS
             tool_functions = TRAINER_TOOL_FUNCTIONS
         elif "Business Team" in roles:

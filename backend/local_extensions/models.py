@@ -269,8 +269,8 @@ class Message(models.Model):
     a 1-on-1 message, just sent in a loop from the view."""
     message_id = models.BigAutoField(primary_key=True)
     batch = models.ForeignKey(
-        "module_03_training.Batch", on_delete=models.CASCADE, db_column="batch_id"
-    )
+       "module_03_training.Batch", on_delete=models.CASCADE, db_column="batch_id", blank=True, null=True
+   )
     sender = models.ForeignKey(
         UserAccount, on_delete=models.CASCADE, db_column="sender_user_id", related_name="sent_messages"
     )

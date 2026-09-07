@@ -1,7 +1,8 @@
 from django.db import models
 from module_03_training.models import Student
 from module_01_identity_access.models import UserAccount
-
+from local_extensions.models import Task
+from cloudinary.models import CloudinaryField
 
 # ---------------------------------------------------------------------------
 # Official table — student → intern conversion record. managed=False:
@@ -58,3 +59,141 @@ class InternshipRecommendation(models.Model):
 
     class Meta:
         db_table = "ext_internship_recommendation"
+
+
+
+class InternReportingManagerHistory(models.Model):
+    intern_manager_history_id = models.BigAutoField(primary_key=True)
+    intern = models.OneToOneField(Intern, on_delete=models.CASCADE, db_column="intern_id", db_constraint=False)
+    manager_user = models.ForeignKey(
+        UserAccount, on_delete=models.DO_NOTHING, db_column="manager_user_id", db_constraint=False,
+        related_name="interns_managed",
+    )
+    effective_from = models.DateField()
+    effective_to = models.DateField(blank=True, null=True)
+    is_current = models.BooleanField(default=True)
+    remarks = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField()
+
+    class Meta:
+        managed = False
+        db_table = "intern_reporting_manager_history"
+
+
+class InternAttendance(models.Model):
+    attendance_id = models.BigAutoField(primary_key=True)
+    intern = models.ForeignKey(Intern, models.DO_NOTHING, db_column="intern_id")
+    attendance_date = models.DateField()
+    attendance_status = models.CharField(max_length=20)
+    check_in_time = models.DateTimeField(blank=True, null=True)
+    check_out_time = models.DateTimeField(blank=True, null=True)
+    remarks = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField()
+
+    class Meta:
+        managed = False
+        db_table = "intern_attendance"    
+
+
+
+
+class InternshipProject(models.Model):
+    internship_project_id = models.BigAutoField(primary_key=True)
+    intern = models.ForeignKey(Intern, models.DO_NOTHING, db_column="intern_id")
+    project_code = models.CharField(max_length=50)
+    project_name = models.CharField(max_length=200)
+    description = models.TextField(blank=True, null=True)
+    start_date = models.DateField(blank=True, null=True)
+    end_date = models.DateField(blank=True, null=True)
+    status = models.CharField(max_length=30)
+    created_at = models.DateTimeField()
+    updated_at = models.DateTimeField()
+
+    class Meta:
+        managed = False
+        db_table = "internship_project"
+
+
+class InternTask(models.Model):
+    intern_task_id = models.BigAutoField(primary_key=True)
+    task = models.OneToOneField(Task, models.DO_NOTHING, db_column="task_id")
+    intern = models.ForeignKey(Intern, models.DO_NOTHING, db_column="intern_id")
+    internship_project = models.ForeignKey(
+        InternshipProject, models.DO_NOTHING, db_column="internship_project_id", blank=True, null=True
+    )
+    submission_date = models.DateTimeField(blank=True, null=True)
+    score = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
+    feedback = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField()
+    updated_at = models.DateTimeField()
+
+    class Meta:
+        managed = False
+        db_table = "intern_task"
+
+
+class InternTaskSubmissionDetail(models.Model):
+    intern_task = models.OneToOneField(
+        InternTask, on_delete=models.CASCADE, db_column="intern_task_id",
+        db_constraint=False, related_name="submission_detail",
+    )
+    student_note = models.TextField(blank=True, null=True)
+    links = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "ext_intern_task_submission_detail"     
+
+
+
+class InternTestingReport(models.Model):
+    """One row per testing round on a task — kept as permanent history.
+    Not part of the official 95; intern-scoped for now, may migrate into
+    a shared project-management testing table later."""
+    REPORT_STATUS_CHOICES = [
+        ("NEEDS_FIXES", "Needs Fixes"),
+        ("APPROVED", "Approved"),
+    ]
+
+    report_id = models.BigAutoField(primary_key=True)
+    intern_task = models.ForeignKey(
+        InternTask, on_delete=models.CASCADE, db_column="intern_task_id",
+        db_constraint=False, related_name="testing_reports",
+    )
+    report_text = models.TextField()
+    attachment = CloudinaryField("attachment", resource_type="auto", blank=True, null=True)
+    status = models.CharField(max_length=20, choices=REPORT_STATUS_CHOICES)
+    created_by = models.ForeignKey(
+        "module_01_identity_access.UserAccount", on_delete=models.SET_NULL,
+        null=True, db_column="created_by_user_id", db_constraint=False,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "ext_intern_testing_report"
+        ordering = ["-created_at"]           
+
+
+class InternPerformance(models.Model):
+    performance_id = models.BigAutoField(primary_key=True)
+    intern = models.ForeignKey(Intern, models.DO_NOTHING, db_column="intern_id")
+    reviewer_user = models.ForeignKey(
+        "module_01_identity_access.UserAccount", models.DO_NOTHING,
+        db_column="reviewer_user_id", blank=True, null=True,
+    )
+    review_date = models.DateField()
+    technical_score = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
+    communication_score = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
+    teamwork_score = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
+    problem_solving_score = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
+    overall_score = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
+    strengths = models.TextField(blank=True, null=True)
+    improvement_areas = models.TextField(blank=True, null=True)
+    feedback = models.TextField(blank=True, null=True)
+    review_status = models.CharField(max_length=30)
+    created_at = models.DateTimeField()
+    updated_at = models.DateTimeField()
+
+    class Meta:
+        managed = False
+        db_table = "intern_performance"        

@@ -475,3 +475,20 @@ class UserPermission(models.Model):
     class Meta:
         managed = False
         db_table = "user_permission"
+
+
+class AuditLog(models.Model):
+    audit_id = models.BigAutoField(primary_key=True)
+    user = models.ForeignKey('UserAccount', models.DO_NOTHING, blank=True, null=True)
+    action = models.CharField(max_length=50)
+    entity_type = models.CharField(max_length=100)
+    entity_id = models.CharField(max_length=100)
+    old_value = models.JSONField(blank=True, null=True)
+    new_value = models.JSONField(blank=True, null=True)
+    source = models.CharField(max_length=50, blank=True, null=True)
+    remarks = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField()
+
+    class Meta:
+        managed = False
+        db_table = 'audit_log'

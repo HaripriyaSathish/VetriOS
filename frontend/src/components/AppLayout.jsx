@@ -9,6 +9,19 @@ import AIAssistantWidget from "./AIAssistantWidget";
 // Shell for every signed-in page — sidebar on the left, topbar + routed
 // page content on the right. Reads "user" once here so Sidebar and the
 // topbar both see the same snapshot.
+
+// Someone who has been promoted to Intern still keeps their underlying
+// Student role active (so Student-only pages/data stay reachable), but
+// the topbar should only read "Intern" for them, not "Student, Intern".
+// Every other combination of roles displays exactly as-is, unchanged.
+function displayRoles(roles) {
+  if (!roles || roles.length === 0) return [];
+  if (roles.includes("Intern")) {
+    return roles.filter((r) => r !== "Student");
+  }
+  return roles;
+}
+
 function AppLayout() {
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem("user") || "null");
@@ -35,6 +48,8 @@ function AppLayout() {
     navigate(path);
   };
 
+  const rolesToShow = displayRoles(user?.roles);
+
   return (
     <div className="app-shell">
       <Sidebar />
@@ -54,8 +69,8 @@ function AppLayout() {
                     {[user?.department, user?.designation].filter(Boolean).length > 0 &&
                       ` (${[user?.department, user?.designation].filter(Boolean).join(". ")})`}
                   </span>
-                  {user?.roles?.length > 0 && (
-                    <span className="app-topbar-designation">Role: {user.roles.join(", ")}</span>
+                  {rolesToShow.length > 0 && (
+                    <span className="app-topbar-designation">Role: {rolesToShow.join(", ")}</span>
                   )}
                 </span>
                 <ChevronDown size={15} className={"app-user-chevron" + (menuOpen ? " open" : "")} />

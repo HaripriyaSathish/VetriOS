@@ -34,7 +34,7 @@ EMAIL_REGEX = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 
 
 def user_is_business_team(user):
-    return "Business Team" in user.active_role_names()
+    return bool(user.active_role_names() & {"Business Team", "System Administrator"})
 
 
 def calculate_age(dob):

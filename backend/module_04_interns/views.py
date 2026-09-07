@@ -7,13 +7,14 @@ from rest_framework.permissions import IsAuthenticated
 from module_03_training.models import Enrollment, Batch, Student
 from module_03_training.views import _is_batch_trainer, _can_access_batch
 from .models import Intern, InternshipRecommendation, InternReportingManagerHistory
-from module_01_identity_access.models import Employee, EmployeeWorklog, UserAccount
+from module_01_identity_access.models import UserAccount
+from module_02_hr.models import Employee, EmployeeWorklog
 from django.db.models import Q
 from local_extensions.models import Message
 from .models import InternAttendance
 from local_extensions.models import Task
 from .models import InternshipProject, InternTask, InternTaskSubmissionDetail
-from module_01_identity_access.models import LeaveType, EmployeeLeave
+from module_02_hr.models import LeaveType, EmployeeLeave
 from .models import InternTestingReport
 from .models import InternPerformance
 from module_05_clients_projects.models import ProjectTeamMember

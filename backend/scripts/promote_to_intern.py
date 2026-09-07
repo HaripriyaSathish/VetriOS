@@ -1,7 +1,8 @@
 from django.utils import timezone
 import secrets
 
-from module_01_identity_access.models import UserAccount, Role, UserRole, AuditLog, Person, Employee
+from module_01_identity_access.models import UserAccount, Role, UserRole, AuditLog, Person
+from module_02_hr.models import Employee
 from module_04_interns.models import Intern, InternReportingManagerHistory
 from module_03_training.models import Student
 

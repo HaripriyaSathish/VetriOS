@@ -3,12 +3,11 @@ import re
 from django.utils import timezone
 from rest_framework import serializers
 
+from module_02_hr.models import DepartmentLead, Employee, PersonDepartmentHistory
+
 from .models import (
-    DepartmentLead,
-    Employee,
     Permission,
     Person,
-    PersonDepartmentHistory,
     Role,
     RolePermission,
     UserAccount,

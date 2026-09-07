@@ -6,7 +6,10 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from module_01_identity_access.models import (
+from module_01_identity_access.models import UserAccount
+from local_extensions.email_utils import send_email
+from module_04_interns.models import Intern
+from .models import (
     Branch,
     Department,
     Designation,
@@ -18,10 +21,7 @@ from module_01_identity_access.models import (
     EmploymentType,
     InternOnboarding,
     LeaveType,
-    UserAccount,
 )
-from local_extensions.email_utils import send_email
-from module_04_interns.models import Intern
 from .permissions import IsHRorSystemAdministrator
 from .serializers import (
     AttendanceRecordSerializer,
@@ -927,8 +927,16 @@ class InternOnboardingUpdateView(APIView):
 
         now = timezone.now()
         onboarding = InternOnboarding.objects.filter(intern_id=intern_id).first()
+        editable_fields = (
+            "designation_id",
+            "stipend_amount",
+            "documents_shared",
+            "signed_documents_received",
+            "documents_verified",
+            "offer_letter_acknowledged",
+        )
         if onboarding:
-            for field in ("designation_id", "stipend_amount", "documents_verified", "offer_letter_acknowledged"):
+            for field in editable_fields:
                 if field in data:
                     setattr(onboarding, field, data[field])
             onboarding.updated_at = now
@@ -938,6 +946,8 @@ class InternOnboardingUpdateView(APIView):
                 intern_id=intern_id,
                 designation_id=data.get("designation_id"),
                 stipend_amount=data.get("stipend_amount"),
+                documents_shared=data.get("documents_shared", False),
+                signed_documents_received=data.get("signed_documents_received", False),
                 documents_verified=data.get("documents_verified", False),
                 offer_letter_acknowledged=data.get("offer_letter_acknowledged", False),
                 created_at=now,

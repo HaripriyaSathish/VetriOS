@@ -1,7 +1,10 @@
 from django.utils import timezone
 from rest_framework import serializers
 
-from module_01_identity_access.models import (
+from module_01_identity_access.models import Person
+from module_04_interns.models import Intern
+
+from .models import (
     Branch,
     Department,
     DepartmentLead,
@@ -12,10 +15,8 @@ from module_01_identity_access.models import (
     EmploymentType,
     InternOnboarding,
     LeaveType,
-    Person,
     PersonDepartmentHistory,
 )
-from module_04_interns.models import Intern
 
 
 # Row shape for the Attendance screen's "Daily records" table — built by
@@ -729,9 +730,11 @@ class OnboardingInternSerializer(serializers.ModelSerializer):
     designation_id = serializers.SerializerMethodField()
     designation_name = serializers.SerializerMethodField()
     stipend_amount = serializers.SerializerMethodField()
+    documents_shared = serializers.SerializerMethodField()
+    signed_documents_received = serializers.SerializerMethodField()
     documents_verified = serializers.SerializerMethodField()
-    offer_letter_acknowledged = serializers.SerializerMethodField()
     welcome_email_sent = serializers.SerializerMethodField()
+    offer_letter_acknowledged = serializers.SerializerMethodField()
     progress_percent = serializers.SerializerMethodField()
 
     class Meta:
@@ -746,9 +749,11 @@ class OnboardingInternSerializer(serializers.ModelSerializer):
             "designation_id",
             "designation_name",
             "stipend_amount",
+            "documents_shared",
+            "signed_documents_received",
             "documents_verified",
-            "offer_letter_acknowledged",
             "welcome_email_sent",
+            "offer_letter_acknowledged",
             "progress_percent",
         ]
 
@@ -775,36 +780,54 @@ class OnboardingInternSerializer(serializers.ModelSerializer):
         onboarding = self._onboarding(obj)
         return onboarding.stipend_amount if onboarding else None
 
+    def get_documents_shared(self, obj):
+        onboarding = self._onboarding(obj)
+        return onboarding.documents_shared if onboarding else False
+
+    def get_signed_documents_received(self, obj):
+        onboarding = self._onboarding(obj)
+        return onboarding.signed_documents_received if onboarding else False
+
     def get_documents_verified(self, obj):
         onboarding = self._onboarding(obj)
         return onboarding.documents_verified if onboarding else False
-
-    def get_offer_letter_acknowledged(self, obj):
-        onboarding = self._onboarding(obj)
-        return onboarding.offer_letter_acknowledged if onboarding else False
 
     def get_welcome_email_sent(self, obj):
         onboarding = self._onboarding(obj)
         return onboarding.welcome_email_sent if onboarding else False
 
-    # Two checklist items right now (documents verified, offer letter
-    # acknowledged) — 0/50/100. The welcome email isn't part of this yet
-    # (that step is on hold), so it doesn't count toward progress.
+    def get_offer_letter_acknowledged(self, obj):
+        onboarding = self._onboarding(obj)
+        return onboarding.offer_letter_acknowledged if onboarding else False
+
+    # Five-step checklist, in process order: documents shared, signed
+    # documents received, document verification, offer letter email sent,
+    # signed acknowledgement received. welcome_email_sent isn't HR-toggleable
+    # yet (no send action built), so it stays false until that's built —
+    # progress simply can't reach 100% until then.
     def get_progress_percent(self, obj):
         onboarding = self._onboarding(obj)
         if not onboarding:
             return 0
-        done = sum([onboarding.documents_verified, onboarding.offer_letter_acknowledged])
-        return round(done / 2 * 100)
+        done = sum([
+            onboarding.documents_shared,
+            onboarding.signed_documents_received,
+            onboarding.documents_verified,
+            onboarding.welcome_email_sent,
+            onboarding.offer_letter_acknowledged,
+        ])
+        return round(done / 5 * 100)
 
 
 # Updates (or creates, on first save) the InternOnboarding row for one
-# intern — designation/stipend assignment and the two checklist items.
-# Sending the welcome email is on hold, so it's not part of this
-# serializer yet.
+# intern — designation/stipend assignment and four of the five checklist
+# steps. welcome_email_sent is deliberately excluded: it isn't HR-toggleable,
+# it'll be set programmatically once the email-send action is built.
 class InternOnboardingUpdateSerializer(serializers.Serializer):
     designation_id = serializers.IntegerField(required=False, allow_null=True)
     stipend_amount = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
+    documents_shared = serializers.BooleanField(required=False)
+    signed_documents_received = serializers.BooleanField(required=False)
     documents_verified = serializers.BooleanField(required=False)
     offer_letter_acknowledged = serializers.BooleanField(required=False)
 

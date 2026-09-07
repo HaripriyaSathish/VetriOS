@@ -66,34 +66,38 @@ function Sidebar() {
         </NavLink>
       )}
 
-      {/* Self-service Attendance/Leave for anyone without the full HR
-          module (Employee, Manager, Viewer) — HR Administrator/System
-          Administrator use the real HR module's Attendance/Leave instead.
-          Also requires an actual Employee record (employee_code on /me) —
-          accounts like Training applicants/test logins have a login but
-          no Employee row, so these pages would just show a dead end. */}
-      {!isSystemAdministrator && !canSeeHR && !!user?.employee_code && (
-        <>
-          <NavLink
-            to="/my/attendance"
-            className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
-          >
-            <span className="nav-icon">
-              <CalendarCheck size={16} />
-            </span>
-            Attendance
-          </NavLink>
+      {/* Self-service Attendance for anyone with an actual Employee record
+          (employee_code on /me) — accounts like Training applicants/test
+          logins have a login but no Employee row, so this page would just
+          show a dead end for them. HR Administrator also gets this (their
+          HR-module Attendance page is org-wide today's records, not their
+          own history), labeled "My Attendance" to tell the two apart. Only
+          System Administrator (a pure system-access account, not really
+          "staff") skips it entirely. */}
+      {!isSystemAdministrator && !!user?.employee_code && (
+        <NavLink
+          to="/my/attendance"
+          className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
+        >
+          <span className="nav-icon">
+            <CalendarCheck size={16} />
+          </span>
+          My Attendance
+        </NavLink>
+      )}
 
-          <NavLink
-            to="/my/leave"
-            className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
-          >
-            <span className="nav-icon">
-              <Palmtree size={16} />
-            </span>
-            Apply Leave
-          </NavLink>
-        </>
+      {/* Apply Leave stays HR-gated out — HR Administrator already manages
+          leave requests through the real HR module's Leave page. */}
+      {!isSystemAdministrator && !canSeeHR && !!user?.employee_code && (
+        <NavLink
+          to="/my/leave"
+          className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
+        >
+          <span className="nav-icon">
+            <Palmtree size={16} />
+          </span>
+          Apply Leave
+        </NavLink>
       )}
 
       {/* Worklog is personal to every employee, HR Administrator

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ArrowUpRight } from "lucide-react";
 import client from "../../../api/client";
+import Pagination, { paginate } from "../../../components/Pagination";
 import "../styles/HRDashboard.css";
 import "../styles/Attendance.css";
 
@@ -37,6 +38,7 @@ function Onboarding() {
   const [designations, setDesignations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [page, setPage] = useState(1);
 
   const [checklistIntern, setChecklistIntern] = useState(null);
   const [checklistDraft, setChecklistDraft] = useState(null);
@@ -69,6 +71,8 @@ function Onboarding() {
     setChecklistDraft({
       designation_id: intern.designation_id || "",
       stipend_amount: intern.stipend_amount ?? "",
+      documents_shared: intern.documents_shared,
+      signed_documents_received: intern.signed_documents_received,
       documents_verified: intern.documents_verified,
       offer_letter_acknowledged: intern.offer_letter_acknowledged,
     });
@@ -87,6 +91,8 @@ function Onboarding() {
       const payload = {
         designation_id: checklistDraft.designation_id === "" ? null : Number(checklistDraft.designation_id),
         stipend_amount: checklistDraft.stipend_amount === "" ? null : checklistDraft.stipend_amount,
+        documents_shared: checklistDraft.documents_shared,
+        signed_documents_received: checklistDraft.signed_documents_received,
         documents_verified: checklistDraft.documents_verified,
         offer_letter_acknowledged: checklistDraft.offer_letter_acknowledged,
       };
@@ -136,8 +142,9 @@ function Onboarding() {
           ) : interns.length === 0 ? (
             <p className="hr-empty">No interns are waiting to be onboarded right now.</p>
           ) : (
+            <>
             <div className="ob-grid">
-              {interns.map((i) => {
+              {paginate(interns, page, 6).map((i) => {
                 const st = statusFor(i.progress_percent);
                 return (
                   <div className="ob-card" key={i.intern_id}>
@@ -165,6 +172,8 @@ function Onboarding() {
                 );
               })}
             </div>
+            <Pagination page={page} totalItems={interns.length} onPageChange={setPage} pageSize={6} />
+            </>
           )}
         </>
       )}
@@ -181,8 +190,8 @@ function Onboarding() {
             <button type="button" className="hr-modal-x" onClick={closeChecklist} aria-label="Close">
               ✕
             </button>
-            <h2>{checklistIntern.full_name}</h2>
-            <p className="hr-hint">{checklistIntern.intern_code}</p>
+            <h2>{checklistIntern.full_name} - Onboarding checklist</h2>
+            <p className="hr-hint">Intern ID: {checklistIntern.intern_code}</p>
 
             <label>Designation</label>
             <select
@@ -208,13 +217,50 @@ function Onboarding() {
             <div className="ob-checklist-row">
               <input
                 type="checkbox"
+                id="documents_shared"
+                checked={checklistDraft.documents_shared}
+                onChange={(e) =>
+                  setChecklistDraft({ ...checklistDraft, documents_shared: e.target.checked })
+                }
+              />
+              <label htmlFor="documents_shared">
+                Step 1 · Documents shared
+                <span className="ob-step-hint">Terms &amp; Conditions and Employment Agreement</span>
+              </label>
+            </div>
+            <div className="ob-checklist-row">
+              <input
+                type="checkbox"
+                id="signed_documents_received"
+                checked={checklistDraft.signed_documents_received}
+                onChange={(e) =>
+                  setChecklistDraft({ ...checklistDraft, signed_documents_received: e.target.checked })
+                }
+              />
+              <label htmlFor="signed_documents_received">
+                Step 2 · Signed documents received
+                <span className="ob-step-hint">Signed printout plus certificates, Aadhar, etc.</span>
+              </label>
+            </div>
+            <div className="ob-checklist-row">
+              <input
+                type="checkbox"
                 id="documents_verified"
                 checked={checklistDraft.documents_verified}
                 onChange={(e) =>
                   setChecklistDraft({ ...checklistDraft, documents_verified: e.target.checked })
                 }
               />
-              <label htmlFor="documents_verified">Documents verified</label>
+              <label htmlFor="documents_verified">Step 3 · Document verification</label>
+            </div>
+            <div className="ob-checklist-row ob-checklist-row-disabled">
+              <input type="checkbox" checked={checklistIntern.welcome_email_sent} disabled readOnly />
+              <label>
+                Step 4 · Offer letter email sent
+                <span className="ob-step-hint">
+                  {checklistIntern.welcome_email_sent ? "Sent" : "Not sent yet"}
+                </span>
+              </label>
             </div>
             <div className="ob-checklist-row">
               <input
@@ -225,7 +271,7 @@ function Onboarding() {
                   setChecklistDraft({ ...checklistDraft, offer_letter_acknowledged: e.target.checked })
                 }
               />
-              <label htmlFor="offer_letter_acknowledged">Offer letter acknowledged</label>
+              <label htmlFor="offer_letter_acknowledged">Step 5 · Signed acknowledgement received</label>
             </div>
 
             {saveError && <p className="hr-error">{saveError}</p>}

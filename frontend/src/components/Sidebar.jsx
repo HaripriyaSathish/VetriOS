@@ -39,11 +39,13 @@ const HR_PATHS = ["/hr"];
 const BUSINESS_TEAM_PATHS = [
   "/training/students", "/training/internship-approvals", "/training/enquiries",
   "/training/fee-conversion", "/training/batches/new", "/training/welcome-emails",
+  "/training/completion-extension-approvals",
 ];
 const DOCUMENTS_PATHS = ["/documents"];
 const PROJECT_MGMT_PATHS = [
   "/project/dashboard", "/project/team", "/project/requirements", "/project/kanban",
   "/project/milestones", "/project/deployments", "/project/tech-stack", "/project/change-requests",
+  "/project/recommend-internship-action",
 ];
 const CLIENT_MGMT_PATHS = [
   "/clients/directory", "/clients/meetings", "/clients/requests",
@@ -566,6 +568,10 @@ function Sidebar() {
                 <span className="nav-icon"><UserCheck size={14} /></span>
                 Internship Approvals
               </NavLink>
+              <NavLink to="/training/completion-extension-approvals" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
+  <span className="nav-icon"><UserCheck size={14} /></span>
+  Completion & Extension Approvals
+</NavLink>
               <NavLink to="/training/enquiries" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
                 <span className="nav-icon"><ClipboardList size={14} /></span>
                 Enquiries
@@ -698,6 +704,10 @@ function Sidebar() {
                 <span className="nav-icon"><MessageCircle size={14} /></span>
                 Change Requests
               </NavLink>
+              <NavLink to="/project/recommend-internship-action" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
+  <span className="nav-icon"><UserCheck size={14} /></span>
+  Internship Completion/Extension
+</NavLink>
             </div>
           )}
 

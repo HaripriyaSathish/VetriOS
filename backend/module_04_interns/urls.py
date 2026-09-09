@@ -15,6 +15,7 @@ from .views import MyProjectView
 from .completion_views import (
     RecommendCompletionView, PendingCompletionsView, ApproveCompletionView,
     RecommendExtensionView, PendingExtensionsView, ActOnExtensionView,
+    MyLeadInternsView,
 )
 urlpatterns = [
     path("recommend/", RecommendForInternshipView.as_view()),
@@ -47,10 +48,11 @@ urlpatterns = [
     path("lead/performance/", ProjectLeadInternPerformanceView.as_view()),
     path("me/project/", MyProjectView.as_view()),
 
-    path("interns/<int:intern_id>/completion/recommend/", RecommendCompletionView.as_view()),
+    path("<int:intern_id>/completion/recommend/", RecommendCompletionView.as_view()),
     path("completions/pending/", PendingCompletionsView.as_view()),
     path("completions/<int:completion_id>/approve/", ApproveCompletionView.as_view()),
-    path("interns/<int:intern_id>/extension/recommend/", RecommendExtensionView.as_view()),
+    path("<int:intern_id>/extension/recommend/", RecommendExtensionView.as_view()),
     path("extensions/pending/", PendingExtensionsView.as_view()),
     path("extensions/<int:extension_id>/act/", ActOnExtensionView.as_view()),
+    path("lead/interns/", MyLeadInternsView.as_view()),
 ]

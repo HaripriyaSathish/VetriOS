@@ -49,6 +49,7 @@ import StudentReports from "./modules/student/pages/Reports";
 import AllStudentsList from "./modules/training/pages/AllStudentsList";
 import StudentDetail from "./modules/training/pages/StudentDetail";
 import InternshipApprovals from "./modules/training/pages/InternshipApprovals";
+import CompletionExtensionApprovals from "./modules/training/pages/CompletionExtensionApprovals";
 import MyInternship from "./modules/interns/pages/MyInternship";
 import MyInternAttendance from "./modules/interns/pages/MyAttendance";
 import MyTasks from "./modules/interns/pages/MyTasks";
@@ -92,6 +93,7 @@ import ApprovalDocuments from "./modules/clients-projects/pages/ApprovalDocument
 import MyClients from "./modules/clients-projects/pages/MyClients";
 import FollowUpsClients from "./modules/clients-projects/pages/FollowUpsClients";
 import FollowUps from "./modules/clients-projects/pages/FollowUps";
+import RecommendInternshipAction from "./modules/clients-projects/pages/RecommendInternshipAction";
 // Route table for the whole app. Everything under AppLayout requires a
 // signed-in user (ProtectedRoute); each module route is additionally
 // gated by the same requirement Sidebar uses to decide what to show
@@ -205,6 +207,11 @@ function App() {
             <InternshipApprovals />
           </PermissionGate>
         } />
+        <Route path="/training/completion-extension-approvals" element={
+  <PermissionGate requirement={{ type: "role", value: ["Business Team", "System Administrator"] }}>
+    <CompletionExtensionApprovals />
+  </PermissionGate>
+} />
         <Route path="/training/attendance" element={
           <PermissionGate requirement={{ type: "role", value: "Employee" }}>
             <TrainingAttendance />
@@ -462,6 +469,11 @@ function App() {
 <Route path="/clients/:clientId/follow-ups" element={
   <PermissionGate requirement={{ type: "role", value: ["Project Manager", "System Administrator"] }}>
     <FollowUps />
+  </PermissionGate>
+} />
+<Route path="/project/recommend-internship-action" element={
+  <PermissionGate requirement={{ type: "role", value: ["Project Manager", "System Administrator"] }}>
+    <RecommendInternshipAction />
   </PermissionGate>
 } />
         {/* Workspace (HR) group — HR Dashboard is still a placeholder;

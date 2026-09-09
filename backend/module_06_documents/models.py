@@ -123,6 +123,55 @@ class DocumentPerson(models.Model):
         db_table = 'document_person'
         unique_together = (('document', 'person'),)
 
+
+# Vetri Tool (AI Generator) — a reusable blueprint. template_content holds
+# {{placeholder}} tags (see AiDocumentGeneration) resolved against real
+# HR data before the AI drafts around them.
+class DocumentTemplate(models.Model):
+    document_template_id = models.BigAutoField(primary_key=True)
+    template_code = models.CharField(unique=True, max_length=100)
+    template_name = models.CharField(max_length=200)
+    document_type = models.ForeignKey(DocumentType, models.DO_NOTHING, blank=True, null=True)
+    description = models.TextField(blank=True, null=True)
+    template_content = models.TextField(blank=True, null=True)
+    template_format = models.CharField(max_length=30)
+    version_number = models.IntegerField()
+    is_active = models.BooleanField()
+    created_by_user = models.ForeignKey(UserAccount, models.DO_NOTHING, blank=True, null=True)
+    created_at = models.DateTimeField()
+    updated_at = models.DateTimeField()
+
+    class Meta:
+        managed = False
+        db_table = 'document_template'
+
+
+# One row per Vetri Tool generation attempt — a log, not the document
+# itself. ai_query_id is left unset (nullable, no ai_query rows created
+# for this MVP — that table is for the future RAG/query layer).
+class AiDocumentGeneration(models.Model):
+    ai_document_generation_id = models.BigAutoField(primary_key=True)
+    document_template = models.ForeignKey(DocumentTemplate, models.DO_NOTHING, blank=True, null=True)
+    source_document = models.ForeignKey(
+        Document, models.DO_NOTHING, related_name='+', blank=True, null=True,
+    )
+    generated_document = models.ForeignKey(
+        Document, models.DO_NOTHING, related_name='+', blank=True, null=True,
+    )
+    requested_by_user = models.ForeignKey(UserAccount, models.DO_NOTHING, blank=True, null=True)
+    generation_provider = models.CharField(max_length=100, blank=True, null=True)
+    generation_model = models.CharField(max_length=150, blank=True, null=True)
+    prompt_text = models.TextField(blank=True, null=True)
+    generation_status = models.CharField(max_length=30)
+    requested_at = models.DateTimeField()
+    completed_at = models.DateTimeField(blank=True, null=True)
+    error_message = models.TextField(blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = 'ai_document_generation'
+
+
 class DocumentProject(models.Model):
     document_project_id = models.BigAutoField(primary_key=True)
     document = models.ForeignKey(Document, models.CASCADE, related_name='project_links')
@@ -148,4 +197,4 @@ class DocumentApproval(models.Model):
 
     class Meta:
         managed = False
-        db_table = 'document_approval'        
+        db_table = 'document_approval'

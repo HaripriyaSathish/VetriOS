@@ -145,7 +145,7 @@ function MyAttendance() {
       <div className="att-head">
         <div>
           <span className="att-eyebrow">My workspace</span>
-          <h1>Attendance</h1>
+          <h1>My Attendance</h1>
           <p>Check in when you start, check out when you're done.</p>
         </div>
         <button

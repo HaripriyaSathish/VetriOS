@@ -1,4 +1,8 @@
+import calendar
+import datetime
+
 import cloudinary.uploader
+from django.http import FileResponse
 from django.utils import timezone
 from rest_framework import generics, status
 from rest_framework.parsers import MultiPartParser
@@ -6,23 +10,30 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from module_01_identity_access.models import (
+from module_01_identity_access.models import UserAccount
+from local_extensions.email_utils import send_email
+from .excel_exports import build_attendance_excel, build_exit_excel, build_onboarding_excel
+from module_04_interns.models import Intern
+from .models import (
     Branch,
     Department,
     Designation,
     Employee,
     EmployeeAttendance,
+    EmployeeExit,
     EmployeeLeave,
     EmployeeLeaveBalance,
+    EmployeePayrollReference,
+    EmployeePromotion,
     EmployeeWorklog,
     EmploymentType,
+    InternOnboarding,
     LeaveType,
-    UserAccount,
 )
-from local_extensions.email_utils import send_email
-from .permissions import IsHRorSystemAdministrator
+from .permissions import IsHRorSystemAdministrator, IsSystemAdministrator
 from .serializers import (
     AttendanceRecordSerializer,
+    AttendanceReportRowSerializer,
     BranchSerializer,
     DepartmentSerializer,
     DepartmentWriteSerializer,
@@ -33,7 +44,16 @@ from .serializers import (
     EmployeeUpdateSerializer,
     EmployeeWorklogSerializer,
     EmployeeWorklogWriteSerializer,
+    ExitListSerializer,
+    ExitWriteSerializer,
     HRWorklogSerializer,
+    InternOnboardingUpdateSerializer,
+    OnboardingInternSerializer,
+    PayrollReferenceSerializer,
+    PayrollReferenceWriteSerializer,
+    PromotionCreateSerializer,
+    PromotionDecisionSerializer,
+    PromotionListSerializer,
     TeamWorklogSerializer,
     EmployeeWriteSerializer,
     EmploymentTypeSerializer,
@@ -269,6 +289,77 @@ def _attendance_status(att, is_on_leave, has_login=True):
     return "HALF_DAY", hours
 
 
+# Shared by the Attendance overview's preview (JSON) and export (xlsx) —
+# one employee-day per row across a whole calendar month, same derivation
+# as AttendanceTodayView but repeated per day instead of just today.
+# Future dates in the current month are skipped (nothing happened yet).
+def _attendance_report_rows(period, department_id=None, status_filter=None):
+    try:
+        year, month = (int(p) for p in period.split("-"))
+        start = datetime.date(year, month, 1)
+    except (ValueError, AttributeError):
+        today = timezone.localdate()
+        start = today.replace(day=1)
+
+    last_day = calendar.monthrange(start.year, start.month)[1]
+    end = min(datetime.date(start.year, start.month, last_day), timezone.localdate())
+    if end < start:
+        return []
+
+    employees = list(Employee.objects.filter(status="ACTIVE").select_related("person"))
+    if department_id:
+        filtered = []
+        for e in employees:
+            dept_history = _current_department_history(e.person_id)
+            if dept_history and dept_history.department_id == int(department_id):
+                filtered.append(e)
+        employees = filtered
+
+    employee_ids = [e.employee_id for e in employees]
+    person_ids = [e.person_id for e in employees]
+
+    attendance_by_key = {
+        (a.employee_id, a.attendance_date): a
+        for a in EmployeeAttendance.objects.filter(
+            employee_id__in=employee_ids, attendance_date__gte=start, attendance_date__lte=end
+        )
+    }
+    leaves = list(
+        EmployeeLeave.objects.filter(
+            employee_id__in=employee_ids, status="APPROVED", start_date__lte=end, end_date__gte=start
+        )
+    )
+    person_ids_with_login = set(
+        UserAccount.objects.filter(person_id__in=person_ids).values_list("person_id", flat=True)
+    )
+
+    rows = []
+    day_count = (end - start).days + 1
+    for emp in employees:
+        dept_name = _department_name(emp.person_id)
+        has_login = emp.person_id in person_ids_with_login
+        emp_leaves = [l for l in leaves if l.employee_id == emp.employee_id]
+        for offset in range(day_count):
+            day = start + datetime.timedelta(days=offset)
+            att = attendance_by_key.get((emp.employee_id, day))
+            is_on_leave = any(l.start_date <= day <= l.end_date for l in emp_leaves)
+            day_status, hours = _attendance_status(att, is_on_leave, has_login)
+            if status_filter and day_status != status_filter:
+                continue
+            rows.append({
+                "employee_id": emp.employee_id,
+                "person_id": emp.person_id,
+                "full_name": str(emp.person),
+                "department_name": dept_name,
+                "date": day,
+                "status": day_status,
+                "check_in_time": att.check_in_time if att else None,
+                "check_out_time": att.check_out_time if att else None,
+                "hours": hours,
+            })
+    return rows
+
+
 # Backs the whole Attendance screen in one call: today's org-wide
 # records + roll-up stats for the summary cards + the logged-in user's
 # own check-in/out state (for the "Check in" button and greeting banner).
@@ -352,6 +443,36 @@ class AttendanceTodayView(APIView):
                     "check_out_time": my_attendance.check_out_time if my_attendance else None,
                 },
             }
+        )
+
+
+# Attendance overview — filterable by month/department/status, backs
+# both the on-page "Preview report" table and the "Export report" xlsx
+# download (same _attendance_report_rows query, two renderings).
+class AttendanceReportView(APIView):
+    permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
+
+    def get(self, request):
+        rows = _attendance_report_rows(
+            request.query_params.get("period"),
+            request.query_params.get("department_id"),
+            request.query_params.get("status"),
+        )
+        return Response(AttendanceReportRowSerializer(rows, many=True).data)
+
+
+class AttendanceReportExportView(APIView):
+    permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
+
+    def get(self, request):
+        period = request.query_params.get("period") or timezone.localdate().strftime("%Y-%m")
+        rows = _attendance_report_rows(
+            period, request.query_params.get("department_id"), request.query_params.get("status")
+        )
+        buffer = build_attendance_excel(rows, f"Attendance overview — {period}")
+        return FileResponse(
+            buffer, as_attachment=True, filename=f"Attendance_Overview_{period}.xlsx",
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
 
 
@@ -893,4 +1014,425 @@ class WorklogsOrgView(generics.ListAPIView):
             EmployeeWorklog.objects.filter(work_date__gte=since)
             .select_related("employee__person", "employee__designation", "reported_to_employee__person")
             .order_by("-work_date", "employee_id")
+        )
+
+
+# Onboarding → Interns tab, step 1: every ACTIVE intern, name only. Intern
+# rows are Haripriya's (module_04_interns) — read-only from here.
+class OnboardingInternsView(generics.ListAPIView):
+    permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
+    serializer_class = OnboardingInternSerializer
+    queryset = Intern.objects.filter(status="ACTIVE").select_related("student__person").order_by("-created_at")
+
+
+def _onboarding_status_label(progress_percent):
+    if progress_percent >= 100:
+        return "Completed"
+    if progress_percent > 0:
+        return "On track"
+    return "Needs action"
+
+
+# Onboarding overview export — same interns OnboardingInternsView shows,
+# filtered by department/status/start-month and rendered as colored xlsx
+# instead of JSON.
+class OnboardingReportExportView(APIView):
+    permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
+
+    def get(self, request):
+        department_id = request.query_params.get("department_id")
+        status_filter = request.query_params.get("status")  # "Needs action" | "On track" | "Completed"
+        period = request.query_params.get("period")
+
+        interns = Intern.objects.filter(status="ACTIVE").select_related("student__person").order_by("-created_at")
+        rows = []
+        for intern in interns:
+            data = OnboardingInternSerializer(intern).data
+            if department_id and str(data.get("department_id")) != str(department_id):
+                continue
+            status_label = _onboarding_status_label(data["progress_percent"])
+            if status_filter and status_label != status_filter:
+                continue
+            if period and (not data["internship_start_date"] or data["internship_start_date"][:7] != period):
+                continue
+            rows.append({**data, "status_label": status_label})
+
+        title = f"Onboarding overview{f' — {period}' if period else ''}"
+        buffer = build_onboarding_excel(rows, title)
+        filename = f"Onboarding_Overview{f'_{period}' if period else ''}.xlsx"
+        return FileResponse(
+            buffer, as_attachment=True, filename=filename,
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+
+
+# Updates one intern's onboarding checklist (documents verified / offer
+# letter acknowledged) and designation/stipend assignment — creates the
+# InternOnboarding row on first save, updates it after. The welcome
+# email is a separate action, not part of this endpoint yet.
+class InternOnboardingUpdateView(APIView):
+    permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
+
+    def patch(self, request, intern_id):
+        try:
+            intern = Intern.objects.select_related("student__person").get(pk=intern_id)
+        except Intern.DoesNotExist:
+            return Response({"detail": "Intern not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = InternOnboardingUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        now = timezone.now()
+        onboarding = InternOnboarding.objects.filter(intern_id=intern_id).first()
+        editable_fields = (
+            "designation_id",
+            "department_id",
+            "stipend_amount",
+            "documents_shared",
+            "signed_documents_received",
+            "documents_verified",
+            "designation_stipend_assigned",
+            "welcome_email_sent",
+            "offer_letter_acknowledged",
+            "login_credentials_provided",
+        )
+        if onboarding:
+            for field in editable_fields:
+                if field in data:
+                    setattr(onboarding, field, data[field])
+            onboarding.updated_at = now
+            onboarding.save()
+        else:
+            onboarding = InternOnboarding.objects.create(
+                intern_id=intern_id,
+                designation_id=data.get("designation_id"),
+                department_id=data.get("department_id"),
+                stipend_amount=data.get("stipend_amount"),
+                documents_shared=data.get("documents_shared", False),
+                signed_documents_received=data.get("signed_documents_received", False),
+                documents_verified=data.get("documents_verified", False),
+                designation_stipend_assigned=data.get("designation_stipend_assigned", False),
+                welcome_email_sent=data.get("welcome_email_sent", False),
+                offer_letter_acknowledged=data.get("offer_letter_acknowledged", False),
+                login_credentials_provided=data.get("login_credentials_provided", False),
+                created_at=now,
+                updated_at=now,
+            )
+
+        return Response(OnboardingInternSerializer(intern).data)
+
+
+# Promotions screen — list every promotion request (any status) and let
+# HR create new ones. previous_designation is snapshotted from the
+# employee's CURRENT designation at request time (not client-supplied),
+# so the record stays accurate even if the employee's designation is
+# edited directly before this request is decided. New requests always
+# start PENDING — approval/rejection is a separate, System-Administrator-
+# only step (see PromotionApproveView/PromotionRejectView below).
+class PromotionListCreateView(generics.ListCreateAPIView):
+    permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
+    queryset = EmployeePromotion.objects.select_related(
+        "employee__person", "previous_designation", "new_designation", "approved_by__person"
+    ).order_by("-created_at")
+
+    def get_serializer_class(self):
+        return PromotionCreateSerializer if self.request.method == "POST" else PromotionListSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        employee = Employee.objects.get(pk=data["employee_id"])
+        promotion = EmployeePromotion.objects.create(
+            employee_id=data["employee_id"],
+            previous_designation_id=employee.designation_id,
+            new_designation_id=data["new_designation_id"],
+            effective_date=data["effective_date"],
+            reason=data.get("reason", ""),
+            status="PENDING",
+            created_at=timezone.now(),
+        )
+        promotion = EmployeePromotion.objects.select_related(
+            "employee__person", "previous_designation", "new_designation", "approved_by__person"
+        ).get(pk=promotion.pk)
+        return Response(PromotionListSerializer(promotion).data, status=status.HTTP_201_CREATED)
+
+
+# System-Administrator-only: approving applies the new designation to the
+# employee's real record immediately (see EmployeePromotion Meta docstring
+# in models.py for why that split exists).
+class PromotionApproveView(APIView):
+    permission_classes = [IsAuthenticated, IsSystemAdministrator]
+
+    def post(self, request, pk):
+        try:
+            promotion = EmployeePromotion.objects.select_related(
+                "employee__person", "previous_designation", "new_designation", "approved_by__person"
+            ).get(pk=pk)
+        except EmployeePromotion.DoesNotExist:
+            return Response({"detail": "Promotion request not found."}, status=status.HTTP_404_NOT_FOUND)
+        if promotion.status != "PENDING":
+            return Response({"detail": "Only a pending request can be approved."}, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = PromotionDecisionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        today = timezone.localdate()
+        promotion.status = "APPROVED"
+        promotion.approved_by = request.user
+        promotion.approval_date = today
+        promotion.remarks = serializer.validated_data.get("remarks", "")
+        promotion.save(update_fields=["status", "approved_by", "approval_date", "remarks"])
+
+        Employee.objects.filter(pk=promotion.employee_id).update(
+            designation_id=promotion.new_designation_id, updated_at=timezone.now()
+        )
+
+        return Response(PromotionListSerializer(promotion).data)
+
+
+class PromotionRejectView(APIView):
+    permission_classes = [IsAuthenticated, IsSystemAdministrator]
+
+    def post(self, request, pk):
+        try:
+            promotion = EmployeePromotion.objects.select_related(
+                "employee__person", "previous_designation", "new_designation", "approved_by__person"
+            ).get(pk=pk)
+        except EmployeePromotion.DoesNotExist:
+            return Response({"detail": "Promotion request not found."}, status=status.HTTP_404_NOT_FOUND)
+        if promotion.status != "PENDING":
+            return Response({"detail": "Only a pending request can be rejected."}, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = PromotionDecisionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        promotion.status = "REJECTED"
+        promotion.approved_by = request.user
+        promotion.approval_date = timezone.localdate()
+        promotion.remarks = serializer.validated_data.get("remarks", "")
+        promotion.save(update_fields=["status", "approved_by", "approval_date", "remarks"])
+
+        return Response(PromotionListSerializer(promotion).data)
+
+
+# Payroll references screen — mapping an employee to their record in an
+# external payroll provider (Gusto, Deel, ADP, ...). Same HR gate as the
+# rest of HR, no separate approval step (unlike Promotions) since this is
+# just a reference/mapping table, not a workflow.
+class PayrollReferenceListCreateView(generics.ListCreateAPIView):
+    permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
+    queryset = EmployeePayrollReference.objects.select_related("employee__person").order_by("-created_at")
+
+    def get_serializer_class(self):
+        return PayrollReferenceWriteSerializer if self.request.method == "POST" else PayrollReferenceSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        now = timezone.now()
+        reference = EmployeePayrollReference.objects.create(
+            employee_id=data["employee_id"],
+            payroll_provider=data["payroll_provider"],
+            external_employee_id=data["external_employee_id"],
+            external_reference=data.get("external_reference", ""),
+            effective_from=data["effective_from"],
+            effective_to=data.get("effective_to"),
+            status=data.get("status", "ACTIVE"),
+            created_at=now,
+            updated_at=now,
+        )
+        reference = EmployeePayrollReference.objects.select_related("employee__person").get(pk=reference.pk)
+        return Response(PayrollReferenceSerializer(reference).data, status=status.HTTP_201_CREATED)
+
+
+# Deactivating (not deleting) matches Department/Designation's soft-delete
+# pattern elsewhere in HR — the mapping's history stays queryable.
+class PayrollReferenceDetailView(generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
+    queryset = EmployeePayrollReference.objects.select_related("employee__person")
+
+    def get_serializer_class(self):
+        return PayrollReferenceWriteSerializer if self.request.method in ("PUT", "PATCH") else PayrollReferenceSerializer
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = PayrollReferenceWriteSerializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        for field, value in serializer.validated_data.items():
+            setattr(instance, field, value)
+        instance.updated_at = timezone.now()
+        instance.save()
+        return Response(PayrollReferenceSerializer(instance).data)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        instance.status = "INACTIVE"
+        instance.updated_at = timezone.now()
+        instance.save(update_fields=["status", "updated_at"])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+# Maps an exit's type to the terminal employee.status once the exit
+# interview is completed — employee.status's DB check constraint allows
+# exactly these values (ACTIVE, ON_NOTICE, ON_LEAVE, SUSPENDED, RESIGNED,
+# TERMINATED, RETIRED, INACTIVE), and this is the only place that ever
+# writes the "left" ones.
+EXIT_TYPE_LABEL_MAP = {
+    "RESIGNATION": "Resignation",
+    "TERMINATION": "Termination",
+    "RETIREMENT": "Retirement",
+    "CONTRACT_END": "Contract end",
+    "ABSCONDING": "Absconding",
+    "OTHER": "Other",
+}
+STATUS_LABEL_MAP = {"PENDING": "Pending", "IN_PROGRESS": "In progress", "COMPLETED": "Completed"}
+
+EXIT_TYPE_TO_EMPLOYEE_STATUS = {
+    "RESIGNATION": "RESIGNED",
+    "TERMINATION": "TERMINATED",
+    "RETIREMENT": "RETIRED",
+    "CONTRACT_END": "INACTIVE",
+    "ABSCONDING": "TERMINATED",
+    "OTHER": "INACTIVE",
+}
+
+
+# Exit management — HR drafts the record (status derives to PENDING);
+# HR also edits it and ticks exit_interview_completed once it's done.
+# There's no delete: the DB has a real FK from employee_exit to employee
+# and nothing else references it, so a mistaken record can just be
+# corrected via PATCH rather than needing a destroy endpoint.
+class ExitListCreateView(generics.ListCreateAPIView):
+    permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
+    queryset = EmployeeExit.objects.select_related("employee__person", "approved_by__person").order_by("-created_at")
+
+    def get_serializer_class(self):
+        return ExitWriteSerializer if self.request.method == "POST" else ExitListSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        for field in ("employee_id", "exit_date", "exit_type"):
+            if field not in data:
+                return Response({field: ["This field is required."]}, status=status.HTTP_400_BAD_REQUEST)
+
+        now = timezone.now()
+        exit_record = EmployeeExit.objects.create(
+            employee_id=data["employee_id"],
+            exit_date=data["exit_date"],
+            exit_type=data["exit_type"],
+            reason=data.get("reason", ""),
+            notice_period_days=data.get("notice_period_days"),
+            last_working_date=data.get("last_working_date"),
+            exit_interview_completed=data.get("exit_interview_completed", False),
+            remarks=data.get("remarks", ""),
+            created_at=now,
+            updated_at=now,
+        )
+        exit_record = EmployeeExit.objects.select_related("employee__person", "approved_by__person").get(
+            pk=exit_record.pk
+        )
+        return Response(ExitListSerializer(exit_record).data, status=status.HTTP_201_CREATED)
+
+
+class ExitDetailView(generics.RetrieveUpdateAPIView):
+    permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
+    queryset = EmployeeExit.objects.select_related("employee__person", "approved_by__person")
+
+    def get_serializer_class(self):
+        return ExitWriteSerializer if self.request.method in ("PUT", "PATCH") else ExitListSerializer
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        was_interview_completed = instance.exit_interview_completed
+        serializer = ExitWriteSerializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        for field, value in serializer.validated_data.items():
+            if field == "employee_id":
+                continue  # which employee an exit record belongs to isn't editable
+            setattr(instance, field, value)
+        instance.updated_at = timezone.now()
+        instance.save()
+
+        # Interview just got ticked off (not already true) -> the employee
+        # has actually left, so their real employee.status moves to the
+        # terminal state for this exit type.
+        if instance.exit_interview_completed and not was_interview_completed:
+            new_status = EXIT_TYPE_TO_EMPLOYEE_STATUS.get(instance.exit_type, "INACTIVE")
+            Employee.objects.filter(pk=instance.employee_id).update(
+                status=new_status, updated_at=timezone.now()
+            )
+
+        return Response(ExitListSerializer(instance).data)
+
+
+class ExitApproveView(APIView):
+    permission_classes = [IsAuthenticated, IsSystemAdministrator]
+
+    def post(self, request, pk):
+        try:
+            exit_record = EmployeeExit.objects.select_related("employee__person", "approved_by__person").get(pk=pk)
+        except EmployeeExit.DoesNotExist:
+            return Response({"detail": "Exit record not found."}, status=status.HTTP_404_NOT_FOUND)
+        if exit_record.approved_by_id:
+            return Response({"detail": "Already approved."}, status=status.HTTP_400_BAD_REQUEST)
+
+        exit_record.approved_by = request.user
+        exit_record.approval_date = timezone.localdate()
+        exit_record.updated_at = timezone.now()
+        exit_record.save(update_fields=["approved_by", "approval_date", "updated_at"])
+
+        # Approved but not yet actually gone — the employee is serving
+        # notice, distinct from ACTIVE and from the terminal status set
+        # once the exit interview completes (see ExitDetailView.update).
+        Employee.objects.filter(pk=exit_record.employee_id).update(
+            status="ON_NOTICE", updated_at=timezone.now()
+        )
+
+        return Response(ExitListSerializer(exit_record).data)
+
+
+# Exit overview export — same records ExitListCreateView shows, filtered
+# by department/status/exit-month and rendered as colored xlsx.
+class ExitReportExportView(APIView):
+    permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
+
+    def get(self, request):
+        department_id = request.query_params.get("department_id")
+        status_filter = request.query_params.get("status")  # "Pending" | "In progress" | "Completed"
+        period = request.query_params.get("period")
+
+        exits = EmployeeExit.objects.select_related("employee__person").order_by("-exit_date")
+        rows = []
+        for e in exits:
+            data = ExitListSerializer(e).data
+            if department_id and str(data["department_id"]) != str(department_id):
+                continue
+            status_label = STATUS_LABEL_MAP.get(data["status"], data["status"])
+            if status_filter and status_label != status_filter:
+                continue
+            if period and str(data["exit_date"])[:7] != period:
+                continue
+            rows.append({
+                "full_name": data["full_name"],
+                "department_name": data["department_name"],
+                "exit_type_label": EXIT_TYPE_LABEL_MAP.get(data["exit_type"], data["exit_type"]),
+                "exit_date": data["exit_date"],
+                "last_working_date": data["last_working_date"],
+                "exit_interview_completed": data["exit_interview_completed"],
+                "status_label": status_label,
+            })
+
+        title = f"Exit overview{f' — {period}' if period else ''}"
+        buffer = build_exit_excel(rows, title)
+        filename = f"Exit_Overview{f'_{period}' if period else ''}.xlsx"
+        return FileResponse(
+            buffer, as_attachment=True, filename=filename,
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )

@@ -16,3 +16,20 @@ class IsHRorSystemAdministrator(BasePermission):
             and user.is_authenticated
             and user.active_role_names() & self.allowed_roles
         )
+
+
+# Approving a promotion is deliberately narrower than the rest of HR —
+# only System Administrator, not any HR Administrator, mirrors the same
+# "HR requests, System Admin signs off" split used for onboarding's
+# login-credentials step.
+class IsSystemAdministrator(BasePermission):
+    message = "System Administrator role required."
+    allowed_roles = {"System Administrator"}
+
+    def has_permission(self, request, view):
+        user = request.user
+        return bool(
+            user
+            and user.is_authenticated
+            and user.active_role_names() & self.allowed_roles
+        )

@@ -1,5 +1,5 @@
 from module_03_training.models import Student
-from module_01_identity_access.models import Employee, EmployeeWorklog, EmployeeLeave, LeaveType
+from module_02_hr.models import Employee, EmployeeWorklog, EmployeeLeave, LeaveType
 from module_04_interns.models import (
     Intern, InternAttendance, InternTask, InternTaskSubmissionDetail,
     InternTestingReport, InternPerformance, InternReportingManagerHistory,

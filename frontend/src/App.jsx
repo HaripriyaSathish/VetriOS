@@ -11,6 +11,11 @@ import HRDashboard from "./modules/hr/pages/HRDashboard";
 import Attendance from "./modules/hr/pages/Attendance";
 import Leave from "./modules/hr/pages/Leave";
 import Worklogs from "./modules/hr/pages/Worklogs";
+import Onboarding from "./modules/hr/pages/Onboarding";
+import Promotions from "./modules/hr/pages/Promotions";
+import PayrollReferences from "./modules/hr/pages/PayrollReferences";
+import ExitManagement from "./modules/hr/pages/ExitManagement";
+import HRReports from "./modules/hr/pages/Reports";
 import MyAttendance from "./modules/hr/pages/MyAttendance";
 import MyLeave from "./modules/hr/pages/MyLeave";
 import MyWorklog from "./modules/hr/pages/MyWorklog";
@@ -58,6 +63,11 @@ import ProjectDashboard from "./modules/clients-projects/pages/ProjectDashboard"
 import TeamProjects from "./modules/clients-projects/pages/TeamProjects";
 import KanbanProjects from "./modules/clients-projects/pages/KanbanProjects";
 import ProjectTeam from "./modules/clients-projects/pages/ProjectTeam";
+import DocumentsLibrary from "./modules/documents/pages/Library";
+import AIGenerator from "./modules/documents/pages/AIGenerator";
+import DocumentTemplates from "./modules/documents/pages/Templates";
+import DocumentApprovals from "./modules/documents/pages/Approvals";
+import DocumentGovernance from "./modules/documents/pages/Governance";
 import KanbanBoard from "./modules/clients-projects/pages/KanbanBoard";
 import RequirementsProjects from "./modules/clients-projects/pages/RequirementsProjects";
 import Requirements from "./modules/clients-projects/pages/Requirements";
@@ -500,12 +510,86 @@ function App() {
           path="/hr/onboarding"
           element={
             <PermissionGate requirement={{ type: "role", value: ["HR Administrator", "System Administrator"] }}>
-              <ModulePlaceholder name="Onboarding" />
+              <Onboarding />
+            </PermissionGate>
+          }
+        />
+        <Route
+          path="/hr/promotions"
+          element={
+            <PermissionGate requirement={{ type: "role", value: ["HR Administrator", "System Administrator"] }}>
+              <Promotions />
+            </PermissionGate>
+          }
+        />
+        <Route
+          path="/hr/payroll-references"
+          element={
+            <PermissionGate requirement={{ type: "role", value: ["HR Administrator", "System Administrator"] }}>
+              <PayrollReferences />
+            </PermissionGate>
+          }
+        />
+        <Route
+          path="/hr/exit-management"
+          element={
+            <PermissionGate requirement={{ type: "role", value: ["HR Administrator", "System Administrator"] }}>
+              <ExitManagement />
+            </PermissionGate>
+          }
+        />
+        <Route
+          path="/hr/reports"
+          element={
+            <PermissionGate requirement={{ type: "role", value: ["HR Administrator", "System Administrator"] }}>
+              <HRReports />
             </PermissionGate>
           }
         />
 
-        {NAV_ITEMS.filter((item) => item.id !== "training" && item.id !== "hr").map((item) => (
+        {/* Document Generator group */}
+        <Route
+          path="/documents"
+          element={
+            <PermissionGate requirement={{ type: "perm", value: "DOCUMENT_VIEW" }}>
+              <DocumentsLibrary />
+            </PermissionGate>
+          }
+        />
+        <Route
+          path="/documents/ai-generator"
+          element={
+            <PermissionGate requirement={{ type: "perm", value: "DOCUMENT_VIEW" }}>
+              <AIGenerator />
+            </PermissionGate>
+          }
+        />
+        <Route
+          path="/documents/templates"
+          element={
+            <PermissionGate requirement={{ type: "perm", value: "DOCUMENT_VIEW" }}>
+              <DocumentTemplates />
+            </PermissionGate>
+          }
+        />
+        <Route
+          path="/documents/approvals"
+          element={
+            <PermissionGate requirement={{ type: "perm", value: "DOCUMENT_VIEW" }}>
+              <DocumentApprovals />
+            </PermissionGate>
+          }
+        />
+        <Route
+          path="/documents/governance"
+          element={
+            <PermissionGate requirement={{ type: "perm", value: "DOCUMENT_VIEW" }}>
+              <DocumentGovernance />
+            </PermissionGate>
+          }
+        />
+
+        {NAV_ITEMS.filter((item) => item.id !== "training" && item.id !== "hr" && item.id !== "documents").map((item) => (
           <Route
             key={item.id}
             path={item.path}

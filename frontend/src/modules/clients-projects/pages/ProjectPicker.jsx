@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import client from "../../../api/client";
 
-function ProjectDashboard() {
+function ProjectPicker({ title, subtitle, basePath, getPath }) {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -17,10 +17,15 @@ function ProjectDashboard() {
   if (loading) return <p className="p-6 text-gray-400">Loading…</p>;
   if (error) return <p className="p-6 text-red-600">{error}</p>;
 
+  // getPath(projectId) lets a page override the URL shape when the
+  // route puts the id before the feature name (e.g. /project/6/team)
+  // instead of after it (e.g. /project/requirements/6).
+  const linkFor = (projectId) => (getPath ? getPath(projectId) : `${basePath}/${projectId}`);
+
   return (
     <div className="p-6 max-w-5xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900 mb-1">Project Management</h1>
-      <p className="text-gray-500 mb-6">Projects you're managing or staffed on.</p>
+      <h1 className="text-xl font-bold text-gray-900 mb-1">{title}</h1>
+      <p className="text-gray-600 mb-6">{subtitle}</p>
 
       {projects.length === 0 ? (
         <div className="bg-white border border-gray-200 rounded-xl p-8 text-center text-gray-400">
@@ -29,8 +34,9 @@ function ProjectDashboard() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {projects.map((p) => (
-            <div
+            <Link
               key={p.project_id}
+              to={linkFor(p.project_id)}
               className="bg-white border border-gray-200 rounded-xl p-5 hover:border-blue-400 hover:shadow-md transition"
             >
               <div className="flex justify-between items-start mb-2">
@@ -39,25 +45,9 @@ function ProjectDashboard() {
                   {p.status}
                 </span>
               </div>
-              <p className="text-xs text-gray-500 mb-1">Client: {p.client_name}</p>
-              <p className="text-xs text-gray-500 mb-4">Your role: {p.my_role}</p>
-
-              <div className="flex gap-2 pt-3 border-t border-gray-100">
-                <Link
-                  to={`/project/${p.project_id}/team`}
-                  className="text-xs font-semibold text-blue-600 hover:text-blue-800"
-                >
-                  Team →
-                </Link>
-                <span className="text-gray-300">·</span>
-                <Link
-                  to={`/project/${p.project_id}/kanban`}
-                  className="text-xs font-semibold text-blue-600 hover:text-blue-800"
-                >
-                  Kanban Board →
-                </Link>
-              </div>
-            </div>
+              <p className="text-xs text-gray-600 mb-1">Client: {p.client_name}</p>
+              <p className="text-xs text-gray-600">Your role: {p.my_role}</p>
+            </Link>
           ))}
         </div>
       )}
@@ -65,4 +55,4 @@ function ProjectDashboard() {
   );
 }
 
-export default ProjectDashboard;
+export default ProjectPicker;

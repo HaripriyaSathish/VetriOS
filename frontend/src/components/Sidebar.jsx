@@ -41,6 +41,14 @@ const BUSINESS_TEAM_PATHS = [
   "/training/fee-conversion", "/training/batches/new", "/training/welcome-emails",
 ];
 const DOCUMENTS_PATHS = ["/documents"];
+const PROJECT_MGMT_PATHS = [
+  "/project/dashboard", "/project/team", "/project/requirements", "/project/kanban",
+  "/project/milestones", "/project/deployments", "/project/tech-stack", "/project/change-requests",
+];
+const CLIENT_MGMT_PATHS = [
+  "/clients/directory", "/clients/meetings", "/clients/requests",
+  "/clients/payments", "/clients/approval-documents", "/clients/my-clients",
+];
 
 function Sidebar() {
   const user = JSON.parse(localStorage.getItem("user") || "null");
@@ -80,6 +88,12 @@ function Sidebar() {
   const canSeeDocuments = documentsItem && hasAccess(documentsItem.requirement, user);
   const isOnDocumentsPage = DOCUMENTS_PATHS.some((path) => location.pathname.startsWith(path));
   const [documentsOpen, setDocumentsOpen] = useState(isOnDocumentsPage);
+
+  const isOnProjectMgmtPage = PROJECT_MGMT_PATHS.some((path) => location.pathname.startsWith(path));
+  const [projectMgmtOpen, setProjectMgmtOpen] = useState(isOnProjectMgmtPage);
+
+  const isOnClientMgmtPage = CLIENT_MGMT_PATHS.some((path) => location.pathname.startsWith(path));
+  const [clientMgmtOpen, setClientMgmtOpen] = useState(isOnClientMgmtPage);
 
   return (
     <aside className="sidebar">
@@ -635,9 +649,107 @@ function Sidebar() {
       )}
 
       {inWorkspace("project") && hasAccess(projectManagerRequirement, user) && (
-        <NavLink to="/project/dashboard" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
-          <span className="nav-icon"><FolderKanban size={16} /></span> Project Management
-        </NavLink>
+        <>
+          <button
+            type="button"
+            className={"nav-item nav-group-toggle" + (projectMgmtOpen ? " open" : "")}
+            onClick={() => setProjectMgmtOpen((prev) => !prev)}
+          >
+            <span className="nav-icon">
+              <FolderKanban size={16} />
+            </span>
+            Project Management
+            <span className="nav-chevron">
+              <ChevronDown size={14} />
+            </span>
+          </button>
+
+          {projectMgmtOpen && (
+            <div className="nav-subgroup">
+              <NavLink to="/project/dashboard" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
+                <span className="nav-icon"><LayoutDashboard size={14} /></span>
+                Project Dashboard
+              </NavLink>
+              <NavLink to="/project/team" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
+                <span className="nav-icon"><Users size={14} /></span>
+                Project Team
+              </NavLink>
+              <NavLink to="/project/requirements" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
+                <span className="nav-icon"><FileText size={14} /></span>
+                Requirements
+              </NavLink>
+              <NavLink to="/project/kanban" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
+                <span className="nav-icon"><Layers size={14} /></span>
+                Kanban Board
+              </NavLink>
+              <NavLink to="/project/milestones" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
+                <span className="nav-icon"><ClipboardList size={14} /></span>
+                Milestones
+              </NavLink>
+              <NavLink to="/project/deployments" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
+                <span className="nav-icon"><BarChart3 size={14} /></span>
+                Deployments
+              </NavLink>
+              <NavLink to="/project/tech-stack" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
+                <span className="nav-icon"><Layers size={14} /></span>
+                Repository & Tech Stack
+              </NavLink>
+              <NavLink to="/project/change-requests" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
+                <span className="nav-icon"><MessageCircle size={14} /></span>
+                Change Requests
+              </NavLink>
+            </div>
+          )}
+
+          <button
+            type="button"
+            className={"nav-item nav-group-toggle" + (clientMgmtOpen ? " open" : "")}
+            onClick={() => setClientMgmtOpen((prev) => !prev)}
+          >
+            <span className="nav-icon">
+              <Briefcase size={16} />
+            </span>
+            Client Management
+            <span className="nav-chevron">
+              <ChevronDown size={14} />
+            </span>
+          </button>
+
+          {clientMgmtOpen && (
+            <div className="nav-subgroup">
+              {isSystemAdministrator && (
+                <NavLink to="/clients/directory" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
+                  <span className="nav-icon"><Users size={14} /></span>
+                  Client Directory
+                </NavLink>
+              )}
+              <NavLink to="/clients/meetings" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
+                <span className="nav-icon"><CalendarCheck size={14} /></span>
+                Meetings / Call Log
+              </NavLink>
+              <NavLink to="/clients/follow-ups" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
+  <span className="nav-icon"><MessageCircle size={14} /></span>
+  Follow-Ups
+</NavLink>
+              <NavLink to="/clients/requests" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
+                <span className="nav-icon"><ClipboardList size={14} /></span>
+                Client Requests
+              </NavLink>
+              <NavLink to="/clients/payments" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
+                <span className="nav-icon"><FileText size={14} /></span>
+                Payments
+              </NavLink>
+              <NavLink to="/clients/approval-documents" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
+                <span className="nav-icon"><FileText size={14} /></span>
+                Approval Documents
+              </NavLink>
+              <NavLink to="/clients/my-clients" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
+                <span className="nav-icon"><Briefcase size={14} /></span>
+                My Clients
+              </NavLink>
+            </div>
+          )}
+        </>
       )}
     </aside>
   );

@@ -166,8 +166,35 @@ class AiDocumentGeneration(models.Model):
     requested_at = models.DateTimeField()
     completed_at = models.DateTimeField(blank=True, null=True)
     error_message = models.TextField(blank=True, null=True)
-    created_at = models.DateTimeField()
 
     class Meta:
         managed = False
         db_table = 'ai_document_generation'
+
+
+class DocumentProject(models.Model):
+    document_project_id = models.BigAutoField(primary_key=True)
+    document = models.ForeignKey(Document, models.CASCADE, related_name='project_links')
+    project = models.ForeignKey('module_05_clients_projects.Project', models.DO_NOTHING)
+    relationship_type = models.CharField(max_length=100, blank=True, null=True)
+    created_at = models.DateTimeField()
+
+    class Meta:
+        managed = False
+        db_table = 'document_project'
+
+
+class DocumentApproval(models.Model):
+    document_approval_id = models.BigAutoField(primary_key=True)
+    document = models.ForeignKey(Document, models.CASCADE, related_name='approvals')
+    document_version = models.ForeignKey(DocumentVersion, models.DO_NOTHING)
+    approver_user = models.ForeignKey(UserAccount, models.DO_NOTHING)
+    approval_level = models.IntegerField()
+    approval_status = models.CharField(max_length=30)
+    approval_date = models.DateTimeField(blank=True, null=True)
+    comments = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField()
+
+    class Meta:
+        managed = False
+        db_table = 'document_approval'

@@ -101,7 +101,7 @@ DATABASES = {
         'HOST': config('DB_HOST', default='localhost'),
         'PORT': config('DB_PORT', default='5432'),
         'OPTIONS': {
-            'options': '-c search_path=django,public'
+            'options': '-c search_path=public,django'
         },
     }
 }

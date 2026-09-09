@@ -197,3 +197,40 @@ class InternPerformance(models.Model):
     class Meta:
         managed = False
         db_table = "intern_performance"        
+
+class InternshipCompletion(models.Model):
+    completion_id = models.BigAutoField(primary_key=True)
+    intern = models.ForeignKey(Intern, models.DO_NOTHING, db_column="intern_id", related_name="completions")
+    completion_date = models.DateField(blank=True, null=True)
+    outcome = models.CharField(max_length=50)
+    certificate_issued = models.BooleanField(default=False)
+    certificate_reference = models.CharField(max_length=255, blank=True, null=True)
+    approved_by_user = models.ForeignKey(
+        UserAccount, models.DO_NOTHING, db_column="approved_by_user_id", blank=True, null=True
+    )
+    approval_date = models.DateField(blank=True, null=True)
+    remarks = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(blank=True, null=True)
+    updated_at = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = "internship_completion"
+
+
+class InternshipExtension(models.Model):
+    extension_id = models.BigAutoField(primary_key=True)
+    intern = models.ForeignKey(Intern, models.DO_NOTHING, db_column="intern_id", related_name="extensions")
+    original_end_date = models.DateField()
+    new_end_date = models.DateField()
+    extension_reason = models.TextField(blank=True, null=True)
+    approved_by_user = models.ForeignKey(
+        UserAccount, models.DO_NOTHING, db_column="approved_by_user_id", blank=True, null=True
+    )
+    approval_date = models.DateField(blank=True, null=True)
+    status = models.CharField(max_length=30, default="PENDING")
+    created_at = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = "internship_extension"        

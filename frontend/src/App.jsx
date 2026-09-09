@@ -55,7 +55,33 @@ import MyPerformance from "./modules/interns/pages/MyPerformance";
 import ChooseWorkspace from "./pages/ChooseWorkspace";
 import MyProject from "./modules/interns/pages/MyProject";
 import ProjectDashboard from "./modules/clients-projects/pages/ProjectDashboard";
+import TeamProjects from "./modules/clients-projects/pages/TeamProjects";
+import KanbanProjects from "./modules/clients-projects/pages/KanbanProjects";
 import ProjectTeam from "./modules/clients-projects/pages/ProjectTeam";
+import KanbanBoard from "./modules/clients-projects/pages/KanbanBoard";
+import RequirementsProjects from "./modules/clients-projects/pages/RequirementsProjects";
+import Requirements from "./modules/clients-projects/pages/Requirements";
+import MilestonesProjects from "./modules/clients-projects/pages/MilestonesProjects";
+import Milestones from "./modules/clients-projects/pages/Milestones";
+import DeploymentsProjects from "./modules/clients-projects/pages/DeploymentsProjects";
+import Deployments from "./modules/clients-projects/pages/Deployments";
+import TechStackProjects from "./modules/clients-projects/pages/TechStackProjects";
+import TechStack from "./modules/clients-projects/pages/TechStack";
+import ChangeRequestsProjects from "./modules/clients-projects/pages/ChangeRequestsProjects";
+import ChangeRequests from "./modules/clients-projects/pages/ChangeRequests";
+import ClientDirectory from "./modules/clients-projects/pages/ClientDirectory";
+import ClientDetail from "./modules/clients-projects/pages/ClientDetail";
+import MeetingsClients from "./modules/clients-projects/pages/MeetingsClients";
+import Meetings from "./modules/clients-projects/pages/Meetings";
+import ClientRequestsClients from "./modules/clients-projects/pages/ClientRequestsClients";
+import ClientRequests from "./modules/clients-projects/pages/ClientRequests";
+import PaymentsClients from "./modules/clients-projects/pages/PaymentsClients";
+import Payments from "./modules/clients-projects/pages/Payments";
+import ApprovalDocumentsProjects from "./modules/clients-projects/pages/ApprovalDocumentsProjects";
+import ApprovalDocuments from "./modules/clients-projects/pages/ApprovalDocuments";
+import MyClients from "./modules/clients-projects/pages/MyClients";
+import FollowUpsClients from "./modules/clients-projects/pages/FollowUpsClients";
+import FollowUps from "./modules/clients-projects/pages/FollowUps";
 // Route table for the whole app. Everything under AppLayout requires a
 // signed-in user (ProtectedRoute); each module route is additionally
 // gated by the same requirement Sidebar uses to decide what to show
@@ -288,9 +314,144 @@ function App() {
     <ProjectDashboard />
   </PermissionGate>
 } />
+<Route path="/project/team" element={
+  <PermissionGate requirement={{ type: "role", value: ["Project Manager", "System Administrator"] }}>
+    <TeamProjects />
+  </PermissionGate>
+} />
 <Route path="/project/:projectId/team" element={
   <PermissionGate requirement={{ type: "role", value: ["Project Manager", "System Administrator"] }}>
     <ProjectTeam />
+  </PermissionGate>
+} />
+<Route path="/project/kanban" element={
+  <PermissionGate requirement={{ type: "role", value: ["Project Manager", "System Administrator"] }}>
+    <KanbanProjects />
+  </PermissionGate>
+} />
+<Route path="/project/:projectId/kanban" element={
+  <PermissionGate requirement={{ type: "role", value: ["Project Manager", "System Administrator"] }}>
+    <KanbanBoard />
+  </PermissionGate>
+} />
+<Route path="/project/requirements" element={
+  <PermissionGate requirement={{ type: "role", value: ["Project Manager", "System Administrator"] }}>
+    <RequirementsProjects />
+  </PermissionGate>
+} />
+<Route path="/project/requirements/:projectId" element={
+  <PermissionGate requirement={{ type: "role", value: ["Project Manager", "System Administrator"] }}>
+    <Requirements />
+  </PermissionGate>
+} />
+<Route path="/project/milestones" element={
+  <PermissionGate requirement={{ type: "role", value: ["Project Manager", "System Administrator"] }}>
+    <MilestonesProjects />
+  </PermissionGate>
+} />
+<Route path="/project/:projectId/milestones" element={
+  <PermissionGate requirement={{ type: "role", value: ["Project Manager", "System Administrator"] }}>
+    <Milestones />
+  </PermissionGate>
+} />
+<Route path="/project/deployments" element={
+  <PermissionGate requirement={{ type: "role", value: ["Project Manager", "System Administrator"] }}>
+    <DeploymentsProjects />
+  </PermissionGate>
+} />
+<Route path="/project/:projectId/deployments" element={
+  <PermissionGate requirement={{ type: "role", value: ["Project Manager", "System Administrator"] }}>
+    <Deployments />
+  </PermissionGate>
+} />
+<Route path="/project/tech-stack" element={
+  <PermissionGate requirement={{ type: "role", value: ["Project Manager", "System Administrator"] }}>
+    <TechStackProjects />
+  </PermissionGate>
+} />
+<Route path="/project/:projectId/tech-stack" element={
+  <PermissionGate requirement={{ type: "role", value: ["Project Manager", "System Administrator"] }}>
+    <TechStack />
+  </PermissionGate>
+} />
+<Route path="/project/change-requests" element={
+  <PermissionGate requirement={{ type: "role", value: ["Project Manager", "System Administrator"] }}>
+    <ChangeRequestsProjects />
+  </PermissionGate>
+} />
+<Route path="/project/:projectId/change-requests" element={
+  <PermissionGate requirement={{ type: "role", value: ["Project Manager", "System Administrator"] }}>
+    <ChangeRequests />
+  </PermissionGate>
+} />
+<Route path="/clients/directory" element={
+  <PermissionGate requirement={{ type: "role", value: "System Administrator" }}>
+    <ClientDirectory />
+  </PermissionGate>
+} />
+<Route path="/clients/directory/:clientId" element={
+  <PermissionGate requirement={{ type: "role", value: ["Project Manager", "System Administrator"] }}>
+    <ClientDetail />
+  </PermissionGate>
+} />
+<Route path="/clients/:clientId" element={
+  <PermissionGate requirement={{ type: "role", value: ["Project Manager", "System Administrator"] }}>
+    <ClientDetail />
+  </PermissionGate>
+} />
+<Route path="/clients/meetings" element={
+  <PermissionGate requirement={{ type: "role", value: ["Project Manager", "System Administrator"] }}>
+    <MeetingsClients />
+  </PermissionGate>
+} />
+<Route path="/clients/:clientId/meetings" element={
+  <PermissionGate requirement={{ type: "role", value: ["Project Manager", "System Administrator"] }}>
+    <Meetings />
+  </PermissionGate>
+} />
+<Route path="/clients/requests" element={
+  <PermissionGate requirement={{ type: "role", value: ["Project Manager", "System Administrator"] }}>
+    <ClientRequestsClients />
+  </PermissionGate>
+} />
+<Route path="/clients/:clientId/requests" element={
+  <PermissionGate requirement={{ type: "role", value: ["Project Manager", "System Administrator"] }}>
+    <ClientRequests />
+  </PermissionGate>
+} />
+<Route path="/clients/payments" element={
+  <PermissionGate requirement={{ type: "role", value: ["Project Manager", "System Administrator"] }}>
+    <PaymentsClients />
+  </PermissionGate>
+} />
+<Route path="/clients/:clientId/payments" element={
+  <PermissionGate requirement={{ type: "role", value: ["Project Manager", "System Administrator"] }}>
+    <Payments />
+  </PermissionGate>
+} />
+<Route path="/clients/approval-documents" element={
+  <PermissionGate requirement={{ type: "role", value: ["Project Manager", "System Administrator"] }}>
+    <ApprovalDocumentsProjects />
+  </PermissionGate>
+} />
+<Route path="/project/:projectId/approval-documents" element={
+  <PermissionGate requirement={{ type: "role", value: ["Project Manager", "System Administrator"] }}>
+    <ApprovalDocuments />
+  </PermissionGate>
+} />
+<Route path="/clients/my-clients" element={
+  <PermissionGate requirement={{ type: "role", value: ["Project Manager", "System Administrator"] }}>
+    <MyClients />
+  </PermissionGate>
+} />
+<Route path="/clients/follow-ups" element={
+  <PermissionGate requirement={{ type: "role", value: ["Project Manager", "System Administrator"] }}>
+    <FollowUpsClients />
+  </PermissionGate>
+} />
+<Route path="/clients/:clientId/follow-ups" element={
+  <PermissionGate requirement={{ type: "role", value: ["Project Manager", "System Administrator"] }}>
+    <FollowUps />
   </PermissionGate>
 } />
         {/* Workspace (HR) group — HR Dashboard is still a placeholder;

@@ -106,11 +106,11 @@ npm run dev
 |---|---|
 | Identity & Access (RBAC) | Complete |
 | Training | Complete |
-| HR | Complete |
+| HR | In progress |
 | Interns — core lifecycle | Complete |
 | Interns — Completion/Extension | Complete (recommend→approve, HR + RBAC role updates on conversion) |
-| Project & Client Management | Complete |
-| Documents — certificates, generation | Complete |
+| Project & Client Management | In progress |
+| Documents — certificates, generation | In progress |
 | Documents — text extraction | Partial — works on typed/exported PDFs and DOCX; **scanned documents (most real certificate/marksheet uploads) return no usable text** — OCR not yet added |
 | AI Assistants (per-role) | Complete (Student, Trainer, Business Team, Intern, Project Manager) |
 | AI-RAG (cross-document search) | Not started — `pgvector` extension not yet enabled, no embedding storage table, Groq confirmed to NOT offer embeddings (need `sentence-transformers` or another provider) |

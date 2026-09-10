@@ -153,6 +153,8 @@ class StudentCertificatesView(APIView):
                     for chunk in file_obj.chunks():
                         dest.write(chunk)
 
+                extracted = extract_text(disk_path, mime_type=file_obj.content_type)
+
                 DocumentVersion.objects.create(
                     document=document,
                     version_number=next_version,
@@ -162,6 +164,7 @@ class StudentCertificatesView(APIView):
                     storage_provider="LOCAL",
                     storage_reference=os.path.join(relative_dir, filename),
                     file_size_bytes=file_obj.size,
+                    extracted_text=extracted,
                     created_by_user=request.user,
                     created_at=timezone.now(),
                     is_current=True,
@@ -401,4 +404,4 @@ class AllStudentsListView(APIView):
                 "status": s.status,
             }
             for s in students
-        ])    
+        ])

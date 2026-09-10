@@ -15,6 +15,7 @@ function Milestones() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [isPM, setIsPM] = useState(false);
 
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
@@ -31,8 +32,18 @@ function Milestones() {
       .finally(() => setLoading(false));
   };
 
+  const loadPmStatus = () => {
+    client.get('/api/projects/me/')
+      .then(({ data }) => {
+        const match = data.find((p) => String(p.project_id) === String(projectId));
+        setIsPM(match?.my_role === "Project Manager");
+      })
+      .catch(() => setIsPM(false));
+  };
+
   useEffect(() => {
     load();
+    loadPmStatus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
@@ -77,18 +88,20 @@ function Milestones() {
 
       <div className="flex justify-between items-center mt-3 mb-6">
         <h1 className="text-xl font-bold text-gray-900">Milestones</h1>
-        <button
-          onClick={() => setShowForm((prev) => !prev)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-semibold"
-        >
-          {showForm ? "Cancel" : "+ Add Milestone"}
-        </button>
+        {isPM && (
+          <button
+            onClick={() => setShowForm((prev) => !prev)}
+            className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-semibold"
+          >
+            {showForm ? "Cancel" : "+ Add Milestone"}
+          </button>
+        )}
       </div>
 
       {error && <p className="text-red-600 mb-4">{error}</p>}
       {message && <p className="text-green-600 mb-4">{message}</p>}
 
-      {showForm && (
+      {isPM && showForm && (
         <div className="bg-white border border-gray-200 rounded-xl p-5 mb-6">
           <h3 className="font-semibold text-gray-900 mb-3">New Milestone</h3>
           <input

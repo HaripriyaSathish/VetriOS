@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+﻿import { useState, useEffect } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -32,6 +32,7 @@ import {
   Scale,
 } from "lucide-react";
 import { NAV_ITEMS, hasAccess } from "../config/nav";
+import client from "../api/client"; // TODO: confirm this matches your real api client path
 import "../components-styles/Sidebar.css";
 
 const SYSADMIN_PATHS = ["/dashboard", "/identity/users", "/identity/roles", "/identity/permissions"];
@@ -62,17 +63,12 @@ function Sidebar() {
   const trainerRequirement = { type: "role", value: "Employee" };
   const studentRequirement = { type: "role", value: "Student" };
   const internRequirement = { type: "role", value: "Intern" };
-  const projectManagerRequirement = { type: "role", value: ["Project Manager", "System Administrator"] };
   const trainingItem = NAV_ITEMS.find((item) => item.id === "training");
   const hrItem = NAV_ITEMS.find((item) => item.id === "hr");
 
   const isSystemAdministrator = hasAccess(identityRequirement, user);
   const isIntern = hasAccess(internRequirement, user);
 
-  // System Administrator always sees everything merged, no workspace
-  // filtering. Everyone else only sees the section matching whichever
-  // workspace they picked at login (or were auto-routed into, if they
-  // only had one option) — set in localStorage by Login.jsx/ChooseWorkspace.jsx.
   const activeWorkspace = localStorage.getItem("active_workspace");
   const inWorkspace = (key) => isSystemAdministrator || activeWorkspace === key;
 
@@ -97,6 +93,23 @@ function Sidebar() {
   const isOnClientMgmtPage = CLIENT_MGMT_PATHS.some((path) => location.pathname.startsWith(path));
   const [clientMgmtOpen, setClientMgmtOpen] = useState(isOnClientMgmtPage);
 
+  // ---- Project membership + PM detection (drives both sidebar groups) ----
+  const [myProjects, setMyProjects] = useState([]);
+  const [myProjectsChecked, setMyProjectsChecked] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    client.get('/api/projects/me/')
+      .then(({ data }) => setMyProjects(data))
+      .catch(() => setMyProjects([]))
+      .finally(() => setMyProjectsChecked(true));
+  }, []);
+
+  const isProjectTeamMember = myProjectsChecked && myProjects.length > 0;
+  // True project-manager status is per-project (my_role === "Project Manager"),
+  // not a system role — this is what gates Client Management specifically.
+  const isActualProjectManager = myProjects.some((p) => p.my_role === "Project Manager");
+
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">
@@ -116,13 +129,6 @@ function Sidebar() {
         </NavLink>
       )}
 
-      {/* Self-service Attendance/Leave for anyone without the full HR
-          module (Employee, Manager, Viewer) — HR Administrator/System
-          Administrator use the real HR module's Attendance/Leave instead.
-          Interns are excluded — they have their own dedicated
-          /intern/attendance and /intern/leave pages instead. Also gated
-          to the "training" workspace, since that's the workspace these
-          self-service links belong to for a regular Employee. */}
       {inWorkspace("training") && !isSystemAdministrator && !canSeeHR && !isIntern && !!user?.employee_code && (
         <>
           <NavLink
@@ -147,9 +153,6 @@ function Sidebar() {
         </>
       )}
 
-      {/* Worklog is personal to every employee, HR Administrator
-          included. System Administrator and Interns both skip it —
-          same workspace-gating reasoning as above. */}
       {inWorkspace("training") && !isSystemAdministrator && !isIntern && !!user?.employee_code && (
         <NavLink
           to="/my/worklog"
@@ -162,8 +165,6 @@ function Sidebar() {
         </NavLink>
       )}
 
-      {/* Not tied to a role or workspace — shown to whoever is
-          currently listed as a department's lead. */}
       {!!user?.is_department_lead && (
         <NavLink
           to="/my/team-worklogs"
@@ -235,9 +236,6 @@ function Sidebar() {
               </NavLink>
             </div>
           )}
-
-          {/* User Permissions menu hidden for now — page/route still exist,
-              re-add this NavLink when it's needed again. */}
         </>
       )}
 
@@ -654,7 +652,13 @@ function Sidebar() {
         </>
       )}
 
-      {inWorkspace("project") && hasAccess(projectManagerRequirement, user) && (
+      {/* Project Management: any active team member (lead or regular
+          member) or admin can VIEW these pages. Write actions inside
+          each page are further restricted to the actual Project
+          Manager via can_manage_project on the backend, and the
+          create/edit buttons should be hidden client-side too
+          (see Deployments.jsx / ProjectTeam.jsx / etc.) */}
+      {(isSystemAdministrator || isProjectTeamMember) && (
         <>
           <button
             type="button"
@@ -680,6 +684,10 @@ function Sidebar() {
                 <span className="nav-icon"><Users size={14} /></span>
                 Project Team
               </NavLink>
+              <NavLink to="/project/documents" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
+  <span className="nav-icon"><FileText size={14} /></span>
+  Project Documents
+</NavLink>
               <NavLink to="/project/requirements" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
                 <span className="nav-icon"><FileText size={14} /></span>
                 Requirements
@@ -704,13 +712,28 @@ function Sidebar() {
                 <span className="nav-icon"><MessageCircle size={14} /></span>
                 Change Requests
               </NavLink>
-              <NavLink to="/project/recommend-internship-action" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
-  <span className="nav-icon"><UserCheck size={14} /></span>
-  Internship Completion/Extension
-</NavLink>
+              {(isSystemAdministrator || isActualProjectManager) && (
+  <NavLink to="/project/recommend-internship-action" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
+    <span className="nav-icon"><UserCheck size={14} /></span>
+    Internship Completion/Extension
+  </NavLink>
+)}
+{isSystemAdministrator && (
+  <NavLink to="/project/create" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
+    <span className="nav-icon"><FolderKanban size={14} /></span>
+    Create Project
+  </NavLink>
+)}
             </div>
           )}
+        </>
+      )}
 
+      {/* Client Management: PM (real per-project PM, not just anyone
+          with view access to Project Management) or admin only.
+          Leads and regular team members never see this. */}
+      {(isSystemAdministrator || isActualProjectManager) && (
+        <>
           <button
             type="button"
             className={"nav-item nav-group-toggle" + (clientMgmtOpen ? " open" : "")}

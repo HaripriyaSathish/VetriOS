@@ -1,7 +1,7 @@
 from django.urls import path
 from .views import (
     # Projects (core)
-    CreateProjectView, MyProjectsView, ProjectTeamView, MyDirectReportsView,
+    CreateProjectView, MyProjectsView, ProjectTeamView, MyDirectReportsView, UserLookupView,
 
     # Requirements
     ProjectRequirementViewSet,
@@ -24,7 +24,7 @@ from .views import (
     # Client management
     ClientDirectoryView, ClientDetailView, MyProjectClientsView,
     ClientContactViewSet, ClientMeetingViewSet, ClientRequestViewSet, ClientPaymentViewSet, ClientCommercialReferenceViewSet,
-     ClientCommunicationViewSet,
+     ClientCommunicationViewSet, ConvertClientRequestToRequirementView,DeploymentStatusUpdateView
 )
 
 urlpatterns = [
@@ -33,6 +33,7 @@ urlpatterns = [
     path("me/", MyProjectsView.as_view()),
     path("<int:project_id>/team/", ProjectTeamView.as_view()),
     path("<int:project_id>/my-reports/", MyDirectReportsView.as_view()),
+    path('users-lookup/', UserLookupView.as_view()),
 
     # ---------- Requirements ----------
     path("<int:project_id>/requirements/", ProjectRequirementViewSet.as_view()),
@@ -68,4 +69,6 @@ urlpatterns = [
     path("my-clients/", MyProjectClientsView.as_view()),
     path("clients/<int:client_id>/commercial-reference/", ClientCommercialReferenceViewSet.as_view()),
     path("clients/<int:client_id>/follow-ups/", ClientCommunicationViewSet.as_view()),
+    path('client-requests/<int:request_id>/convert/', ConvertClientRequestToRequirementView.as_view()),
+    path('deployments/<int:deployment_id>/status/', DeploymentStatusUpdateView.as_view()),
 ]

@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
 from module_02_hr.models import Employee, EmploymentType
+from module_01_identity_access.models import UserAccount, Role, UserRole
 from .models import Intern, InternshipCompletion, InternshipExtension, InternReportingManagerHistory
 
 OUTCOME_CHOICES = [
@@ -66,6 +67,7 @@ class RecommendCompletionView(APIView):
         )
         return Response({"completion_id": completion.completion_id}, status=201)
 
+
 class PendingCompletionsView(APIView):
     """Business Team's approval queue — completions with no approval yet."""
     permission_classes = [IsAuthenticated]
@@ -93,7 +95,8 @@ class PendingCompletionsView(APIView):
 
 class ApproveCompletionView(APIView):
     """Business Team approves a completion — this is where the real
-    side effects happen: employee conversion or closing intern status."""
+    side effects happen: employee conversion (HR record + RBAC role
+    grant) or closing intern status."""
     permission_classes = [IsAuthenticated]
 
     def patch(self, request, completion_id):
@@ -127,6 +130,27 @@ class ApproveCompletionView(APIView):
             except EmploymentType.DoesNotExist:
                 return Response({
                     "detail": "Completion approved, but the FULL_TIME employment type is missing from the system.",
+                }, status=207)
+
+            # RBAC: grant the Employee role alongside whatever roles they
+            # already have (Intern role is left as-is, not revoked — same
+            # "layer roles, filter at display time" convention AppLayout.jsx
+            # already uses for Student+Intern via displayRoles()).
+            try:
+                user_account = UserAccount.objects.get(person=intern.student.person)
+                employee_role = Role.objects.get(role_name="Employee")
+                UserRole.objects.get_or_create(
+                    user_id=user_account.user_id,
+                    role=employee_role,
+                    defaults={
+                        "effective_from": timezone.now().date(),
+                        "is_active": True,
+                        "created_at": timezone.now(),
+                    },
+                )
+            except UserAccount.DoesNotExist:
+                return Response({
+                    "detail": "Completion approved and employee record converted, but no login account was found to grant the Employee role.",
                 }, status=207)
 
         elif completion.outcome == "CERTIFICATE_ISSUED":
@@ -224,6 +248,7 @@ class ActOnExtensionView(APIView):
 
         return Response({"detail": f"Extension {decision.lower()}."})
 
+
 class MyLeadInternsView(APIView):
     """Interns currently reporting to the logged-in Project Lead, per
     InternReportingManagerHistory.is_current — feeds the Recommend
@@ -244,4 +269,4 @@ class MyLeadInternsView(APIView):
                 "internship_end_date": h.intern.internship_end_date,
             }
             for h in histories
-        ])    
+        ])

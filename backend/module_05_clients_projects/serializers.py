@@ -92,15 +92,24 @@ class ClientMeetingSerializer(serializers.ModelSerializer):
 
 
 class ClientRequestSerializer(serializers.ModelSerializer):
+    assigned_to_name = serializers.SerializerMethodField()
+
     class Meta:
         model = ClientRequest
         fields = [
             "client_request_id", "client", "request_code", "request_title",
             "request_description", "request_type", "priority", "status",
-            "requested_date", "requested_by_contact", "assigned_to_user",
+            "requested_date", "requested_by_contact", "assigned_to_user", "assigned_to_name",
             "target_date", "completed_date", "remarks",
+            "converted_to_requirement", "converted_at",
         ]
+        read_only_fields = ["request_code"]  # view sets this on save
+        extra_kwargs = {
+            "status": {"required": False, "default": "OPEN"},
+        }
 
+    def get_assigned_to_name(self, obj):
+        return _person_name(obj.assigned_to_user) if obj.assigned_to_user_id else None
 
 class ClientPaymentSerializer(serializers.ModelSerializer):
     recorded_by_name = serializers.SerializerMethodField()
@@ -251,15 +260,28 @@ class DocumentProjectSerializer(serializers.ModelSerializer):
     document_title = serializers.CharField(source="document.document_title", read_only=True)
     document_status = serializers.CharField(source="document.status", read_only=True)
     approvals = serializers.SerializerMethodField()
+    current_version_url = serializers.SerializerMethodField()
 
     class Meta:
         model = DocumentProject
         fields = [
             "document_project_id", "document", "document_title", "document_status",
-            "project", "relationship_type", "approvals",
+            "project", "relationship_type", "approvals", "current_version_url",
         ]
 
     def get_approvals(self, obj):
         return DocumentApprovalSerializer(
             DocumentApproval.objects.filter(document=obj.document), many=True
         ).data
+
+    def get_current_version_url(self, obj):
+        current = obj.document.versions.filter(is_current=True).first()
+        if not current or not current.storage_reference:
+            return None
+        if current.storage_provider in ("EXTERNAL_LINK", "CLOUDINARY"):
+            return current.storage_reference
+        request = self.context.get("request")
+        relative_url = f"/media/{current.storage_reference}"
+        if request:
+            return request.build_absolute_uri(relative_url)
+        return relative_url

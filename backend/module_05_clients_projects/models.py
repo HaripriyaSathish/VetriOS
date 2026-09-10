@@ -317,10 +317,16 @@ class ClientRequest(models.Model):
     created_at = models.DateTimeField(blank=True, null=True)
     updated_at = models.DateTimeField(blank=True, null=True)
 
+    # NEW — conversion tracking
+    converted_to_requirement = models.ForeignKey(
+        'ProjectRequirement', null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='source_client_request'
+    )
+    converted_at = models.DateTimeField(blank=True, null=True)
+
     class Meta:
         managed = False
         db_table = "client_request"
-
 
 class ClientCommercialReference(models.Model):
     commercial_reference_id = models.BigAutoField(primary_key=True)

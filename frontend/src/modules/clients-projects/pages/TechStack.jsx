@@ -9,6 +9,7 @@ function TechStack() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [isPM, setIsPM] = useState(false);
 
   const [showRepoForm, setShowRepoForm] = useState(false);
   const [repoName, setRepoName] = useState("");
@@ -33,8 +34,18 @@ function TechStack() {
       .finally(() => setLoading(false));
   };
 
+  const loadPmStatus = () => {
+    client.get('/api/projects/me/')
+      .then(({ data }) => {
+        const match = data.find((p) => String(p.project_id) === String(projectId));
+        setIsPM(match?.my_role === "Project Manager");
+      })
+      .catch(() => setIsPM(false));
+  };
+
   useEffect(() => {
     load();
+    loadPmStatus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
@@ -104,15 +115,17 @@ function TechStack() {
       {/* Repositories */}
       <div className="flex justify-between items-center mb-3">
         <h2 className="font-semibold text-gray-900">Repositories</h2>
-        <button
-          onClick={() => setShowRepoForm((prev) => !prev)}
-          className="text-xs font-semibold text-blue-600 hover:text-blue-800"
-        >
-          {showRepoForm ? "Cancel" : "+ Add Repository"}
-        </button>
+        {isPM && (
+          <button
+            onClick={() => setShowRepoForm((prev) => !prev)}
+            className="text-xs font-semibold text-blue-600 hover:text-blue-800"
+          >
+            {showRepoForm ? "Cancel" : "+ Add Repository"}
+          </button>
+        )}
       </div>
 
-      {showRepoForm && (
+      {isPM && showRepoForm && (
         <div className="bg-white border border-gray-200 rounded-xl p-5 mb-4">
           <input
             placeholder="Repository name"
@@ -169,15 +182,17 @@ function TechStack() {
       {/* Technologies */}
       <div className="flex justify-between items-center mb-3">
         <h2 className="font-semibold text-gray-900">Technologies</h2>
-        <button
-          onClick={() => setShowTechForm((prev) => !prev)}
-          className="text-xs font-semibold text-blue-600 hover:text-blue-800"
-        >
-          {showTechForm ? "Cancel" : "+ Add Technology"}
-        </button>
+        {isPM && (
+          <button
+            onClick={() => setShowTechForm((prev) => !prev)}
+            className="text-xs font-semibold text-blue-600 hover:text-blue-800"
+          >
+            {showTechForm ? "Cancel" : "+ Add Technology"}
+          </button>
+        )}
       </div>
 
-      {showTechForm && (
+      {isPM && showTechForm && (
         <div className="bg-white border border-gray-200 rounded-xl p-5 mb-4">
           <div className="grid grid-cols-3 gap-3 mb-4">
             <input

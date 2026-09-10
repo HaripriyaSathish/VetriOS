@@ -23,6 +23,7 @@ function Requirements() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [filterUser, setFilterUser] = useState("");
+  const [isPM, setIsPM] = useState(false);
 
   const [showForm, setShowForm] = useState(false);
   const [reqTitle, setReqTitle] = useState("");
@@ -40,8 +41,18 @@ function Requirements() {
       .finally(() => setLoading(false));
   };
 
+  const loadPmStatus = () => {
+    client.get('/api/projects/me/')
+      .then(({ data }) => {
+        const match = data.find((p) => String(p.project_id) === String(projectId));
+        setIsPM(match?.my_role === "Project Manager");
+      })
+      .catch(() => setIsPM(false));
+  };
+
   useEffect(() => {
     load();
+    loadPmStatus();
     client.get(`/api/projects/${projectId}/team/`)
       .then(({ data }) => setTeamMembers(data))
       .catch(() => {});
@@ -88,12 +99,14 @@ function Requirements() {
 
       <div className="flex justify-between items-center mt-3 mb-6">
         <h1 className="text-xl font-bold text-gray-900">Requirements</h1>
-        <button
-          onClick={() => setShowForm((prev) => !prev)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-semibold"
-        >
-          {showForm ? "Cancel" : "+ Add Requirement"}
-        </button>
+        {isPM && (
+          <button
+            onClick={() => setShowForm((prev) => !prev)}
+            className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-semibold"
+          >
+            {showForm ? "Cancel" : "+ Add Requirement"}
+          </button>
+        )}
       </div>
 
       {error && <p className="text-red-600 mb-4">{error}</p>}
@@ -108,7 +121,7 @@ function Requirements() {
           >
             <option value="">All team members</option>
             {teamMembers.map((m) => (
-              <option key={m.project_team_member_id} value={m.project_team_member_id}>
+              <option key={m.project_team_member_id} value={m.user_id}>
                 Assigned to: {m.name}
               </option>
             ))}
@@ -116,7 +129,7 @@ function Requirements() {
         </div>
       )}
 
-      {showForm && (
+      {isPM && showForm && (
         <div className="bg-white border border-gray-200 rounded-xl p-5 mb-6">
           <h3 className="font-semibold text-gray-900 mb-3">New Requirement</h3>
           <input
@@ -157,7 +170,7 @@ function Requirements() {
           >
             <option value="">Assign to team lead…</option>
             {teamMembers.map((m) => (
-              <option key={m.project_team_member_id} value={m.project_team_member_id}>
+              <option key={m.project_team_member_id} value={m.user_id}>
                 {m.name} ({m.project_role})
               </option>
             ))}

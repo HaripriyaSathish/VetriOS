@@ -372,8 +372,12 @@ class GenerateTaskContentView(APIView):
 
 
 class CreateTaskView(APIView):
-    """Saves a Task and assigns it to every ACTIVE enrollment in the
-    batch by creating a blank StudentTask row for each. Trainer only."""
+    """Saves one Task per active enrollment and pairs each with its own
+    StudentTask row. The official student_task table has a UNIQUE
+    constraint on task_id alone (confirmed via the 500 error trace) —
+    one Task row can never be shared across multiple StudentTask rows,
+    so each student needs a distinct Task even though the content is
+    identical. Trainer only."""
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
@@ -395,30 +399,36 @@ class CreateTaskView(APIView):
             return Response({"detail": "Only this batch's trainer can create tasks."}, status=403)
 
         prefix = Task.CATEGORY_PREFIX.get(category, "TASK")
-        task_code = f"{prefix}-{batch.batch_code}-{int(timezone.now().timestamp())}"
+        enrollments = Enrollment.objects.filter(batch=batch, status="ACTIVE")
+        if not enrollments.exists():
+            return Response({"detail": "No active students enrolled in this batch."}, status=400)
 
+        created_task_ids = []
         with transaction.atomic():
-            task = Task.objects.create(
-                task_code=task_code,
-                task_title=title,
-                description=description,
-                assigned_by=request.user,
-                assigned_date=timezone.now().date(),
-                due_date=due_date,
-                priority="MEDIUM",
-                status="PENDING",
-                created_at=timezone.now(),
-                updated_at=timezone.now(),
-            )
-
-            enrollments = Enrollment.objects.filter(batch=batch, status="ACTIVE")
             for e in enrollments:
+                # Each student gets their own Task row — task_code
+                # includes the enrollment_id to keep it unique even
+                # when created in the same second as another student's.
+                task_code = f"{prefix}-{batch.batch_code}-{e.enrollment_id}-{int(timezone.now().timestamp())}"
+                task = Task.objects.create(
+                    task_code=task_code,
+                    task_title=title,
+                    description=description,
+                    assigned_by=request.user,
+                    assigned_date=timezone.now().date(),
+                    due_date=due_date,
+                    priority="MEDIUM",
+                    status="PENDING",
+                    created_at=timezone.now(),
+                    updated_at=timezone.now(),
+                )
                 StudentTask.objects.create(
                     task=task, enrollment=e,
                     created_at=timezone.now(), updated_at=timezone.now(),
                 )
+                created_task_ids.append(task.task_id)
 
-        return Response({"task_id": task.task_id, "task_code": task.task_code, "assigned_count": enrollments.count()}, status=201)
+        return Response({"task_ids": created_task_ids, "assigned_count": len(created_task_ids)}, status=201)
 
 
 class BatchTasksView(APIView):
@@ -675,12 +685,35 @@ class BatchMockInterviewsView(APIView):
         return Response(data)
 
 
+TASK_ELIGIBILITY_CATEGORIES = {"task", "mini_project", "main_project"}
+
+
+def _task_eligibility(enrollment):
+    """All Daily Task / Mini Project / Main Project assignments must be
+    submitted on or before their due date. Seminar is deliberately
+    excluded. An enrollment with none of these tasks assigned yet
+    passes vacuously (nothing to check) so a student isn't blocked
+    purely because no tasks exist for them."""
+    rows = StudentTask.objects.filter(enrollment=enrollment).select_related("task")
+    relevant = [r for r in rows if r.task.category in TASK_ELIGIBILITY_CATEGORIES]
+    if not relevant:
+        return True, 100.0, 0, 0
+    on_time = [
+        r for r in relevant
+        if r.submission_date and r.submission_date.date() <= r.task.due_date
+    ]
+    pct = round((len(on_time) / len(relevant)) * 100, 1)
+    return len(on_time) == len(relevant), pct, len(on_time), len(relevant)
+
+
 class InviteToMockInterviewView(APIView):
     """GET: eligibility list for a given round (?round=N, default 1).
-    Round 1 uses 85% attendance; round 2+ requires a PASS in the
-    immediately preceding round. POST: creates that round's Assessment
-    (only if it doesn't already exist for this batch) and a
-    StudentAssessment per selected, eligible student."""
+    Round 1 requires BOTH 85%+ attendance AND every assigned Daily
+    Task/Mini Project/Main Project submitted on or before its due
+    date. Round 2+ still just requires a PASS in the immediately
+    preceding round. POST: creates that round's Assessment (only if it
+    doesn't already exist for this batch) and a StudentAssessment per
+    selected, eligible student."""
     permission_classes = [permissions.IsAuthenticated]
     ELIGIBILITY_THRESHOLD = 85
 
@@ -726,9 +759,17 @@ class InviteToMockInterviewView(APIView):
                 att = StudentAttendance.objects.filter(enrollment=e)
                 total = att.count()
                 present = att.filter(attendance_status="PRESENT").count()
-                pct = round((present / total) * 100, 1) if total > 0 else 0
-                eligible = pct >= self.ELIGIBILITY_THRESHOLD
-                eligibility_note = f"{pct}% attendance"
+                attendance_pct = round((present / total) * 100, 1) if total > 0 else 0
+                attendance_ok = attendance_pct >= self.ELIGIBILITY_THRESHOLD
+
+                tasks_ok, task_pct, on_time_count, relevant_count = _task_eligibility(e)
+
+                eligible = attendance_ok and tasks_ok
+                pct = attendance_pct
+                if relevant_count:
+                    eligibility_note = f"{attendance_pct}% attendance, {on_time_count}/{relevant_count} tasks on time"
+                else:
+                    eligibility_note = f"{attendance_pct}% attendance, no tasks assigned yet"
             else:
                 prev_result = StudentAssessment.objects.filter(assessment=prev_assessment, enrollment=e).first()
                 eligible = bool(prev_result and prev_result.result_status == "PASS")

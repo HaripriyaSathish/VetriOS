@@ -747,7 +747,7 @@ function Sidebar() {
           Manager via can_manage_project on the backend, and the
           create/edit buttons should be hidden client-side too
           (see Deployments.jsx / ProjectTeam.jsx / etc.) */}
-      {(isSystemAdministrator || isProjectTeamMember) && (
+     {inWorkspace("project") && (isSystemAdministrator || isProjectTeamMember) && (
         <>
           <button
             type="button"
@@ -821,7 +821,7 @@ function Sidebar() {
       {/* Client Management: PM (real per-project PM, not just anyone
           with view access to Project Management) or admin only.
           Leads and regular team members never see this. */}
-      {(isSystemAdministrator || isActualProjectManager) && (
+      {inWorkspace("project") && (isSystemAdministrator || isActualProjectManager) && (
         <>
           <button
             type="button"

@@ -452,7 +452,7 @@ function MockInterview() {
                 <th className="px-4 py-2 text-left">Result</th>
                 <th className="px-4 py-2 text-left">Score</th>
                 <th className="px-4 py-2 text-left">Meeting Link</th>
-                <th className="px-4 py-2 text-left">Internal Notes</th>
+                <th className="px-4 py-2 text-left">Feedback</th>
                 <th className="px-4 py-2 text-left">Internship</th>
                 <th className="px-4 py-2 text-left"></th>
               </tr>
@@ -511,11 +511,11 @@ function MockInterview() {
                   <td className="px-4 py-3">
                     {e.invited ? (
                       <input
-                        defaultValue={e.feedback || ""}
-                        placeholder="Internal notes (student never sees this)"
-                        onBlur={(ev) => updateResult(e.student_assessment_id, "feedback", ev.target.value)}
-                        className="w-56 border border-gray-300 rounded-md px-2 py-1 text-xs bg-amber-50"
-                      />
+  defaultValue={e.feedback || ""}
+  placeholder="Feedback for the student"
+  onBlur={(ev) => updateResult(e.student_assessment_id, "feedback", ev.target.value)}
+  className="w-56 border border-gray-300 rounded-md px-2 py-1 text-xs"
+/>
                     ) : "—"}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">{renderInternshipCell(e)}</td>

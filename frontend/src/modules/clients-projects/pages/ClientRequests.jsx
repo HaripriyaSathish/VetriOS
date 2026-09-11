@@ -19,6 +19,7 @@ const STATUS_STYLES = {
 function ClientRequests() {
   const { clientId } = useParams();
   const [requests, setRequests] = useState([]);
+  const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -31,10 +32,25 @@ function ClientRequests() {
   const [targetDate, setTargetDate] = useState("");
   const [creating, setCreating] = useState(false);
 
+  // Conversion state
+  const [convertingId, setConvertingId] = useState(null);
+  const [convertError, setConvertError] = useState("");
+  const [projectPickerFor, setProjectPickerFor] = useState(null); // request_id currently choosing a project
+  const [selectedProjectId, setSelectedProjectId] = useState("");
+
+  // TODO: replace with your actual auth/user context
+  const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
+
   const load = () => {
     setLoading(true);
-    client.get(`/api/projects/clients/${clientId}/requests/`)
-      .then(({ data }) => setRequests(data))
+    Promise.all([
+      client.get(`/api/projects/clients/${clientId}/requests/`),
+      client.get(`/api/projects/clients/${clientId}/`),
+    ])
+      .then(([reqRes, clientRes]) => {
+        setRequests(reqRes.data);
+        setProjects(clientRes.data.projects || []);
+      })
       .catch((err) => setError(err.response?.data?.detail || "Couldn't load requests."))
       .finally(() => setLoading(false));
   };
@@ -70,6 +86,35 @@ function ClientRequests() {
     }
   };
 
+  const startConvert = (requestId) => {
+    setConvertError("");
+    if (projects.length === 1) {
+      convertToRequirement(requestId, projects[0].project_id);
+    } else if (projects.length > 1) {
+      setProjectPickerFor(requestId);
+      setSelectedProjectId("");
+    } else {
+      setConvertError("This client has no projects to convert this request into.");
+    }
+  };
+
+  const convertToRequirement = async (requestId, projectId) => {
+    setConvertingId(requestId);
+    setConvertError("");
+    try {
+      await client.post(`/api/projects/client-requests/${requestId}/convert/`, {
+        project_id: projectId,
+      });
+      setMessage("Converted to requirement.");
+      setProjectPickerFor(null);
+      load();
+    } catch (err) {
+      setConvertError(err.response?.data?.detail || "Couldn't convert request.");
+    } finally {
+      setConvertingId(null);
+    }
+  };
+
   if (loading) return <p className="p-6 text-gray-400">Loading…</p>;
 
   const sorted = [...requests].sort((a, b) => new Date(b.requested_date) - new Date(a.requested_date));
@@ -96,6 +141,7 @@ function ClientRequests() {
 
       {error && <p className="text-red-600 mb-4">{error}</p>}
       {message && <p className="text-green-600 mb-4">{message}</p>}
+      {convertError && <p className="text-red-600 mb-4">{convertError}</p>}
 
       {showForm && (
         <div className="bg-white border border-gray-200 rounded-xl p-5 mb-6">
@@ -153,27 +199,76 @@ function ClientRequests() {
         </div>
       ) : (
         <div className="space-y-3">
-          {sorted.map((r) => (
-            <div key={r.client_request_id} className="bg-white border border-gray-200 rounded-lg p-4">
-              <div className="flex justify-between items-start mb-2">
-                <p className="font-medium text-gray-900">{r.request_title}</p>
-                <div className="flex gap-2">
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${PRIORITY_STYLES[r.priority] || PRIORITY_STYLES.MEDIUM}`}>
-                    {r.priority}
-                  </span>
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_STYLES[r.status] || STATUS_STYLES.OPEN}`}>
-                    {r.status}
-                  </span>
+          {sorted.map((r) => {
+            const isAssignee = r.assigned_to_user === currentUser.user_id;
+
+            return (
+              <div key={r.client_request_id} className="bg-white border border-gray-200 rounded-lg p-4">
+                <div className="flex justify-between items-start mb-2">
+                  <p className="font-medium text-gray-900">{r.request_title}</p>
+                  <div className="flex gap-2">
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${PRIORITY_STYLES[r.priority] || PRIORITY_STYLES.MEDIUM}`}>
+                      {r.priority}
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_STYLES[r.status] || STATUS_STYLES.OPEN}`}>
+                      {r.status}
+                    </span>
+                  </div>
                 </div>
+                {r.request_description && <p className="text-sm text-gray-700 mb-2">{r.request_description}</p>}
+                <div className="flex gap-4 text-xs text-gray-600 mb-3">
+                  {r.request_type && <span>Type: {r.request_type}</span>}
+                  {r.assigned_to_name && <span>Assigned: {r.assigned_to_name}</span>}
+                  {r.requested_date && <span>Logged: {new Date(r.requested_date).toLocaleDateString("en-IN")}</span>}
+                  {r.target_date && <span>Target: {new Date(r.target_date).toLocaleDateString("en-IN")}</span>}
+                </div>
+
+                {r.converted_to_requirement ? (
+                  <span className="text-xs text-green-700 font-semibold">
+                    ✓ Converted to Requirement
+                  </span>
+                ) : isAssignee ? (
+                  projectPickerFor === r.client_request_id ? (
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={selectedProjectId}
+                        onChange={(e) => setSelectedProjectId(e.target.value)}
+                        className="border border-gray-300 rounded-md px-2 py-1.5 text-xs"
+                      >
+                        <option value="">Select project…</option>
+                        {projects.map((p) => (
+                          <option key={p.project_id} value={p.project_id}>
+                            {p.project_name}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={() => selectedProjectId && convertToRequirement(r.client_request_id, selectedProjectId)}
+                        disabled={!selectedProjectId || convertingId === r.client_request_id}
+                        className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-md font-semibold disabled:opacity-60"
+                      >
+                        {convertingId === r.client_request_id ? "Converting…" : "Confirm"}
+                      </button>
+                      <button
+                        onClick={() => setProjectPickerFor(null)}
+                        className="text-xs text-gray-500 hover:text-gray-700"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => startConvert(r.client_request_id)}
+                      disabled={convertingId === r.client_request_id}
+                      className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-md font-semibold disabled:opacity-60"
+                    >
+                      {convertingId === r.client_request_id ? "Converting…" : "Convert to Requirement"}
+                    </button>
+                  )
+                ) : null}
               </div>
-              {r.request_description && <p className="text-sm text-gray-700 mb-2">{r.request_description}</p>}
-              <div className="flex gap-4 text-xs text-gray-600">
-                {r.request_type && <span>Type: {r.request_type}</span>}
-                {r.requested_date && <span>Logged: {new Date(r.requested_date).toLocaleDateString("en-IN")}</span>}
-                {r.target_date && <span>Target: {new Date(r.target_date).toLocaleDateString("en-IN")}</span>}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

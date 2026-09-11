@@ -4,7 +4,8 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
 from module_02_hr.models import Employee, EmploymentType
-from .models import Intern, InternshipCompletion, InternshipExtension
+from module_01_identity_access.models import UserAccount, Role, UserRole
+from .models import Intern, InternshipCompletion, InternshipExtension, InternReportingManagerHistory
 
 OUTCOME_CHOICES = [
     "COMPLETED", "EXTENDED", "CONVERTED_TO_EMPLOYEE",
@@ -25,7 +26,10 @@ def user_is_admin(user):
 
 
 class RecommendCompletionView(APIView):
-    """Project Lead recommends a completion outcome for an intern."""
+    """Project Lead recommends a completion outcome for an intern.
+    internship_completion has a UNIQUE constraint on intern_id — only
+    one completion record can ever exist per intern, so this updates
+    an existing pending one instead of blindly creating a duplicate."""
     permission_classes = [IsAuthenticated]
 
     def post(self, request, intern_id):
@@ -37,6 +41,21 @@ class RecommendCompletionView(APIView):
         outcome = request.data.get("outcome")
         if outcome not in OUTCOME_CHOICES:
             return Response({"detail": f"outcome must be one of: {', '.join(OUTCOME_CHOICES)}"}, status=400)
+
+        existing = InternshipCompletion.objects.filter(intern=intern).first()
+
+        if existing and existing.approved_by_user_id:
+            return Response({
+                "detail": "This intern already has an approved completion record — it can't be changed.",
+            }, status=400)
+
+        if existing:
+            existing.outcome = outcome
+            existing.completion_date = request.data.get("completion_date")
+            existing.remarks = request.data.get("remarks", "")
+            existing.updated_at = timezone.now()
+            existing.save(update_fields=["outcome", "completion_date", "remarks", "updated_at"])
+            return Response({"completion_id": existing.completion_id, "detail": "Recommendation updated."}, status=200)
 
         completion = InternshipCompletion.objects.create(
             intern=intern,
@@ -76,7 +95,8 @@ class PendingCompletionsView(APIView):
 
 class ApproveCompletionView(APIView):
     """Business Team approves a completion — this is where the real
-    side effects happen: employee conversion or closing intern status."""
+    side effects happen: employee conversion (HR record + RBAC role
+    grant) or closing intern status."""
     permission_classes = [IsAuthenticated]
 
     def patch(self, request, completion_id):
@@ -110,6 +130,27 @@ class ApproveCompletionView(APIView):
             except EmploymentType.DoesNotExist:
                 return Response({
                     "detail": "Completion approved, but the FULL_TIME employment type is missing from the system.",
+                }, status=207)
+
+            # RBAC: grant the Employee role alongside whatever roles they
+            # already have (Intern role is left as-is, not revoked — same
+            # "layer roles, filter at display time" convention AppLayout.jsx
+            # already uses for Student+Intern via displayRoles()).
+            try:
+                user_account = UserAccount.objects.get(person=intern.student.person)
+                employee_role = Role.objects.get(role_name="Employee")
+                UserRole.objects.get_or_create(
+                    user_id=user_account.user_id,
+                    role=employee_role,
+                    defaults={
+                        "effective_from": timezone.now().date(),
+                        "is_active": True,
+                        "created_at": timezone.now(),
+                    },
+                )
+            except UserAccount.DoesNotExist:
+                return Response({
+                    "detail": "Completion approved and employee record converted, but no login account was found to grant the Employee role.",
                 }, status=207)
 
         elif completion.outcome == "CERTIFICATE_ISSUED":
@@ -206,3 +247,26 @@ class ActOnExtensionView(APIView):
             intern.save(update_fields=["internship_end_date", "updated_at"])
 
         return Response({"detail": f"Extension {decision.lower()}."})
+
+
+class MyLeadInternsView(APIView):
+    """Interns currently reporting to the logged-in Project Lead, per
+    InternReportingManagerHistory.is_current — feeds the Recommend
+    Completion/Extension picker page."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        histories = InternReportingManagerHistory.objects.filter(
+            manager_user=request.user, is_current=True
+        ).select_related("intern__student__person")
+
+        return Response([
+            {
+                "intern_id": h.intern.intern_id,
+                "intern_code": h.intern.intern_code,
+                "name": f"{h.intern.student.person.first_name} {h.intern.student.person.last_name or ''}".strip(),
+                "status": h.intern.status,
+                "internship_end_date": h.intern.internship_end_date,
+            }
+            for h in histories
+        ])

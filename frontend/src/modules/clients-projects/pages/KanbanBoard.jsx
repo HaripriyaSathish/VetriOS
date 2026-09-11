@@ -5,10 +5,9 @@ import client from "../../../api/client";
 const COLUMNS = [
   { key: "PENDING", label: "To Do" },
   { key: "IN_PROGRESS", label: "In Progress" },
-  { key: "REVIEW", label: "Review" },
-  { key: "TESTING", label: "Testing" },
+  { key: "ON_HOLD", label: "On Hold" },
   { key: "COMPLETED", label: "Completed" },
-  { key: "BLOCKED", label: "Blocked" },
+  { key: "CANCELLED", label: "Cancelled" },
 ];
 
 const PRIORITY_STYLES = {
@@ -18,9 +17,12 @@ const PRIORITY_STYLES = {
   CRITICAL: "bg-red-100 text-red-700",
 };
 
-function TaskCard({ task, onStatusChange }) {
+function TaskCard({ task, onStatusChange, requirementsMap, milestonesMap }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const isOverdue = task.due_date && new Date(task.due_date) < new Date();
+
+  const requirementTitle = task.requirement_id ? requirementsMap[task.requirement_id] : null;
+  const milestoneName = task.milestone_id ? milestonesMap[task.milestone_id] : null;
 
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-3 mb-3 relative">
@@ -36,6 +38,21 @@ function TaskCard({ task, onStatusChange }) {
           </span>
         )}
       </div>
+
+      {(requirementTitle || milestoneName) && (
+        <div className="flex flex-col gap-1 mb-2">
+          {requirementTitle && (
+            <span className="text-xs text-purple-700 bg-purple-50 rounded px-2 py-0.5 w-fit">
+              → {requirementTitle}
+            </span>
+          )}
+          {milestoneName && (
+            <span className="text-xs text-teal-700 bg-teal-50 rounded px-2 py-0.5 w-fit">
+              🎯 {milestoneName}
+            </span>
+          )}
+        </div>
+      )}
 
       {task.assignee && (
         <p className="text-xs text-gray-700 mb-2">
@@ -71,6 +88,8 @@ function KanbanBoard() {
   const { projectId } = useParams();
   const [board, setBoard] = useState({});
   const [teamMembers, setTeamMembers] = useState([]);
+  const [requirements, setRequirements] = useState([]);
+  const [milestones, setMilestones] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -81,25 +100,50 @@ function KanbanBoard() {
   const [priority, setPriority] = useState("MEDIUM");
   const [assignee, setAssignee] = useState("");
   const [dueDate, setDueDate] = useState("");
+  const [linkedRequirement, setLinkedRequirement] = useState("");
+  const [linkedMilestone, setLinkedMilestone] = useState("");
   const [creating, setCreating] = useState(false);
 
   const loadBoard = () => {
-    client.get(`/api/projects/${projectId}/kanban/`)
+    return client.get(`/api/projects/${projectId}/kanban/`)
       .then(({ data }) => setBoard(data))
       .catch((err) => setError(err.response?.data?.detail || "Couldn't load the board."));
   };
 
   const loadTeam = () => {
-    client.get(`/api/projects/${projectId}/team/`)
+    return client.get(`/api/projects/${projectId}/team/`)
       .then(({ data }) => setTeamMembers(data))
+      .catch(() => {});
+  };
+
+  const loadRequirements = () => {
+    return client.get(`/api/projects/${projectId}/requirements/`)
+      .then(({ data }) => setRequirements(data))
+      .catch(() => {});
+  };
+
+  const loadMilestones = () => {
+    return client.get(`/api/projects/${projectId}/milestones/`)
+      .then(({ data }) => setMilestones(data))
       .catch(() => {});
   };
 
   useEffect(() => {
     setLoading(true);
-    Promise.all([loadBoard(), loadTeam()]).finally(() => setLoading(false));
+    Promise.all([loadBoard(), loadTeam(), loadRequirements(), loadMilestones()])
+      .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
+
+  const requirementsMap = requirements.reduce((acc, r) => {
+    acc[r.project_requirement_id] = r.requirement_title;
+    return acc;
+  }, {});
+
+  const milestonesMap = milestones.reduce((acc, m) => {
+    acc[m.project_milestone_id] = m.milestone_name;
+    return acc;
+  }, {});
 
   const handleStatusChange = async (taskId, newStatus) => {
     setBoard((prev) => {
@@ -130,9 +174,12 @@ function KanbanBoard() {
         priority,
         assigned_to_team_member_id: assignee || null,
         due_date: dueDate || null,
+        project_requirement_id: linkedRequirement || null,
+        project_milestone_id: linkedMilestone || null,
       });
       setMessage("Task created.");
       setTitle(""); setDescription(""); setPriority("MEDIUM"); setAssignee(""); setDueDate("");
+      setLinkedRequirement(""); setLinkedMilestone("");
       setShowTaskForm(false);
       loadBoard();
     } catch (err) {
@@ -197,10 +244,11 @@ function KanbanBoard() {
               className="border border-gray-300 rounded-md px-3 py-2 text-sm"
             />
           </div>
+
           <select
             value={assignee}
             onChange={(e) => setAssignee(e.target.value)}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm mb-4"
+            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm mb-3"
           >
             <option value="">Unassigned</option>
             {teamMembers.map((m) => (
@@ -209,6 +257,35 @@ function KanbanBoard() {
               </option>
             ))}
           </select>
+
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            <select
+              value={linkedRequirement}
+              onChange={(e) => setLinkedRequirement(e.target.value)}
+              className="border border-gray-300 rounded-md px-3 py-2 text-sm"
+            >
+              <option value="">No linked requirement</option>
+              {requirements.map((r) => (
+                <option key={r.project_requirement_id} value={r.project_requirement_id}>
+                  {r.requirement_title}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={linkedMilestone}
+              onChange={(e) => setLinkedMilestone(e.target.value)}
+              className="border border-gray-300 rounded-md px-3 py-2 text-sm"
+            >
+              <option value="">No linked milestone</option>
+              {milestones.map((m) => (
+                <option key={m.project_milestone_id} value={m.project_milestone_id}>
+                  {m.milestone_name}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <button
             onClick={createTask}
             disabled={creating}
@@ -235,7 +312,13 @@ function KanbanBoard() {
                   <p className="text-xs text-gray-400 text-center py-5">No tasks here</p>
                 ) : (
                   tasks.map((task) => (
-                    <TaskCard key={task.task_id} task={task} onStatusChange={handleStatusChange} />
+                    <TaskCard
+                      key={task.task_id}
+                      task={task}
+                      onStatusChange={handleStatusChange}
+                      requirementsMap={requirementsMap}
+                      milestonesMap={milestonesMap}
+                    />
                   ))
                 )}
               </div>

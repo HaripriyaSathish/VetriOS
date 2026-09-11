@@ -51,6 +51,7 @@ import StudentReports from "./modules/student/pages/Reports";
 import AllStudentsList from "./modules/training/pages/AllStudentsList";
 import StudentDetail from "./modules/training/pages/StudentDetail";
 import InternshipApprovals from "./modules/training/pages/InternshipApprovals";
+import CompletionExtensionApprovals from "./modules/training/pages/CompletionExtensionApprovals";
 import MyInternship from "./modules/interns/pages/MyInternship";
 import MyInternAttendance from "./modules/interns/pages/MyAttendance";
 import MyTasks from "./modules/interns/pages/MyTasks";
@@ -65,6 +66,8 @@ import ProjectDashboard from "./modules/clients-projects/pages/ProjectDashboard"
 import TeamProjects from "./modules/clients-projects/pages/TeamProjects";
 import KanbanProjects from "./modules/clients-projects/pages/KanbanProjects";
 import ProjectTeam from "./modules/clients-projects/pages/ProjectTeam";
+import ProjectDocumentsProjects from "./modules/clients-projects/pages/ProjectDocumentsProjects";
+import ProjectDocuments from "./modules/clients-projects/pages/ProjectDocuments";
 import DocumentsLibrary from "./modules/documents/pages/Library";
 import AIGenerator from "./modules/documents/pages/AIGenerator";
 import CourseInternshipOfferLetter from "./modules/documents/pages/CourseInternshipOfferLetter";
@@ -82,6 +85,7 @@ import StudentsWelcomeEmail from "./modules/email/pages/StudentsWelcomeEmail";
 import InternshipOnboarding from "./modules/email/pages/InternshipOnboarding";
 import RoleRevision from "./modules/email/pages/RoleRevision";
 import EmailApprovals from "./modules/email/pages/Approvals";
+import CreateProject from "./modules/clients-projects/pages/CreateProject";
 import KanbanBoard from "./modules/clients-projects/pages/KanbanBoard";
 import RequirementsProjects from "./modules/clients-projects/pages/RequirementsProjects";
 import Requirements from "./modules/clients-projects/pages/Requirements";
@@ -106,10 +110,22 @@ import ApprovalDocuments from "./modules/clients-projects/pages/ApprovalDocument
 import MyClients from "./modules/clients-projects/pages/MyClients";
 import FollowUpsClients from "./modules/clients-projects/pages/FollowUpsClients";
 import FollowUps from "./modules/clients-projects/pages/FollowUps";
+import RecommendInternshipAction from "./modules/clients-projects/pages/RecommendInternshipAction";
 // Route table for the whole app. Everything under AppLayout requires a
 // signed-in user (ProtectedRoute); each module route is additionally
 // gated by the same requirement Sidebar uses to decide what to show
 // (PermissionGate), so a bare URL visit can't bypass access control.
+//
+// EXCEPTION: /project/* VIEW routes (dashboard, team, requirements,
+// kanban, milestones, deployments, tech-stack, change-requests) are
+// intentionally left WITHOUT PermissionGate. Access to these is driven
+// by live project membership (ProjectTeamMember), not a static system
+// role — PermissionGate can only check the cached role list in
+// localStorage, so it can't express "any active team member on this
+// project." The backend (can_view_project) is the real enforcement
+// here; each page already renders its own "Not authorized" state from
+// a 403 response. Client Management routes keep PermissionGate — those
+// stay PM/System Administrator only, which IS a simple role check.
 function App() {
   return (
     <Routes>
@@ -235,6 +251,11 @@ function App() {
             <InternshipApprovals />
           </PermissionGate>
         } />
+        <Route path="/training/completion-extension-approvals" element={
+  <PermissionGate requirement={{ type: "role", value: ["Business Team", "System Administrator"] }}>
+    <CompletionExtensionApprovals />
+  </PermissionGate>
+} />
         <Route path="/training/attendance" element={
           <PermissionGate requirement={{ type: "role", value: "Employee" }}>
             <TrainingAttendance />
@@ -349,81 +370,35 @@ function App() {
     <MyPerformance />
   </PermissionGate>
 } />
-<Route path="/project/dashboard" element={
-  <PermissionGate requirement={{ type: "role", value: ["Project Manager", "System Administrator"] }}>
-    <ProjectDashboard />
+<Route path="/project/create" element={
+  <PermissionGate requirement={{ type: "role", value: "System Administrator" }}>
+    <CreateProject />
   </PermissionGate>
 } />
-<Route path="/project/team" element={
-  <PermissionGate requirement={{ type: "role", value: ["Project Manager", "System Administrator"] }}>
-    <TeamProjects />
-  </PermissionGate>
-} />
-<Route path="/project/:projectId/team" element={
-  <PermissionGate requirement={{ type: "role", value: ["Project Manager", "System Administrator"] }}>
-    <ProjectTeam />
-  </PermissionGate>
-} />
-<Route path="/project/kanban" element={
-  <PermissionGate requirement={{ type: "role", value: ["Project Manager", "System Administrator"] }}>
-    <KanbanProjects />
-  </PermissionGate>
-} />
-<Route path="/project/:projectId/kanban" element={
-  <PermissionGate requirement={{ type: "role", value: ["Project Manager", "System Administrator"] }}>
-    <KanbanBoard />
-  </PermissionGate>
-} />
-<Route path="/project/requirements" element={
-  <PermissionGate requirement={{ type: "role", value: ["Project Manager", "System Administrator"] }}>
-    <RequirementsProjects />
-  </PermissionGate>
-} />
-<Route path="/project/requirements/:projectId" element={
-  <PermissionGate requirement={{ type: "role", value: ["Project Manager", "System Administrator"] }}>
-    <Requirements />
-  </PermissionGate>
-} />
-<Route path="/project/milestones" element={
-  <PermissionGate requirement={{ type: "role", value: ["Project Manager", "System Administrator"] }}>
-    <MilestonesProjects />
-  </PermissionGate>
-} />
-<Route path="/project/:projectId/milestones" element={
-  <PermissionGate requirement={{ type: "role", value: ["Project Manager", "System Administrator"] }}>
-    <Milestones />
-  </PermissionGate>
-} />
-<Route path="/project/deployments" element={
-  <PermissionGate requirement={{ type: "role", value: ["Project Manager", "System Administrator"] }}>
-    <DeploymentsProjects />
-  </PermissionGate>
-} />
-<Route path="/project/:projectId/deployments" element={
-  <PermissionGate requirement={{ type: "role", value: ["Project Manager", "System Administrator"] }}>
-    <Deployments />
-  </PermissionGate>
-} />
-<Route path="/project/tech-stack" element={
-  <PermissionGate requirement={{ type: "role", value: ["Project Manager", "System Administrator"] }}>
-    <TechStackProjects />
-  </PermissionGate>
-} />
-<Route path="/project/:projectId/tech-stack" element={
-  <PermissionGate requirement={{ type: "role", value: ["Project Manager", "System Administrator"] }}>
-    <TechStack />
-  </PermissionGate>
-} />
-<Route path="/project/change-requests" element={
-  <PermissionGate requirement={{ type: "role", value: ["Project Manager", "System Administrator"] }}>
-    <ChangeRequestsProjects />
-  </PermissionGate>
-} />
-<Route path="/project/:projectId/change-requests" element={
-  <PermissionGate requirement={{ type: "role", value: ["Project Manager", "System Administrator"] }}>
-    <ChangeRequests />
-  </PermissionGate>
-} />
+{/* ---- Project Management VIEW routes: no PermissionGate ----
+    Access is driven by live ProjectTeamMember data; the backend
+    (can_view_project) and each page's own error state are the real
+    gate here — see note at top of file. */}
+<Route path="/project/dashboard" element={<ProjectDashboard />} />
+<Route path="/project/team" element={<TeamProjects />} />
+<Route path="/project/:projectId/team" element={<ProjectTeam />} />
+<Route path="/project/documents" element={<ProjectDocumentsProjects />} />
+<Route path="/project/:projectId/documents" element={<ProjectDocuments />} />
+<Route path="/project/kanban" element={<KanbanProjects />} />
+<Route path="/project/:projectId/kanban" element={<KanbanBoard />} />
+<Route path="/project/requirements" element={<RequirementsProjects />} />
+<Route path="/project/requirements/:projectId" element={<Requirements />} />
+<Route path="/project/milestones" element={<MilestonesProjects />} />
+<Route path="/project/:projectId/milestones" element={<Milestones />} />
+<Route path="/project/deployments" element={<DeploymentsProjects />} />
+<Route path="/project/:projectId/deployments" element={<Deployments />} />
+<Route path="/project/tech-stack" element={<TechStackProjects />} />
+<Route path="/project/:projectId/tech-stack" element={<TechStack />} />
+<Route path="/project/change-requests" element={<ChangeRequestsProjects />} />
+<Route path="/project/:projectId/change-requests" element={<ChangeRequests />} />
+
+{/* ---- Client Management routes: KEEP PermissionGate ----
+    Stays PM/System Administrator only, per requirement. */}
 <Route path="/clients/directory" element={
   <PermissionGate requirement={{ type: "role", value: "System Administrator" }}>
     <ClientDirectory />
@@ -492,6 +467,11 @@ function App() {
 <Route path="/clients/:clientId/follow-ups" element={
   <PermissionGate requirement={{ type: "role", value: ["Project Manager", "System Administrator"] }}>
     <FollowUps />
+  </PermissionGate>
+} />
+<Route path="/project/recommend-internship-action" element={
+  <PermissionGate requirement={{ type: "role", value: ["Project Manager", "System Administrator"] }}>
+    <RecommendInternshipAction />
   </PermissionGate>
 } />
         {/* Workspace (HR) group — HR Dashboard is still a placeholder;

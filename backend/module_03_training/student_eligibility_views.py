@@ -73,6 +73,7 @@ class StudentEligibilityView(APIView):
                 "scheduled_date": mock.assessment.assessment_date,
                 "result_status": mock.result_status,
                 "score": mock.score,
+                "feedback": mock.feedback,
                 "meeting_link": detail.meeting_link if detail else None,
             }
 

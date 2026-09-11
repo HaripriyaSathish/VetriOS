@@ -97,6 +97,7 @@ import MyClients from "./modules/clients-projects/pages/MyClients";
 import FollowUpsClients from "./modules/clients-projects/pages/FollowUpsClients";
 import FollowUps from "./modules/clients-projects/pages/FollowUps";
 import RecommendInternshipAction from "./modules/clients-projects/pages/RecommendInternshipAction";
+import Assistant from "./modules/ai-rag/pages/Assistant";
 // Route table for the whole app. Everything under AppLayout requires a
 // signed-in user (ProtectedRoute); each module route is additionally
 // gated by the same requirement Sidebar uses to decide what to show
@@ -137,6 +138,7 @@ function App() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/profile" element={<ModulePlaceholder name="Profile" />} />
         <Route path="/settings" element={<ModulePlaceholder name="Settings" />} />
+        <Route path="/assistant" element={<Assistant />} />
         <Route path="/my/attendance" element={<MyAttendance />} />
         <Route path="/my/leave" element={<MyLeave />} />
         <Route path="/my/worklog" element={<MyWorklog />} />

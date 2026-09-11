@@ -61,11 +61,11 @@ export const NAV_ITEMS = [
     requirement: { type: "role", value: "ANY" },
   },
   {
-    id: "ai",
-    icon: "🧠",
-    name: "AI / RAG",
-    path: "/ai",
-    requirement: { type: "perm", value: "SYSTEM_ADMIN" },
+    id: "assistant",
+    icon: "💬",
+    name: "Database Assistant",
+    path: "/assistant",
+    requirement: { type: "role", value: "ANY" },
   },
 ];
 

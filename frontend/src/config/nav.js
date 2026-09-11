@@ -61,6 +61,13 @@ export const NAV_ITEMS = [
     requirement: { type: "role", value: "ANY" },
   },
   {
+    id: "assistant",
+    icon: "💬",
+    name: "Database Assistant",
+    path: "/assistant",
+    requirement: { type: "role", value: "ANY" },
+  },
+  {
     id: "email",
     icon: "📧",
     name: "Email",

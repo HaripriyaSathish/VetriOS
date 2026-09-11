@@ -7,10 +7,16 @@ import "../styles/Login.css";
 // deliberately NOT in this map — they always get the merged "see
 // everything" sidebar directly, no switcher, regardless of what other
 // roles they also hold.
+//
+// "Employee" is deliberately NOT in this map either. It's a generic HR
+// role covering many job functions — Dev Leads, testers, interns who've
+// been converted to an Employee row, actual trainers, etc. — so it can't
+// blanket-map to Training. Whether an employee gets Training Management
+// offered is resolved dynamically below, based on whether they actually
+// have training duties (a TrainerProfile / assigned batches).
 const ROLE_WORKSPACE_MAP = {
   "Student": { key: "student", label: "Student Portal", path: "/student/dashboard" },
   "Intern": { key: "intern", label: "Intern Portal", path: "/intern/my-internship" },
-  "Employee": { key: "training", label: "Training Management", path: "/training" },
   "Business Team": { key: "training", label: "Training Management", path: "/training" },
   "HR Administrator": { key: "hr", label: "HR Management", path: "/hr" },
   "Project Manager": { key: "project", label: "Project Management", path: "/project/dashboard" },
@@ -61,7 +67,8 @@ function Login() {
       }
 
       // Resolve each remaining role to its workspace, de-duplicating
-      // (Employee and Business Team both map to "training", for example).
+      // (e.g. Business Team maps to "training" the same as a real
+      // trainer would via the dynamic check below).
       const workspaces = [];
       const seenKeys = new Set();
       roles.forEach((role) => {
@@ -71,6 +78,42 @@ function Login() {
           workspaces.push(ws);
         }
       });
+
+      // Project team membership isn't an RBAC role, so it never comes
+      // through ROLE_WORKSPACE_MAP above. Check it directly — anyone
+      // with at least one ProjectTeamMember row gets Project Management
+      // as a workspace, whether they're the PM, a functional lead, a
+      // regular team member, or an Intern staffed on a client project.
+      try {
+        const { data: myProjects } = await client.get("/api/projects/me/");
+        if (Array.isArray(myProjects) && myProjects.length > 0 && !seenKeys.has("project")) {
+          seenKeys.add("project");
+          workspaces.push({ key: "project", label: "Project Management", path: "/project/dashboard" });
+        }
+      } catch {
+        // Don't block login over this check — just skip offering the
+        // project workspace if it fails.
+      }
+
+      // Same idea for training: "Employee" alone doesn't mean trainer,
+      // so check for real training duties instead of trusting the role
+      // name. Skipped entirely for Business Team, who already got
+      // "training" from the static map above.
+      if (!seenKeys.has("training")) {
+        try {
+          const { data: trainerDashboard } = await client.get("/api/training/dashboard/");
+          const hasTrainingDuties =
+            trainerDashboard &&
+            (Array.isArray(trainerDashboard) ? trainerDashboard.length > 0 : true);
+          if (hasTrainingDuties) {
+            seenKeys.add("training");
+            workspaces.push({ key: "training", label: "Training Management", path: "/training" });
+          }
+        } catch {
+          // 404/403/empty here just means this person isn't a trainer —
+          // skip offering Training Management.
+        }
+      }
 
       if (workspaces.length > 1) {
         // More than one workspace available — let them pick.

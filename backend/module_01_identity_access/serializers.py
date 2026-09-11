@@ -4,9 +4,11 @@ from django.utils import timezone
 from rest_framework import serializers
 
 from module_02_hr.models import DepartmentLead, Employee, PersonDepartmentHistory
+from module_06_documents.models import Document
 
 from .models import (
     Permission,
+    PermissionRequest,
     Person,
     Role,
     RolePermission,
@@ -364,3 +366,44 @@ class UserAccountWriteSerializer(serializers.Serializer):
                     created_at=now,
                 )
         return instance
+
+
+class PermissionRequestSerializer(serializers.ModelSerializer):
+    requester_name = serializers.SerializerMethodField()
+    target_admin_name = serializers.SerializerMethodField()
+    document_deleted = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PermissionRequest
+        fields = [
+            "permission_request_id",
+            "requester_id",
+            "requester_name",
+            "admin_category",
+            "target_admin_id",
+            "target_admin_name",
+            "permission_requested",
+            "reason",
+            "status",
+            "request_type",
+            "document_id",
+            "document_deleted",
+            "decision_note",
+            "decided_at",
+            "created_at",
+        ]
+
+    def get_requester_name(self, obj):
+        return str(obj.requester.person)
+
+    def get_document_deleted(self, obj):
+        # document_id isn't a real FK (see PermissionRequest's Meta docstring
+        # — no REFERENCES privilege on the DA-owned `document` table), so a
+        # request row outlives the document it pointed to. This tells the
+        # frontend to show "Document deleted" instead of a dead reference.
+        if obj.request_type != "DOCUMENT" or not obj.document_id:
+            return False
+        return not Document.objects.filter(pk=obj.document_id).exists()
+
+    def get_target_admin_name(self, obj):
+        return str(obj.target_admin.person)

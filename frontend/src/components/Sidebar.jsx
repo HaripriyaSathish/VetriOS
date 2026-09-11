@@ -1,5 +1,6 @@
-﻿import { useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
+import client from "../api/client";
 import {
   LayoutDashboard,
   ShieldCheck,
@@ -28,19 +29,21 @@ import {
   Library,
   Sparkles,
   LayoutTemplate,
-  CheckSquare,
-  Scale,
+  Mail,
+  Send,
+  CheckCircle2,
 } from "lucide-react";
 import { NAV_ITEMS, hasAccess } from "../config/nav";
 import "../components-styles/Sidebar.css";
 
-const SYSADMIN_PATHS = ["/dashboard", "/identity/users", "/identity/roles", "/identity/permissions"];
+const SYSADMIN_PATHS = ["/dashboard", "/identity/users", "/identity/roles", "/identity/permissions", "/system-admin/approvals"];
 const HR_PATHS = ["/hr"];
 const BUSINESS_TEAM_PATHS = [
   "/training/students", "/training/internship-approvals", "/training/enquiries",
   "/training/fee-conversion", "/training/batches/new", "/training/welcome-emails",
 ];
 const DOCUMENTS_PATHS = ["/documents"];
+const EMAIL_PATHS = ["/email"];
 const PROJECT_MGMT_PATHS = [
   "/project/dashboard", "/project/team", "/project/requirements", "/project/kanban",
   "/project/milestones", "/project/deployments", "/project/tech-stack", "/project/change-requests",
@@ -55,6 +58,22 @@ function Sidebar() {
   const location = useLocation();
   const [trainingOpen, setTrainingOpen] = useState(true);
 
+  // How many requests are addressed to the current user and still
+  // awaiting their decision — shown as "Request access (N)". Polled the
+  // same way NotificationBell polls its own unread count.
+  const [pendingRequestCount, setPendingRequestCount] = useState(0);
+  useEffect(() => {
+    const loadPendingCount = () => {
+      client
+        .get("/api/identity/permission-requests/pending-count/")
+        .then(({ data }) => setPendingRequestCount(data.pending_count))
+        .catch(() => {});
+    };
+    loadPendingCount();
+    const interval = setInterval(loadPendingCount, 20000);
+    return () => clearInterval(interval);
+  }, []);
+
   const identityRequirement = { type: "role", value: "System Administrator" };
   const businessTeamRequirement = { type: "role", value: ["Business Team", "System Administrator"] };
   const trainerRequirement = { type: "role", value: "Employee" };
@@ -66,6 +85,10 @@ function Sidebar() {
 
   const isSystemAdministrator = hasAccess(identityRequirement, user);
   const isIntern = hasAccess(internRequirement, user);
+  // Employee sees Document Generator's Library (view existing docs) but
+  // not Generate/Templates, for now — System Administrator still sees
+  // everything regardless of also holding the Employee role.
+  const isEmployeeOnly = hasAccess(trainerRequirement, user) && !isSystemAdministrator;
 
   // System Administrator always sees everything merged, no workspace
   // filtering. Everyone else only sees the section matching whichever
@@ -89,6 +112,11 @@ function Sidebar() {
   const isOnDocumentsPage = DOCUMENTS_PATHS.some((path) => location.pathname.startsWith(path));
   const [documentsOpen, setDocumentsOpen] = useState(isOnDocumentsPage);
 
+  const emailItem = NAV_ITEMS.find((item) => item.id === "email");
+  const canSeeEmail = emailItem && hasAccess(emailItem.requirement, user);
+  const isOnEmailPage = EMAIL_PATHS.some((path) => location.pathname.startsWith(path));
+  const [emailOpen, setEmailOpen] = useState(isOnEmailPage);
+
   const isOnProjectMgmtPage = PROJECT_MGMT_PATHS.some((path) => location.pathname.startsWith(path));
   const [projectMgmtOpen, setProjectMgmtOpen] = useState(isOnProjectMgmtPage);
 
@@ -101,6 +129,20 @@ function Sidebar() {
         <span className="sidebar-mark">V</span>
         <span className="sidebar-brand-name">VetriOS</span>
       </div>
+
+      {/* Unconditional — every role (Employee, Trainer, any admin) can
+          ask a specific admin for a permission, so this sits above every
+          role-gated group rather than living inside one of them. */}
+      <NavLink
+        to="/request-access"
+        className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
+      >
+        <span className="nav-icon">
+          <ShieldCheck size={16} />
+        </span>
+        Request access
+        {pendingRequestCount > 0 && <span className="nav-count-badge">{pendingRequestCount}</span>}
+      </NavLink>
 
       {!isSystemAdministrator && (
         <NavLink
@@ -231,6 +273,17 @@ function Sidebar() {
                 </span>
                 Permissions
               </NavLink>
+
+              <NavLink
+                to="/system-admin/approvals"
+                className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
+              >
+                <span className="nav-icon">
+                  <CheckCircle2 size={14} />
+                </span>
+                Approvals
+              </NavLink>
+
             </div>
           )}
 
@@ -391,44 +444,81 @@ function Sidebar() {
                 Library
               </NavLink>
 
+              {!isEmployeeOnly && (
+                <>
+                  <NavLink
+                    to="/documents/ai-generator"
+                    className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
+                  >
+                    <span className="nav-icon">
+                      <Sparkles size={14} />
+                    </span>
+                    Generate
+                  </NavLink>
+
+                  <NavLink
+                    to="/documents/templates"
+                    className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
+                  >
+                    <span className="nav-icon">
+                      <LayoutTemplate size={14} />
+                    </span>
+                    Templates
+                  </NavLink>
+                </>
+              )}
+            </div>
+          )}
+        </>
+      )}
+
+      {canSeeEmail && (
+        <>
+          <button
+            type="button"
+            className={"nav-item nav-group-toggle" + (emailOpen ? " open" : "")}
+            onClick={() => setEmailOpen((prev) => !prev)}
+          >
+            <span className="nav-icon">
+              <Mail size={16} />
+            </span>
+            Email
+            <span className="nav-chevron">
+              <ChevronDown size={14} />
+            </span>
+          </button>
+
+          {emailOpen && (
+            <div className="nav-subgroup">
               <NavLink
-                to="/documents/ai-generator"
+                to="/email"
+                end
                 className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
               >
                 <span className="nav-icon">
-                  <Sparkles size={14} />
+                  <LayoutDashboard size={14} />
                 </span>
-                Vetri Tool (AI Generator)
+                Dashboard
               </NavLink>
 
               <NavLink
-                to="/documents/templates"
+                to="/email/compose"
                 className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
               >
                 <span className="nav-icon">
-                  <LayoutTemplate size={14} />
+                  <Send size={14} />
                 </span>
-                Templates
+                Compose
               </NavLink>
 
               <NavLink
-                to="/documents/approvals"
+                to="/email/batches"
                 className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
               >
                 <span className="nav-icon">
-                  <CheckSquare size={14} />
+                  <Layers size={14} />
                 </span>
-                Approvals
-              </NavLink>
-
-              <NavLink
-                to="/documents/governance"
-                className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
-              >
-                <span className="nav-icon">
-                  <Scale size={14} />
-                </span>
-                Governance
+                Bulk
               </NavLink>
             </div>
           )}

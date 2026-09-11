@@ -6,6 +6,7 @@ import UserAccounts from "./modules/identity-access/pages/UserAccounts";
 import RolesPermissions from "./modules/identity-access/pages/RolesPermissions";
 import Permissions from "./modules/identity-access/pages/Permissions";
 import UserPermissions from "./modules/identity-access/pages/UserPermissions";
+import RequestAccess from "./modules/identity-access/pages/RequestAccess";
 import TrainingRouter from "./modules/training/pages/TrainingRouter";
 import HRDashboard from "./modules/hr/pages/HRDashboard";
 import Attendance from "./modules/hr/pages/Attendance";
@@ -13,6 +14,7 @@ import Leave from "./modules/hr/pages/Leave";
 import Worklogs from "./modules/hr/pages/Worklogs";
 import Onboarding from "./modules/hr/pages/Onboarding";
 import Promotions from "./modules/hr/pages/Promotions";
+import PromotionApprovals from "./modules/hr/pages/PromotionApprovals";
 import PayrollReferences from "./modules/hr/pages/PayrollReferences";
 import ExitManagement from "./modules/hr/pages/ExitManagement";
 import HRReports from "./modules/hr/pages/Reports";
@@ -65,9 +67,21 @@ import KanbanProjects from "./modules/clients-projects/pages/KanbanProjects";
 import ProjectTeam from "./modules/clients-projects/pages/ProjectTeam";
 import DocumentsLibrary from "./modules/documents/pages/Library";
 import AIGenerator from "./modules/documents/pages/AIGenerator";
+import CourseInternshipOfferLetter from "./modules/documents/pages/CourseInternshipOfferLetter";
 import DocumentTemplates from "./modules/documents/pages/Templates";
+import TemplateCreate from "./modules/documents/pages/TemplateCreate";
+import TemplateDetail from "./modules/documents/pages/TemplateDetail";
+import CanvasEditor from "./modules/documents/pages/CanvasEditor";
 import DocumentApprovals from "./modules/documents/pages/Approvals";
 import DocumentGovernance from "./modules/documents/pages/Governance";
+import EmailDashboard from "./modules/email/pages/EmailDashboard";
+import EmailCompose from "./modules/email/pages/Compose";
+import EmailTemplates from "./modules/email/pages/Templates";
+import EmailBatches from "./modules/email/pages/Batches";
+import StudentsWelcomeEmail from "./modules/email/pages/StudentsWelcomeEmail";
+import InternshipOnboarding from "./modules/email/pages/InternshipOnboarding";
+import RoleRevision from "./modules/email/pages/RoleRevision";
+import EmailApprovals from "./modules/email/pages/Approvals";
 import KanbanBoard from "./modules/clients-projects/pages/KanbanBoard";
 import RequirementsProjects from "./modules/clients-projects/pages/RequirementsProjects";
 import Requirements from "./modules/clients-projects/pages/Requirements";
@@ -155,6 +169,22 @@ function App() {
           element={
             <PermissionGate requirement={{ type: "role", value: "System Administrator" }}>
               <UserPermissions />
+            </PermissionGate>
+          }
+        />
+        <Route
+          path="/request-access"
+          element={
+            <PermissionGate requirement={{ type: "role", value: "ANY" }}>
+              <RequestAccess />
+            </PermissionGate>
+          }
+        />
+        <Route
+          path="/identity/permission-requests"
+          element={
+            <PermissionGate requirement={{ type: "role", value: "ANY" }}>
+              <RequestAccess />
             </PermissionGate>
           }
         />
@@ -518,7 +548,15 @@ function App() {
           path="/hr/promotions"
           element={
             <PermissionGate requirement={{ type: "role", value: ["HR Administrator", "System Administrator"] }}>
-              <Promotions />
+              <Promotions showActions={false} />
+            </PermissionGate>
+          }
+        />
+        <Route
+          path="/system-admin/approvals"
+          element={
+            <PermissionGate requirement={{ type: "role", value: "System Administrator" }}>
+              <PromotionApprovals />
             </PermissionGate>
           }
         />
@@ -565,10 +603,50 @@ function App() {
           }
         />
         <Route
+          path="/documents/ai-generator/course-integrated-internship-offer"
+          element={
+            <PermissionGate requirement={{ type: "perm", value: "DOCUMENT_VIEW" }}>
+              <CourseInternshipOfferLetter />
+            </PermissionGate>
+          }
+        />
+        <Route
           path="/documents/templates"
           element={
             <PermissionGate requirement={{ type: "perm", value: "DOCUMENT_VIEW" }}>
               <DocumentTemplates />
+            </PermissionGate>
+          }
+        />
+        <Route
+          path="/documents/templates/new"
+          element={
+            <PermissionGate requirement={{ type: "perm", value: "DOCUMENT_VIEW" }}>
+              <TemplateCreate />
+            </PermissionGate>
+          }
+        />
+        <Route
+          path="/documents/templates/canvas/new"
+          element={
+            <PermissionGate requirement={{ type: "perm", value: "DOCUMENT_VIEW" }}>
+              <CanvasEditor />
+            </PermissionGate>
+          }
+        />
+        <Route
+          path="/documents/templates/canvas/:id"
+          element={
+            <PermissionGate requirement={{ type: "perm", value: "DOCUMENT_VIEW" }}>
+              <CanvasEditor />
+            </PermissionGate>
+          }
+        />
+        <Route
+          path="/documents/templates/:id"
+          element={
+            <PermissionGate requirement={{ type: "perm", value: "DOCUMENT_VIEW" }}>
+              <TemplateDetail />
             </PermissionGate>
           }
         />
@@ -589,7 +667,73 @@ function App() {
           }
         />
 
-        {NAV_ITEMS.filter((item) => item.id !== "training" && item.id !== "hr" && item.id !== "documents").map((item) => (
+        {/* Email group */}
+        <Route
+          path="/email"
+          element={
+            <PermissionGate requirement={{ type: "perm", value: "SYSTEM_ADMIN" }}>
+              <EmailDashboard />
+            </PermissionGate>
+          }
+        />
+        <Route
+          path="/email/compose"
+          element={
+            <PermissionGate requirement={{ type: "perm", value: "SYSTEM_ADMIN" }}>
+              <EmailCompose />
+            </PermissionGate>
+          }
+        />
+        <Route
+          path="/email/templates"
+          element={
+            <PermissionGate requirement={{ type: "perm", value: "SYSTEM_ADMIN" }}>
+              <EmailTemplates />
+            </PermissionGate>
+          }
+        />
+        <Route
+          path="/email/batches"
+          element={
+            <PermissionGate requirement={{ type: "perm", value: "SYSTEM_ADMIN" }}>
+              <EmailBatches />
+            </PermissionGate>
+          }
+        />
+        <Route
+          path="/email/batches/students-welcome"
+          element={
+            <PermissionGate requirement={{ type: "perm", value: "SYSTEM_ADMIN" }}>
+              <StudentsWelcomeEmail />
+            </PermissionGate>
+          }
+        />
+        <Route
+          path="/email/batches/internship-onboarding"
+          element={
+            <PermissionGate requirement={{ type: "perm", value: "SYSTEM_ADMIN" }}>
+              <InternshipOnboarding />
+            </PermissionGate>
+          }
+        />
+        <Route
+          path="/email/batches/role-revision"
+          element={
+            <PermissionGate requirement={{ type: "perm", value: "SYSTEM_ADMIN" }}>
+              <RoleRevision />
+            </PermissionGate>
+          }
+        />
+        <Route
+          path="/email/approvals"
+          element={
+            <PermissionGate requirement={{ type: "perm", value: "SYSTEM_ADMIN" }}>
+              <EmailApprovals />
+            </PermissionGate>
+          }
+        />
+
+        {NAV_ITEMS.filter((item) => item.id !== "training" && item.id !== "hr" && item.id !== "documents" && item.id !== "email").map((item) => (
           <Route
             key={item.id}
             path={item.path}

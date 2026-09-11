@@ -29,4 +29,5 @@ urlpatterns = [
     path("api/documents/", include("module_06_documents.urls")),
     path("api/interns/", include("module_04_interns.urls")),
     path("api/projects/", include("module_05_clients_projects.urls")),
+    path("api/email/", include("module_07_email.urls")),
 ]

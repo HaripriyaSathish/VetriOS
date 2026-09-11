@@ -225,3 +225,46 @@ class AuditLog(models.Model):
     class Meta:
         managed = False
         db_table = 'audit_log'
+
+
+# Any logged-in user (any role) can ask a specific admin — System
+# Administrator / HR Administrator / Business Team — to grant them a
+# permission, describing what and why. This is a lightweight ticket:
+# approving/rejecting here is a decision + notification only, it does
+# NOT grant the permission automatically — the admin still does that
+# separately via the existing Roles/User Permissions tools. Lives in
+# the app's own 'django' Postgres schema (table created directly, same
+# convention as local_extensions.Notification's ext_notification)
+# rather than the DA-owned public schema, since this is app-level infra
+# we fully control, not one of the DA team's canonical business tables.
+class PermissionRequest(models.Model):
+    permission_request_id = models.BigAutoField(primary_key=True)
+    requester = models.ForeignKey(
+        'UserAccount', on_delete=models.CASCADE, db_column='requester_user_id',
+        related_name='permission_requests_made',
+    )
+    admin_category = models.CharField(max_length=30)  # "System Administrator" | "HR Administrator" | "Business Team"
+    target_admin = models.ForeignKey(
+        'UserAccount', on_delete=models.CASCADE, db_column='target_admin_user_id',
+        related_name='permission_requests_received',
+    )
+    permission_requested = models.TextField()
+    reason = models.TextField()
+    status = models.CharField(max_length=20, default='PENDING')  # PENDING | APPROVED | REJECTED
+    # "GENERAL" (free-text, decision-only — matches the original design)
+    # or "DOCUMENT" (a specific Document from the Library was picked;
+    # approving one of these creates a real module_06_documents
+    # DocumentAccessRule row, an actual grant, not just a notification).
+    # document_id is a plain int, not a real FK — `document` lives in the
+    # DA-owned public schema and this app role has no REFERENCES
+    # privilege there, same reasoning as AiEmail.ai_query_id elsewhere.
+    request_type = models.CharField(max_length=20, default='GENERAL')
+    document_id = models.BigIntegerField(blank=True, null=True)
+    decision_note = models.TextField(blank=True, null=True)
+    decided_at = models.DateTimeField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        managed = False
+        db_table = 'ext_permission_request'
+        ordering = ['-created_at']

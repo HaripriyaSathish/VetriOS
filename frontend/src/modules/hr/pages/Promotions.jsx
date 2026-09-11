@@ -23,9 +23,24 @@ function formatDate(d) {
 // designation. HR Administrator submits a request (always starts
 // PENDING); only System Administrator can approve/reject it — approving
 // immediately updates the employee's real designation.
-function Promotions() {
+//
+// Approve/Reject is gated by VIEW, not just role: this component is
+// mounted twice — read-only on HR's own Promotions page (so HR can
+// always track status of what they drafted, but never acts on it from
+// there, even if a System Administrator happens to open that page),
+// and actionable on the System Administrator's own Promotion Approvals
+// page (see PromotionApprovals.jsx). showDraftButton follows the same
+// idea: drafting only ever happens from the HR side.
+function Promotions({
+  showActions = true,
+  showDraftButton = true,
+  eyebrow = "HR",
+  title = "Promotions",
+  subtitle = "Move an employee to a senior or higher designation.",
+}) {
   const user = JSON.parse(localStorage.getItem("user") || "null");
   const isSystemAdministrator = (user?.roles || []).includes("System Administrator");
+  const canAct = isSystemAdministrator && showActions;
 
   const [promotions, setPromotions] = useState([]);
   const [employees, setEmployees] = useState([]);
@@ -154,13 +169,15 @@ function Promotions() {
     <div className="att-screen">
       <div className="att-head">
         <div>
-          <span className="att-eyebrow">HR</span>
-          <h1>Promotions</h1>
-          <p>Move an employee to a senior or higher designation.</p>
+          <span className="att-eyebrow">{eyebrow}</span>
+          <h1>{title}</h1>
+          <p>{subtitle}</p>
         </div>
-        <button type="button" className="att-btn-accent" onClick={openNewPromotion}>
-          <Plus size={15} /> Draft Promotion
-        </button>
+        {showDraftButton && (
+          <button type="button" className="att-btn-accent" onClick={openNewPromotion}>
+            <Plus size={15} /> Draft Promotion
+          </button>
+        )}
       </div>
 
       {error && <p className="att-error">{error}</p>}
@@ -195,7 +212,7 @@ function Promotions() {
           <div>
             <h3>Promotion requests</h3>
             <p>
-              {isSystemAdministrator
+              {canAct
                 ? "Review and decide on pending requests."
                 : "HR Administrator requests are approved by System Administrator."}
             </p>
@@ -244,7 +261,7 @@ function Promotions() {
                     <th>Effective date</th>
                     <th>Status</th>
                     <th>Decided by</th>
-                    {isSystemAdministrator && <th>Actions</th>}
+                    {canAct && <th>Actions</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -265,7 +282,7 @@ function Promotions() {
                         </span>
                       </td>
                       <td>{p.approved_by_name || "—"}</td>
-                      {isSystemAdministrator && (
+                      {canAct && (
                         <td>
                           {p.status === "PENDING" ? (
                             <div className="hr-row-actions">

@@ -1,5 +1,6 @@
 from django.db import models
-from module_01_identity_access.models import UserAccount, Person
+from module_01_identity_access.models import UserAccount, Person, Role
+from module_02_hr.models import Department
 
 
 class AccessLevel(models.Model):
@@ -184,13 +185,17 @@ class DocumentProject(models.Model):
         db_table = 'document_project'
 
 
+# One row per (document, approval_level, approver) — a document with a
+# 3-step chain has 3 rows here. There's no fixed level count or role
+# mapping in this schema: the submitter picks 1-3 approvers by hand when
+# submitting, in the order they should approve (level 1, 2, 3...).
 class DocumentApproval(models.Model):
     document_approval_id = models.BigAutoField(primary_key=True)
     document = models.ForeignKey(Document, models.CASCADE, related_name='approvals')
-    document_version = models.ForeignKey(DocumentVersion, models.DO_NOTHING)
+    document_version = models.ForeignKey(DocumentVersion, models.CASCADE)
     approver_user = models.ForeignKey(UserAccount, models.DO_NOTHING)
-    approval_level = models.IntegerField()
-    approval_status = models.CharField(max_length=30)
+    approval_level = models.IntegerField(default=1)
+    approval_status = models.CharField(max_length=30, default='PENDING')
     approval_date = models.DateTimeField(blank=True, null=True)
     comments = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField()
@@ -198,3 +203,43 @@ class DocumentApproval(models.Model):
     class Meta:
         managed = False
         db_table = 'document_approval'
+
+
+# Per-document access override — exactly one of role/department/user is
+# set (DB CHECK enforces this), granting or denying access_level for
+# that target on this one document.
+class DocumentAccessRule(models.Model):
+    document_access_rule_id = models.BigAutoField(primary_key=True)
+    document = models.ForeignKey(Document, models.CASCADE, related_name='access_rules')
+    role = models.ForeignKey(Role, models.CASCADE, blank=True, null=True)
+    department = models.ForeignKey(Department, models.CASCADE, blank=True, null=True)
+    user = models.ForeignKey(UserAccount, models.CASCADE, blank=True, null=True, related_name='+')
+    access_level = models.ForeignKey(AccessLevel, models.DO_NOTHING)
+    effective_from = models.DateField()
+    effective_to = models.DateField(blank=True, null=True)
+    is_allowed = models.BooleanField(default=True)
+    created_at = models.DateTimeField()
+
+    class Meta:
+        managed = False
+        db_table = 'document_access_rule'
+
+
+# One row per document (unique on document_id) — how long to keep it and
+# what happens on expiry. legal_hold overrides disposition_action.
+class DocumentRetention(models.Model):
+    document_retention_id = models.BigAutoField(primary_key=True)
+    document = models.OneToOneField(Document, models.CASCADE, related_name='retention')
+    retention_start_date = models.DateField()
+    retention_period_days = models.IntegerField(blank=True, null=True)
+    retention_end_date = models.DateField(blank=True, null=True)
+    disposition_action = models.CharField(max_length=50, default='REVIEW')
+    legal_hold = models.BooleanField(default=False)
+    status = models.CharField(max_length=30, default='ACTIVE')
+    remarks = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField()
+    updated_at = models.DateTimeField()
+
+    class Meta:
+        managed = False
+        db_table = 'document_retention'

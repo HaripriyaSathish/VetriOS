@@ -63,6 +63,7 @@ from .serializers import (
     LeaveTypeSerializer,
     _current_department_history,
     _resolve_worklog_recipient,
+    _set_current_department,
 )
 
 
@@ -1066,10 +1067,55 @@ class OnboardingReportExportView(APIView):
         )
 
 
+# All 7 onboarding checklist steps done -> the intern shows up on the
+# Employee dashboard for the first time, as an actual Employee row (not
+# just an InternOnboarding tracker row, which the Employee screens never
+# read). Reuses the intern's EXISTING Person (never creates a duplicate
+# one, unlike EmployeeWriteSerializer's "+ New Employee" form path).
+# employment_type is always INTERN here — converting to a full-time
+# employee is a separate, later step (module_04_interns' internship
+# completion flow, which updates this same Employee row's
+# employment_type once the internship actually finishes). Idempotent:
+# checks for an existing Employee first, so re-saving an already-100%
+# onboarding never creates a duplicate.
+def _maybe_auto_create_employee_from_onboarding(intern, onboarding, now):
+    done = sum([
+        onboarding.documents_shared,
+        onboarding.signed_documents_received,
+        onboarding.documents_verified,
+        onboarding.designation_stipend_assigned,
+        onboarding.welcome_email_sent,
+        onboarding.offer_letter_acknowledged,
+        onboarding.login_credentials_provided,
+    ])
+    if round(done / 7 * 100) < 100:
+        return
+
+    person = intern.student.person
+    if Employee.objects.filter(person=person).exists():
+        return
+
+    intern_employment_type = EmploymentType.objects.filter(employment_type_code="INTERN").first()
+    Employee.objects.create(
+        person=person,
+        employee_code=f"EMP-I{intern.intern_id}",
+        employment_type=intern_employment_type,
+        designation_id=onboarding.designation_id,
+        joining_date=intern.internship_start_date,
+        status="ACTIVE",
+        created_at=now,
+        updated_at=now,
+    )
+    _set_current_department(person.person_id, onboarding.department_id)
+
+
 # Updates one intern's onboarding checklist (documents verified / offer
 # letter acknowledged) and designation/stipend assignment — creates the
 # InternOnboarding row on first save, updates it after. The welcome
-# email is a separate action, not part of this endpoint yet.
+# email is a separate action, not part of this endpoint yet. On the
+# save that brings the checklist to 100%, also creates the Employee
+# record (see _maybe_auto_create_employee_from_onboarding) — reaching
+# 100% here used to leave the intern invisible to every Employee screen.
 class InternOnboardingUpdateView(APIView):
     permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
 
@@ -1119,6 +1165,8 @@ class InternOnboardingUpdateView(APIView):
                 created_at=now,
                 updated_at=now,
             )
+
+        _maybe_auto_create_employee_from_onboarding(intern, onboarding, now)
 
         return Response(OnboardingInternSerializer(intern).data)
 

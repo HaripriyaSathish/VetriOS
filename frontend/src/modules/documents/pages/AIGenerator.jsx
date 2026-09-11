@@ -1,87 +1,79 @@
-import { useEffect, useState } from "react";
-import { Sparkles, RefreshCw, Save, Check } from "lucide-react";
+import { useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Paperclip, Sparkles, FileSignature, X } from "lucide-react";
 import client from "../../../api/client";
 import "../styles/Documents.css";
 
-function formatTime(t) {
-  if (!t) return "—";
-  return new Date(t).toLocaleString(undefined, {
-    day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
-  });
-}
+const MAX_LEN = 500;
 
-// Vetri Tool (AI Generator) — pick a template + employee, review the
-// auto-filled facts pulled straight from HR data, add optional
-// instructions, and let Groq draft the document. Nothing is saved as a
-// real Document until the user explicitly reviews and saves the draft.
+// A card with a `route` skips the general-purpose prompt entirely and
+// opens its own dedicated page instead (real data auto-loaded there,
+// not typed into the free-text box).
+const DOCUMENT_TYPES = [
+  {
+    label: "Course Integrated Internship Offer Letter",
+    description: "students who are selected as interns, contains prefilled content",
+    icon: FileSignature,
+    route: "/documents/ai-generator/course-integrated-internship-offer",
+  },
+  {
+    label: "Intern Onboarding Offer Letter",
+    description: "Standard onboarding offer letter for a new intern.",
+    icon: FileSignature,
+  },
+];
+
+// AI Document Generator — a single free-text prompt, no template or
+// employee picked first. Groq drafts straight from the description.
+// The paperclip attaches a reference file (.txt/.pdf/.docx) whose text
+// gets folded into the prompt as context.
 function AIGenerator() {
-  const [templates, setTemplates] = useState([]);
-  const [employees, setEmployees] = useState([]);
-  const [history, setHistory] = useState([]);
-
-  const [templateId, setTemplateId] = useState("");
-  const [employeeId, setEmployeeId] = useState("");
-  const [stipend, setStipend] = useState("");
-  const [instructions, setInstructions] = useState("");
-
+  const navigate = useNavigate();
+  const fileInputRef = useRef(null);
+  const [description, setDescription] = useState("");
+  const [attachedFile, setAttachedFile] = useState(null);
   const [generating, setGenerating] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
+  const [draftText, setDraftText] = useState("");
 
-  const [draft, setDraft] = useState("");
-  const [generationId, setGenerationId] = useState(null);
-
-  const loadHistory = () => {
-    client.get("/api/documents/generations/").then(({ data }) => setHistory(data)).catch(() => {});
+  const chooseType = (type) => {
+    if (type.route) {
+      navigate(type.route);
+      return;
+    }
+    setDescription(`A professional ${type.label.toLowerCase()} for `);
   };
 
-  useEffect(() => {
-    client.get("/api/documents/templates/").then(({ data }) => setTemplates(data)).catch(() => {});
-    client.get("/api/hr/employees/").then(({ data }) => setEmployees(data)).catch(() => {});
-    loadHistory();
-  }, []);
+  const handleAttachClick = () => {
+    fileInputRef.current?.click();
+  };
 
-  const selectedTemplate = templates.find((t) => String(t.document_template_id) === String(templateId));
-  const selectedEmployee = employees.find((e) => String(e.employee_id) === String(employeeId));
-  const needsStipend = selectedTemplate?.placeholders?.includes("stipend");
+  const handleFileChange = (event) => {
+    const file = event.target.files[0];
+    if (file) setAttachedFile(file);
+    event.target.value = "";
+  };
 
-  const handleGenerate = async (event) => {
-    event.preventDefault();
+  const handleGenerate = async () => {
+    if (!description.trim()) {
+      setError("Describe the document you want first.");
+      return;
+    }
     setError("");
-    setSaved(false);
     setGenerating(true);
+    setDraftText("");
     try {
-      const { data } = await client.post("/api/documents/generate/", {
-        template_id: Number(templateId),
-        employee_id: Number(employeeId),
-        stipend,
-        instructions,
+      const body = new FormData();
+      body.append("description", description);
+      if (attachedFile) body.append("file", attachedFile);
+      const { data } = await client.post("/api/documents/generate/quick/", body, {
+        headers: { "Content-Type": "multipart/form-data" },
       });
-      setDraft(data.draft_text);
-      setGenerationId(data.generation_id);
-      loadHistory();
+      setDraftText(data.draft_text);
     } catch (err) {
       setError(err.response?.data?.detail || "Generation failed.");
     } finally {
       setGenerating(false);
-    }
-  };
-
-  const handleSave = async () => {
-    setError("");
-    setSaving(true);
-    try {
-      await client.post(`/api/documents/generate/${generationId}/save/`, {
-        final_text: draft,
-        employee_id: Number(employeeId),
-      });
-      setSaved(true);
-      loadHistory();
-    } catch (err) {
-      setError(err.response?.data?.detail || "Save failed.");
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -90,132 +82,87 @@ function AIGenerator() {
       <div className="doc-head">
         <div>
           <span className="doc-eyebrow">Document Generator</span>
-          <h1>Vetri Tool (AI Generator)</h1>
-          <p>Generate HR documents from a template, auto-filled with real employee data.</p>
+          <h1>AI Document Generator</h1>
+          <p>Create professional documents using AI. Just tell us what you need.</p>
         </div>
       </div>
 
       {error && <div className="doc-error">{error}</div>}
 
-      <div className="doc-generator-grid">
-        <div className="doc-panel">
+      <p className="doc-type-label">Document Types</p>
+      <div className="doc-type-grid">
+        {DOCUMENT_TYPES.map((type) => (
+          <button key={type.label} type="button" className="doc-type-card" onClick={() => chooseType(type)}>
+            <span className="doc-type-card-icon">
+              <type.icon size={20} />
+            </span>
+            <h4 className="doc-type-card-title">{type.label}</h4>
+            <p className="doc-type-card-desc">{type.description}</p>
+          </button>
+        ))}
+      </div>
+
+      <p className="doc-type-label">General Prompt</p>
+      <div className="doc-prompt-card">
+        <textarea
+          className="doc-prompt-textarea"
+          value={description}
+          maxLength={MAX_LEN}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Describe the document you want to generate…"
+        />
+
+        {attachedFile && (
+          <div className="doc-employee-chips" style={{ marginTop: 0 }}>
+            <span className="doc-employee-chip">
+              <Paperclip size={12} />
+              {attachedFile.name}
+              <X size={12} onClick={() => setAttachedFile(null)} style={{ cursor: "pointer" }} />
+            </span>
+          </div>
+        )}
+
+        <div className="doc-prompt-footer">
+          <button
+            type="button"
+            onClick={handleAttachClick}
+            title="Attach a reference file (.txt, .pdf, .docx)"
+            style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex" }}
+          >
+            <Paperclip size={16} color={attachedFile ? "#235777" : "#a7aebc"} />
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".txt,.pdf,.docx"
+            onChange={handleFileChange}
+            style={{ display: "none" }}
+          />
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <span className="doc-prompt-count">{description.length}/{MAX_LEN}</span>
+            <button type="button" className="doc-btn-accent" onClick={handleGenerate} disabled={generating}>
+              <Sparkles size={15} />
+              {generating ? "Generating…" : "Generate"}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {(generating || draftText) && (
+        <div className="doc-panel doc-quick-result">
           <div className="doc-panel-head">
-            <h3>Generate a document</h3>
-            <p>Pick a template and an employee — the facts below fill in automatically.</p>
+            <h3>Draft</h3>
+            <p>Generated from your description.</p>
           </div>
           <div className="doc-panel-body">
-            <form className="doc-form" onSubmit={handleGenerate}>
-              <label>Template</label>
-              <select value={templateId} onChange={(e) => setTemplateId(e.target.value)} required>
-                <option value="">Select a template…</option>
-                {templates.map((t) => (
-                  <option key={t.document_template_id} value={t.document_template_id}>
-                    {t.template_name}
-                  </option>
-                ))}
-              </select>
-
-              <label>Employee</label>
-              <select value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} required>
-                <option value="">Select an employee…</option>
-                {employees.map((e) => (
-                  <option key={e.employee_id} value={e.employee_id}>
-                    {e.full_name} — {e.designation_name || "No designation"}
-                  </option>
-                ))}
-              </select>
-
-              {selectedEmployee && (
-                <div className="doc-prefill-note">
-                  <Check size={13} />
-                  Auto-filled from HR: {selectedEmployee.designation_name || "—"},{" "}
-                  {selectedEmployee.department_name || "—"}
-                </div>
-              )}
-
-              {needsStipend && (
-                <>
-                  <label>Stipend</label>
-                  <input
-                    value={stipend}
-                    onChange={(e) => setStipend(e.target.value)}
-                    placeholder="e.g. ₹25,000 / month"
-                  />
-                </>
-              )}
-
-              <label>Additional instructions (optional)</label>
-              <textarea
-                value={instructions}
-                onChange={(e) => setInstructions(e.target.value)}
-                placeholder="Anything else the draft should reflect…"
-              />
-
-              <div style={{ marginTop: 16 }}>
-                <button type="submit" className="doc-btn-accent" disabled={generating}>
-                  <Sparkles size={15} />
-                  {generating ? "Generating…" : "Generate"}
-                </button>
-              </div>
-            </form>
+            {generating ? (
+              <p className="doc-empty">Drafting…</p>
+            ) : (
+              <p style={{ whiteSpace: "pre-wrap", color: "#3a4152", fontSize: 13.5, lineHeight: 1.6 }}>{draftText}</p>
+            )}
           </div>
         </div>
-
-        <div className="doc-panel">
-          <div className="doc-panel-head">
-            <h3>Draft preview</h3>
-            <p>Review before saving — this becomes the official document.</p>
-          </div>
-          {draft ? (
-            <>
-              <textarea
-                className="doc-preview"
-                style={{ width: "100%", border: "none", boxSizing: "border-box" }}
-                value={draft}
-                onChange={(e) => { setDraft(e.target.value); setSaved(false); }}
-              />
-              <div className="doc-preview-actions">
-                <button type="button" className="doc-btn-sm" onClick={handleGenerate} disabled={generating}>
-                  <RefreshCw size={13} />
-                  Regenerate
-                </button>
-                <button type="button" className="doc-btn-accent" onClick={handleSave} disabled={saving || saved}>
-                  <Save size={15} />
-                  {saved ? "Saved" : saving ? "Saving…" : "Save as Document"}
-                </button>
-              </div>
-            </>
-          ) : (
-            <p className="doc-empty">Generate a draft to see it here.</p>
-          )}
-        </div>
-      </div>
-
-      <div className="doc-panel" style={{ marginTop: 20 }}>
-        <div className="doc-panel-head">
-          <h3>Recent generations</h3>
-        </div>
-        <div className="doc-panel-body">
-          {history.length === 0 ? (
-            <p className="doc-empty">No generations yet.</p>
-          ) : (
-            history.map((h) => (
-              <div className="doc-history-item" key={h.ai_document_generation_id}>
-                <span
-                  className={`doc-history-dot ${
-                    h.generation_status === "COMPLETED" ? "done" :
-                    h.generation_status === "FAILED" ? "fail" : "pending"
-                  }`}
-                />
-                <span className="doc-history-text">
-                  {h.template_name} {h.generated_document_id ? "— saved" : "— draft only"}
-                </span>
-                <span className="doc-history-time">{formatTime(h.requested_at)}</span>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
+      )}
     </div>
   );
 }

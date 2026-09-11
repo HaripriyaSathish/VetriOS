@@ -6,13 +6,17 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .models import Permission, Person, Role, RolePermission, UserAccount, UserPermission, UserRole
+from local_extensions.notification_utils import notify
+from module_06_documents.models import Document, DocumentAccessRule
+
+from .models import PermissionRequest, Permission, Person, Role, RolePermission, UserAccount, UserPermission, UserRole
 from .permissions import IsSystemAdministrator
 from .serializers import (
     USERNAME_PATTERN,
     USERNAME_HINT,
     LoginSerializer,
     MeSerializer,
+    PermissionRequestSerializer,
     PermissionSerializer,
     PersonSerializer,
     RoleCardSerializer,
@@ -22,6 +26,10 @@ from .serializers import (
     UserAccountListSerializer,
     UserAccountWriteSerializer,
 )
+
+# The 3 admin categories any user can direct a request to — matches the
+# real Role names in the seeded `role` table.
+ADMIN_CATEGORIES = ("System Administrator", "HR Administrator", "Business Team")
 
 
 # Entry point for the whole app — every other module's "who is this and
@@ -76,7 +84,7 @@ class MeView(APIView):
 # System Administrator only, matching the Identity & Access mockup.
 class UserAccountListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated, IsSystemAdministrator]
-    queryset = UserAccount.objects.select_related("person").order_by("username")
+    queryset = UserAccount.objects.select_related("person").order_by("-created_at")
 
     def get_serializer_class(self):
         if self.request.method == "POST":
@@ -368,3 +376,179 @@ class UserPermissionToggleView(APIView):
         active.filter(effective_from=today).delete()
         active.filter(effective_from__lt=today).update(effective_to=yesterday)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class AdminsByCategoryView(APIView):
+    """GET ?category=<System Administrator|HR Administrator|Business Team>
+    — every active user holding that role, for the Request Access form's
+    "which admin" dropdown. Open to any authenticated user (not just
+    admins) since anyone — including another admin — can be the one
+    requesting."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        category = request.query_params.get("category")
+        if category not in ADMIN_CATEGORIES:
+            return Response({"detail": f"category must be one of: {', '.join(ADMIN_CATEGORIES)}"}, status=400)
+
+        results = [
+            {"user_id": u.user_id, "full_name": str(u.person)}
+            for u in UserAccount.objects.filter(is_active=True).select_related("person")
+            if category in u.active_role_names()
+        ]
+        return Response(results)
+
+
+class PermissionRequestPendingCountView(APIView):
+    """GET — how many requests are addressed to the current user and
+    still awaiting their decision. Powers the "Request access (N)"
+    badge in the sidebar, polled the same way NotificationBell polls
+    its own unread count."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        count = PermissionRequest.objects.filter(target_admin=request.user, status="PENDING").count()
+        return Response({"pending_count": count})
+
+
+class PermissionRequestListCreateView(APIView):
+    """GET ?box=sent|received (default sent) — "sent" is everything the
+    current user has asked for, "received" is everything addressed to
+    them as the chosen admin (their review inbox). POST creates a new
+    request and notifies the chosen admin — this is a lightweight
+    ticket: approving it later is a decision + notification only, it
+    does NOT grant the permission itself (the admin still does that
+    separately via the existing Roles/User Permissions tools)."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        box = request.query_params.get("box", "sent")
+        qs = PermissionRequest.objects.select_related(
+            "requester__person", "target_admin__person"
+        )
+        if box == "received":
+            qs = qs.filter(target_admin=request.user)
+        else:
+            qs = qs.filter(requester=request.user)
+        return Response(PermissionRequestSerializer(qs, many=True).data)
+
+    def post(self, request):
+        admin_category = request.data.get("admin_category")
+        target_admin_id = request.data.get("target_admin_id")
+        reason = (request.data.get("reason") or "").strip()
+        request_type = request.data.get("request_type") or "GENERAL"
+
+        if admin_category not in ADMIN_CATEGORIES:
+            return Response({"detail": f"admin_category must be one of: {', '.join(ADMIN_CATEGORIES)}"}, status=400)
+        if not target_admin_id or not reason:
+            return Response({"detail": "target_admin_id and reason are required."}, status=400)
+        if request_type not in ("GENERAL", "DOCUMENT"):
+            return Response({"detail": "request_type must be 'GENERAL' or 'DOCUMENT'."}, status=400)
+
+        try:
+            target_admin = UserAccount.objects.select_related("person").get(pk=target_admin_id, is_active=True)
+        except UserAccount.DoesNotExist:
+            return Response({"detail": "That admin wasn't found."}, status=404)
+        if admin_category not in target_admin.active_role_names():
+            return Response({"detail": f"{target_admin.person} isn't currently a {admin_category}."}, status=400)
+
+        document_id = None
+        if request_type == "DOCUMENT":
+            document_id = request.data.get("document_id")
+            if not document_id:
+                return Response({"detail": "document_id is required for a document-specific request."}, status=400)
+            try:
+                document = Document.objects.get(pk=document_id)
+            except Document.DoesNotExist:
+                return Response({"detail": "That document wasn't found."}, status=404)
+            permission_requested = f"Access to document: {document.document_title}"
+        else:
+            permission_requested = (request.data.get("permission_requested") or "").strip()
+            if not permission_requested:
+                return Response({"detail": "permission_requested is required for a general request."}, status=400)
+
+        req = PermissionRequest.objects.create(
+            requester=request.user,
+            admin_category=admin_category,
+            target_admin=target_admin,
+            permission_requested=permission_requested,
+            reason=reason,
+            request_type=request_type,
+            document_id=document_id,
+        )
+
+        notify(
+            recipient=target_admin,
+            module="IDENTITY",
+            notification_type="PERMISSION_REQUEST",
+            title=f"Access request from {request.user.person}",
+            message=permission_requested,
+            link="/identity/permission-requests",
+            entity_type="permission_request",
+            entity_id=req.permission_request_id,
+            actor=request.user,
+        )
+
+        return Response(PermissionRequestSerializer(req).data, status=201)
+
+
+class PermissionRequestDecisionView(APIView):
+    """POST {action: "approve"|"reject", note?} — only the specific admin
+    this request was addressed to can decide it (not any admin of that
+    category). Notifies the requester with the outcome either way."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, permission_request_id):
+        try:
+            req = PermissionRequest.objects.select_related(
+                "requester__person", "target_admin__person"
+            ).get(pk=permission_request_id)
+        except PermissionRequest.DoesNotExist:
+            return Response({"detail": "Request not found."}, status=404)
+
+        if req.target_admin_id != request.user.user_id:
+            return Response({"detail": "Only the admin this was addressed to can decide it."}, status=403)
+        if req.status != "PENDING":
+            return Response({"detail": "This request has already been decided."}, status=400)
+
+        action = request.data.get("action")
+        if action not in ("approve", "reject"):
+            return Response({"detail": "action must be 'approve' or 'reject'."}, status=400)
+
+        req.status = "APPROVED" if action == "approve" else "REJECTED"
+        req.decision_note = (request.data.get("note") or "").strip()
+        req.decided_at = timezone.now()
+        req.save(update_fields=["status", "decision_note", "decided_at"])
+
+        # A document-specific request's "approve" is a real grant, not
+        # just a decision — creates the DocumentAccessRule that actually
+        # makes the document show up for this user (see
+        # module_06_documents.DocumentListView, which now consults this
+        # table). A general request stays decision-only, same as before.
+        if action == "approve" and req.request_type == "DOCUMENT" and req.document_id:
+            try:
+                document = Document.objects.get(pk=req.document_id)
+                DocumentAccessRule.objects.create(
+                    document=document,
+                    user=req.requester,
+                    access_level=document.access_level,
+                    effective_from=timezone.localdate(),
+                    is_allowed=True,
+                    created_at=timezone.now(),
+                )
+            except Document.DoesNotExist:
+                pass
+
+        notify(
+            recipient=req.requester,
+            module="IDENTITY",
+            notification_type="PERMISSION_REQUEST_DECIDED",
+            title=f"Your access request was {req.status.lower()}",
+            message=req.decision_note or req.permission_requested,
+            link="/identity/permission-requests",
+            entity_type="permission_request",
+            entity_id=req.permission_request_id,
+            actor=request.user,
+        )
+
+        return Response(PermissionRequestSerializer(req).data)

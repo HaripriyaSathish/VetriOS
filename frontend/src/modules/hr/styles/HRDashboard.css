@@ -403,6 +403,13 @@
   color: #93590c;
 }
 
+.hr-intern-badge {
+  margin-left: 6px;
+  padding: 1px 7px;
+  font-size: 10px;
+  vertical-align: middle;
+}
+
 /* Onboarding — card grid, one card per intern (or, later, external
    applicant), matching the reference design: avatar + status pill,
    name/designation, a progress bar, and an "Open checklist" action. */

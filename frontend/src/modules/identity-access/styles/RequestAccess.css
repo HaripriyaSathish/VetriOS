@@ -1,0 +1,481 @@
+.reqa-screen {
+  padding: 28px 32px;
+}
+
+.reqa-head {
+  margin-bottom: 24px;
+}
+.reqa-eyebrow {
+  font-size: 12px;
+  font-weight: 700;
+  color: #8a93a6;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.reqa-head h1 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 0 4px;
+  font-size: 23px;
+  color: #161a26;
+}
+.reqa-head-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #235777, #2f7aa8);
+  color: #fff;
+}
+.reqa-head p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 13.5px;
+}
+
+.reqa-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 18px;
+}
+.reqa-tabs .reqa-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 9px;
+  border: 1px solid #e2e6ed;
+  background: #fff;
+  color: #3a4152;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.reqa-tabs .reqa-tab.active {
+  background: #235777;
+  border-color: #235777;
+  color: #fff;
+}
+.reqa-tab-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #e24b4a;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.reqa-panel {
+  max-width: 480px;
+  background: #fff;
+  border: 1px solid #e6e9ef;
+  border-radius: 16px;
+  padding: 26px 26px 24px;
+  box-shadow: 0 4px 18px rgba(30, 41, 59, 0.06), 0 1px 3px rgba(30, 41, 59, 0.04);
+}
+
+/* Step indicator — numbered dots + connecting line, not plain bars */
+.reqa-steps {
+  display: flex;
+  align-items: center;
+  margin-bottom: 26px;
+}
+.reqa-step {
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
+.reqa-step:last-child {
+  flex: 0;
+}
+.reqa-step-dot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
+  border-radius: 50%;
+  background: #eef1f6;
+  color: #9aa5b8;
+  transition: all 0.15s ease;
+}
+.reqa-step-dot.active {
+  background: #235777;
+  color: #fff;
+  box-shadow: 0 0 0 4px rgba(35, 87, 119, 0.14);
+}
+.reqa-step-dot.done {
+  background: #dcfce7;
+  color: #16a34a;
+}
+.reqa-step-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #9aa5b8;
+  margin-left: 7px;
+  white-space: nowrap;
+}
+.reqa-step-label.active {
+  color: #235777;
+}
+.reqa-step-label.done {
+  color: #16a34a;
+}
+.reqa-step-line {
+  flex: 1;
+  height: 2px;
+  background: #eef1f6;
+  margin: 0 10px;
+  border-radius: 1px;
+}
+.reqa-step-line.done {
+  background: #16a34a;
+}
+
+.reqa-body label {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #5f6b7a;
+  margin: 14px 0 5px;
+}
+.reqa-body label:first-child {
+  margin-top: 0;
+}
+.reqa-body textarea,
+.reqa-body select {
+  width: 100%;
+  border: 1px solid #d5dae3;
+  border-radius: 9px;
+  padding: 10px 12px;
+  font-size: 13.5px;
+  font-family: inherit;
+  resize: vertical;
+  transition: border-color 0.15s ease;
+}
+.reqa-body textarea:focus,
+.reqa-body select:focus {
+  outline: none;
+  border-color: #235777;
+  box-shadow: 0 0 0 3px rgba(35, 87, 119, 0.12);
+}
+
+.reqa-hint {
+  font-size: 14px;
+  font-weight: 600;
+  color: #3a4152;
+  margin: 0 0 16px;
+}
+
+.reqa-type-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.reqa-type-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 8px;
+  border-radius: 12px;
+  border: 1px solid #e6e9ef;
+  background: #fafbfc;
+  color: #3a4152;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.reqa-type-btn:hover {
+  border-color: #235777;
+}
+.reqa-type-btn.active {
+  border: 2px solid #235777;
+  background: #eef3f7;
+  color: #235777;
+}
+.reqa-type-btn.active svg {
+  color: #235777;
+}
+
+.reqa-doc-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #d5dae3;
+  border-radius: 9px;
+  padding: 9px 11px;
+  margin-bottom: 10px;
+  color: #8a93a6;
+}
+.reqa-doc-search input {
+  border: none;
+  outline: none;
+  flex: 1;
+  font-size: 13.5px;
+  color: #262b36;
+}
+
+.reqa-doc-results {
+  max-height: 220px;
+  overflow-y: auto;
+  margin-bottom: 8px;
+}
+.reqa-doc-empty {
+  font-size: 13px;
+  color: #8a93a6;
+  padding: 12px 4px;
+  margin: 0;
+}
+.reqa-doc-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px;
+  border-radius: 9px;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  color: #235777;
+}
+.reqa-doc-row:hover {
+  background: #f5f7fa;
+}
+.reqa-doc-row.selected {
+  background: #eef3f7;
+}
+.reqa-doc-row-text {
+  flex: 1;
+  min-width: 0;
+}
+.reqa-doc-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #262b36;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.reqa-doc-meta {
+  font-size: 11.5px;
+  color: #8a93a6;
+}
+
+.reqa-cat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.reqa-cat-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 20px 8px;
+  border-radius: 12px;
+  border: 1px solid #e6e9ef;
+  background: #fafbfc;
+  color: #3a4152;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.reqa-cat-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: #eef3f7;
+  color: #235777;
+  transition: all 0.15s ease;
+}
+.reqa-cat-btn:hover {
+  border-color: #235777;
+  background: #fff;
+  box-shadow: 0 6px 16px rgba(35, 87, 119, 0.1);
+  transform: translateY(-2px);
+}
+.reqa-cat-btn:hover .reqa-cat-icon {
+  background: #235777;
+  color: #fff;
+}
+
+.reqa-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 20px;
+}
+.reqa-actions button {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 0;
+  border-radius: 9px;
+  border: 1px solid #d5dae3;
+  background: #fff;
+  color: #3a4152;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.reqa-actions button:hover:not(:disabled) {
+  background: #f5f7fa;
+}
+.reqa-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.reqa-back {
+  flex: 0 0 auto !important;
+  padding: 10px 16px !important;
+}
+.reqa-primary {
+  background: #235777 !important;
+  border-color: #235777 !important;
+  color: #fff !important;
+  box-shadow: 0 2px 8px rgba(35, 87, 119, 0.25);
+}
+.reqa-primary:hover:not(:disabled) {
+  background: #1c4761 !important;
+}
+
+.reqa-error {
+  font-size: 12.5px;
+  color: #96271f;
+  background: #fbe7e5;
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin: 10px 0 0;
+}
+
+.reqa-review {
+  background: #f5f7fa;
+  border-radius: 12px;
+  padding: 4px 16px;
+}
+.reqa-review-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 0;
+  border-bottom: 1px solid #e6e9ef;
+}
+.reqa-review-row:last-child {
+  border-bottom: none;
+}
+.reqa-review-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #9aa5b8;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.reqa-review-value {
+  font-size: 13.5px;
+  color: #262b36;
+  line-height: 1.5;
+}
+.reqa-review-value em {
+  font-style: normal;
+  color: #6b7280;
+}
+
+.reqa-done {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 12px 8px 4px;
+}
+.reqa-done-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #dcfce7;
+  color: #16a34a;
+  margin-bottom: 14px;
+}
+.reqa-done-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: #161a26;
+  margin: 0 0 4px;
+}
+.reqa-done-sub {
+  font-size: 13.5px;
+  color: #6b7280;
+  margin: 0 0 14px;
+  max-width: 280px;
+}
+.reqa-pending-badge {
+  display: block;
+  background: #ffedd5;
+  color: #b45309;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 14px;
+  border-radius: 20px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.reqa-done-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  margin-top: 22px;
+}
+.reqa-done-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 11px 0;
+  border-radius: 9px;
+  border: none;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.reqa-done-secondary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 10px 0;
+  border-radius: 9px;
+  border: 1px solid #d5dae3;
+  background: #fff;
+  color: #3a4152;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.reqa-done-secondary:hover {
+  background: #f5f7fa;
+}

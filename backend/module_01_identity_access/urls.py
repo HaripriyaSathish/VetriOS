@@ -2,9 +2,13 @@ from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView
 
 from .views import (
+    AdminsByCategoryView,
     LoginView,
     MeView,
     PermissionListView,
+    PermissionRequestDecisionView,
+    PermissionRequestListCreateView,
+    PermissionRequestPendingCountView,
     RoleCardListView,
     RoleDetailView,
     RoleListView,
@@ -52,5 +56,17 @@ urlpatterns = [
         "users/<int:user_id>/permissions/<int:permission_id>/",
         UserPermissionToggleView.as_view(),
         name="user-permission-toggle",
+    ),
+    path("admins/", AdminsByCategoryView.as_view(), name="admins-by-category"),
+    path("permission-requests/", PermissionRequestListCreateView.as_view(), name="permission-request-list-create"),
+    path(
+        "permission-requests/pending-count/",
+        PermissionRequestPendingCountView.as_view(),
+        name="permission-request-pending-count",
+    ),
+    path(
+        "permission-requests/<int:permission_request_id>/decide/",
+        PermissionRequestDecisionView.as_view(),
+        name="permission-request-decide",
     ),
 ]

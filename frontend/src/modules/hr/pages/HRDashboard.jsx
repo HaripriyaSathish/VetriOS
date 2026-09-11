@@ -749,7 +749,12 @@ function HRDashboard() {
                               <EmployeeAvatar personId={emp.person_id} size={28} version={avatarVersion} />
                               <div>
                                 <div className="hr-name">{emp.full_name}</div>
-                                <div className="hr-sub">{emp.designation_name || "—"}</div>
+                                <div className="hr-sub">
+                                  {emp.designation_name || "—"}
+                                  {emp.employment_type_name && /intern/i.test(emp.employment_type_name) && (
+                                    <span className="hr-pill warn hr-intern-badge">Intern</span>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           </td>

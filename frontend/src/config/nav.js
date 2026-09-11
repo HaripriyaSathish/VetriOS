@@ -67,6 +67,22 @@ export const NAV_ITEMS = [
     path: "/assistant",
     requirement: { type: "role", value: "ANY" },
   },
+  {
+    id: "email",
+    icon: "📧",
+    name: "Email",
+    path: "/email",
+    // No EMAIL_* permission code exists yet (only DOCUMENT_*) — gated
+    // on SYSTEM_ADMIN until real Email permissions are added.
+    requirement: { type: "perm", value: "SYSTEM_ADMIN" },
+  },
+  {
+    id: "ai",
+    icon: "🧠",
+    name: "AI / RAG",
+    path: "/ai",
+    requirement: { type: "perm", value: "SYSTEM_ADMIN" },
+  },
 ];
 
 // Same gating rule shapes used above — checked against the user's

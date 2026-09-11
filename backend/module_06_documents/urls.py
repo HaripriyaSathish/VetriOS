@@ -1,12 +1,33 @@
 from django.urls import path
 from .views import (
     AllStudentsListView,
+    BulkGenerateDocumentView,
     CertificateDownloadView,
+    DocumentAccessRuleDeleteView,
+    DocumentAccessRuleListCreateView,
+    DocumentBulkExportView,
+    DocumentFileView,
+    DocumentFilterOptionsView,
+    DocumentListView,
+    DocumentSearchForAccessRequestView,
+    DocumentRetentionView,
+    DocumentTemplateCreateView,
+    DocumentTemplateDetailView,
     DocumentTemplateListView,
+    DocumentTemplateManageListView,
+    DocumentTemplateToggleView,
+    DocumentUploadView,
     GenerateDocumentView,
+    GenerateInternOfferLetterView,
     GenerationLogListView,
+    InternListView,
+    PreviewInternOfferLetterView,
+    QuickGenerateDocumentView,
     SaveGeneratedDocumentView,
     StudentCertificatesView,
+    TemplateAnalyzeUploadView,
+    TemplateGenerateDesignView,
+    TemplatePreviewView,
 )
 
 urlpatterns = [
@@ -15,6 +36,33 @@ urlpatterns = [
     path("<int:document_id>/download/", CertificateDownloadView.as_view()),
     path("templates/", DocumentTemplateListView.as_view()),
     path("generate/", GenerateDocumentView.as_view()),
+    path("generate/quick/", QuickGenerateDocumentView.as_view()),
+    path("generate/bulk/", BulkGenerateDocumentView.as_view()),
+    path("generate/intern-offer/", GenerateInternOfferLetterView.as_view()),
+    path("generate/intern-offer/preview/", PreviewInternOfferLetterView.as_view()),
     path("generate/<int:generation_id>/save/", SaveGeneratedDocumentView.as_view()),
     path("generations/", GenerationLogListView.as_view()),
+    path("interns/", InternListView.as_view()),
+
+    # Library
+    path("library/", DocumentListView.as_view()),
+    path("library/search-for-access-request/", DocumentSearchForAccessRequestView.as_view()),
+    path("library/filters/", DocumentFilterOptionsView.as_view()),
+    path("library/upload/", DocumentUploadView.as_view()),
+    path("library/bulk-export/", DocumentBulkExportView.as_view()),
+    path("library/<int:document_id>/file/", DocumentFileView.as_view()),
+
+    # Template Manager
+    path("templates/manage/", DocumentTemplateManageListView.as_view()),
+    path("templates/create/", DocumentTemplateCreateView.as_view()),
+    path("templates/analyze-upload/", TemplateAnalyzeUploadView.as_view()),
+    path("templates/generate-design/", TemplateGenerateDesignView.as_view()),
+    path("templates/preview/", TemplatePreviewView.as_view()),
+    path("templates/<int:template_id>/toggle/", DocumentTemplateToggleView.as_view()),
+    path("templates/<int:template_id>/", DocumentTemplateDetailView.as_view()),
+
+    # Governance (per-document)
+    path("library/<int:document_id>/access-rules/", DocumentAccessRuleListCreateView.as_view()),
+    path("library/<int:document_id>/access-rules/<int:rule_id>/", DocumentAccessRuleDeleteView.as_view()),
+    path("library/<int:document_id>/retention/", DocumentRetentionView.as_view()),
 ]

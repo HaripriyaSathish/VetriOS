@@ -1,0 +1,36 @@
+from django.urls import path
+from .views import (
+    AiEmailListView,
+    BulkSendEmailView,
+    ComposeEmailView,
+    EmailApprovalActionView,
+    EmailApprovalListView,
+    EmailBatchListView,
+    EmailDashboardStatsView,
+    EmailTemplateCreateView,
+    EmailTemplateListView,
+    EmailTypeListView,
+    InternDirectoryView,
+    RolePromotionDirectoryView,
+    SendEmailView,
+    StudentDirectoryView,
+    SubmitForApprovalView,
+)
+
+urlpatterns = [
+    path("dashboard/", EmailDashboardStatsView.as_view()),
+    path("types/", EmailTypeListView.as_view()),
+    path("templates/", EmailTemplateListView.as_view()),
+    path("templates/create/", EmailTemplateCreateView.as_view()),
+    path("batches/", EmailBatchListView.as_view()),
+    path("batches/bulk-send/", BulkSendEmailView.as_view()),
+    path("students/", StudentDirectoryView.as_view()),
+    path("interns/", InternDirectoryView.as_view()),
+    path("promotions/", RolePromotionDirectoryView.as_view()),
+    path("emails/", AiEmailListView.as_view()),
+    path("emails/compose/", ComposeEmailView.as_view()),
+    path("emails/<int:ai_email_id>/submit-approval/", SubmitForApprovalView.as_view()),
+    path("emails/<int:ai_email_id>/send/", SendEmailView.as_view()),
+    path("approvals/", EmailApprovalListView.as_view()),
+    path("approvals/<int:approval_id>/action/", EmailApprovalActionView.as_view()),
+]

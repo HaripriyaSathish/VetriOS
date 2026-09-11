@@ -1096,9 +1096,8 @@ def _maybe_auto_create_employee_from_onboarding(intern, onboarding, now):
         return
 
     intern_employment_type = EmploymentType.objects.filter(employment_type_code="INTERN").first()
-    Employee.objects.create(
+    employee = Employee.objects.create(
         person=person,
-        employee_code=f"EMP-I{intern.intern_id}",
         employment_type=intern_employment_type,
         designation_id=onboarding.designation_id,
         joining_date=intern.internship_start_date,
@@ -1106,6 +1105,10 @@ def _maybe_auto_create_employee_from_onboarding(intern, onboarding, now):
         created_at=now,
         updated_at=now,
     )
+    # employee_code is only known once the row exists (its own employee_id
+    # is auto-generated), so it's set in a second write right after create.
+    employee.employee_code = f"EMP-{employee.employee_id}"
+    employee.save(update_fields=["employee_code"])
     _set_current_department(person.person_id, onboarding.department_id)
 
 

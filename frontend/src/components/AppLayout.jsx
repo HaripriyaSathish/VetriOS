@@ -56,7 +56,7 @@ function AppLayout() {
 
       <div className="app-main">
         <header className="app-topbar">
-          {user?.employee_code && <span className="app-topbar-empcode">{user.employee_code}</span>}
+          {user?.employee_id != null && <span className="app-topbar-empcode">EMP{user.employee_id}</span>}
 
           <div className="app-topbar-right">
             <NotificationBell />

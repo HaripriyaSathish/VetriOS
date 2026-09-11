@@ -1,7 +1,7 @@
 from django.utils import timezone
 from rest_framework import serializers
 
-from module_01_identity_access.models import Person
+from module_01_identity_access.models import Person, UserAccount
 from module_04_interns.models import Intern
 
 from .models import (
@@ -431,6 +431,7 @@ class EmployeeListSerializer(serializers.ModelSerializer):
     department_name = serializers.SerializerMethodField()
     branch_id = serializers.SerializerMethodField()
     branch_name = serializers.SerializerMethodField()
+    has_login = serializers.SerializerMethodField()
 
     class Meta:
         model = Employee
@@ -451,10 +452,17 @@ class EmployeeListSerializer(serializers.ModelSerializer):
             "branch_name",
             "joining_date",
             "status",
+            "has_login",
         ]
 
     def get_full_name(self, obj):
         return str(obj.person)
+
+    # Whether this person already has a UserAccount (a real login) — lets
+    # the Employees table only offer "Request login credentials" where
+    # it's actually needed, instead of on every row regardless.
+    def get_has_login(self, obj):
+        return UserAccount.objects.filter(person_id=obj.person_id).exists()
 
     def get_email(self, obj):
         return obj.person.email

@@ -11,6 +11,7 @@ import {
   CircleUserRound,
   Camera,
   Plus,
+  KeyRound,
 } from "lucide-react";
 import client from "../../../api/client";
 import Pagination, { paginate } from "../../../components/Pagination";
@@ -328,6 +329,10 @@ function HRDashboard() {
       setAvatarUploading(false);
     }
   };
+
+  // Button only, for now — waiting on what should actually happen when
+  // it's clicked before wiring any behavior.
+  const requestLoginCredentials = (emp) => {};
 
   const requestToggleActive = (emp) => setConfirmTarget(emp);
   const cancelToggleActive = () => setConfirmTarget(null);
@@ -790,6 +795,17 @@ function HRDashboard() {
                               >
                                 <SquarePen size={15} />
                               </button>
+                              {!emp.has_login && (
+                                <button
+                                  type="button"
+                                  className="hr-icon-btn"
+                                  title="Request login credentials"
+                                  aria-label={`Request login credentials for ${emp.full_name}`}
+                                  onClick={() => requestLoginCredentials(emp)}
+                                >
+                                  <KeyRound size={15} />
+                                </button>
+                              )}
                               <button
                                 type="button"
                                 className={"hr-icon-btn" + (emp.status === "ACTIVE" ? " danger" : "")}

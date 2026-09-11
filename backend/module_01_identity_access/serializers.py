@@ -158,6 +158,7 @@ class MeSerializer(serializers.ModelSerializer):
     designation = serializers.SerializerMethodField()
     department = serializers.SerializerMethodField()
     employee_code = serializers.SerializerMethodField()
+    employee_id = serializers.SerializerMethodField()
     is_department_lead = serializers.SerializerMethodField()
 
     class Meta:
@@ -171,6 +172,7 @@ class MeSerializer(serializers.ModelSerializer):
             "designation",
             "department",
             "employee_code",
+            "employee_id",
             "is_department_lead",
         ]
 
@@ -198,6 +200,10 @@ class MeSerializer(serializers.ModelSerializer):
     def get_employee_code(self, obj):
         employee = Employee.objects.filter(person_id=obj.person_id).only("employee_code").first()
         return employee.employee_code if employee else None
+
+    def get_employee_id(self, obj):
+        employee = Employee.objects.filter(person_id=obj.person_id).only("employee_id").first()
+        return employee.employee_id if employee else None
 
     def get_is_department_lead(self, obj):
         # Whether this person is anyone's department lead right now —

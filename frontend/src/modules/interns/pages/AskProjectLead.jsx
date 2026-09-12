@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import client from "../../../api/client";
 
 function AskProjectLead() {
+  const currentUser = JSON.parse(localStorage.getItem("user") || "null");
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -16,7 +17,11 @@ function AskProjectLead() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    const interval = setInterval(load, 10000);
+    return () => clearInterval(interval);
+  }, []);
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages.length]);
 
   const send = async () => {
@@ -55,7 +60,7 @@ function AskProjectLead() {
           <p className="text-sm text-gray-400 text-center mt-10">No messages yet — say hello!</p>
         ) : (
           messages.map((m) => {
-            const isMine = m.sender_username && m.sender_username.endsWith(".intern"); // fallback heuristic
+            const isMine = m.sender === currentUser?.user_id;
             return (
               <div key={m.message_id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
                 <div className={`px-3 py-2 rounded-xl text-sm max-w-[75%] whitespace-pre-wrap ${isMine ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-900"}`}>

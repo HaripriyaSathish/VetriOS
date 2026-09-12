@@ -26,6 +26,8 @@ from .views import (
     ClientContactViewSet, ClientMeetingViewSet, ClientRequestViewSet, ClientPaymentViewSet, ClientCommercialReferenceViewSet,
      ClientCommunicationViewSet, ConvertClientRequestToRequirementView,DeploymentStatusUpdateView
 )
+from .views import MyTeamTasksView
+from .views import AskProjectLeadThreadView
 
 urlpatterns = [
     # ---------- Projects (core) ----------
@@ -43,6 +45,7 @@ urlpatterns = [
     path("<int:project_id>/tasks/", CreateTaskView.as_view()),
     path("tasks/<int:task_id>/", TaskUpdateView.as_view()),
     path("my-tasks/", MyTasksView.as_view()),
+    path("my-team-tasks/", MyTeamTasksView.as_view()),
 
     # ---------- Milestones ----------
     path("<int:project_id>/milestones/", MilestoneViewSet.as_view()),
@@ -71,4 +74,5 @@ urlpatterns = [
     path("clients/<int:client_id>/follow-ups/", ClientCommunicationViewSet.as_view()),
     path('client-requests/<int:request_id>/convert/', ConvertClientRequestToRequirementView.as_view()),
     path('deployments/<int:deployment_id>/status/', DeploymentStatusUpdateView.as_view()),
+    path("<int:project_id>/ask-lead/", AskProjectLeadThreadView.as_view()),
 ]

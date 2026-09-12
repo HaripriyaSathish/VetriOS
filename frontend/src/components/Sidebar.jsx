@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import client from "../api/client";
 import {
@@ -659,6 +659,10 @@ function Sidebar() {
   <span className="nav-icon"><UserCheck size={14} /></span>
   Completion & Extension Approvals
 </NavLink>
+<NavLink to="/training/assign-reporting-manager" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
+  <span className="nav-icon"><UserCheck size={14} /></span>
+  Assign Reporting Manager
+</NavLink>
               <NavLink to="/training/enquiries" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
                 <span className="nav-icon"><ClipboardList size={14} /></span>
                 Enquiries
@@ -785,6 +789,14 @@ function Sidebar() {
                 <span className="nav-icon"><Layers size={14} /></span>
                 Kanban Board
               </NavLink>
+              <NavLink to="/project/team-tasks" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
+  <span className="nav-icon"><ClipboardList size={14} /></span>
+  Team Tasks
+</NavLink>
+<NavLink to="/project/intern-performance-review" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
+  <span className="nav-icon"><BarChart3 size={14} /></span>
+  Intern Performance Review
+</NavLink>
               <NavLink to="/project/milestones" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
                 <span className="nav-icon"><ClipboardList size={14} /></span>
                 Milestones
@@ -797,6 +809,10 @@ function Sidebar() {
                 <span className="nav-icon"><Layers size={14} /></span>
                 Repository & Tech Stack
               </NavLink>
+              <NavLink to="/project/team-messages" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
+  <span className="nav-icon"><MessageCircle size={14} /></span>
+  Team Messages
+</NavLink>
               <NavLink to="/project/change-requests" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
                 <span className="nav-icon"><MessageCircle size={14} /></span>
                 Change Requests

@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useParams } from "react-router-dom";
 import Login from "./modules/identity-access/pages/Login";
 import Dashboard from "./pages/Dashboard";
 import ModulePlaceholder from "./pages/ModulePlaceholder";
@@ -56,7 +56,7 @@ import MyInternship from "./modules/interns/pages/MyInternship";
 import MyInternAttendance from "./modules/interns/pages/MyAttendance";
 import MyTasks from "./modules/interns/pages/MyTasks";
 import MyInternWorklog from "./modules/interns/pages/MyWorklog";
-import AskProjectLead from "./modules/interns/pages/AskProjectLead";
+import AskProjectLeadIntern from "./modules/interns/pages/AskProjectLead";
 import TestingReports from "./modules/interns/pages/TestingReports";
 import ApplyLeave from "./modules/interns/pages/ApplyLeave";
 import MyPerformance from "./modules/interns/pages/MyPerformance";
@@ -112,6 +112,14 @@ import FollowUpsClients from "./modules/clients-projects/pages/FollowUpsClients"
 import FollowUps from "./modules/clients-projects/pages/FollowUps";
 import RecommendInternshipAction from "./modules/clients-projects/pages/RecommendInternshipAction";
 import Assistant from "./modules/ai-rag/pages/Assistant";
+import LeadTeamTasks from "./modules/clients-projects/pages/LeadTeamTasks";
+import LeadPerformanceReview from "./modules/interns/pages/LeadPerformanceReview";
+import AssignReportingManager from "./modules/interns/pages/AssignReportingManager";
+import Profile from "./pages/Profile";
+import Settings from "./pages/Settings";
+import AskProjectLead from "./modules/clients-projects/pages/AskProjectLead";
+import TeamMessages from "./modules/clients-projects/pages/TeamMessages";
+
 // Route table for the whole app. Everything under AppLayout requires a
 // signed-in user (ProtectedRoute); each module route is additionally
 // gated by the same requirement Sidebar uses to decide what to show
@@ -127,6 +135,16 @@ import Assistant from "./modules/ai-rag/pages/Assistant";
 // here; each page already renders its own "Not authorized" state from
 // a 403 response. Client Management routes keep PermissionGate — those
 // stay PM/System Administrator only, which IS a simple role check.
+
+// AskProjectLead (project-team version) needs the :projectId route
+// param as a prop, since a team member can be on multiple projects
+// with different leads on each — unlike the intern version, which has
+// one overall reporting manager.
+function AskProjectLeadPage() {
+  const { projectId } = useParams();
+  return <AskProjectLead projectId={projectId} />;
+}
+
 function App() {
   return (
     <Routes>
@@ -150,8 +168,8 @@ function App() {
         }
       >
         <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/profile" element={<ModulePlaceholder name="Profile" />} />
-        <Route path="/settings" element={<ModulePlaceholder name="Settings" />} />
+        <Route path="/profile" element={<Profile />} />
+        <Route path="/settings" element={<Settings />} />
         <Route path="/assistant" element={<Assistant />} />
         <Route path="/my/attendance" element={<MyAttendance />} />
         <Route path="/my/leave" element={<MyLeave />} />
@@ -253,11 +271,16 @@ function App() {
             <InternshipApprovals />
           </PermissionGate>
         } />
+        <Route path="/training/assign-reporting-manager" element={
+          <PermissionGate requirement={{ type: "role", value: ["Business Team", "System Administrator"] }}>
+            <AssignReportingManager />
+          </PermissionGate>
+        } />
         <Route path="/training/completion-extension-approvals" element={
-  <PermissionGate requirement={{ type: "role", value: ["Business Team", "System Administrator"] }}>
-    <CompletionExtensionApprovals />
-  </PermissionGate>
-} />
+          <PermissionGate requirement={{ type: "role", value: ["Business Team", "System Administrator"] }}>
+            <CompletionExtensionApprovals />
+          </PermissionGate>
+        } />
         <Route path="/training/attendance" element={
           <PermissionGate requirement={{ type: "role", value: "Employee" }}>
             <TrainingAttendance />
@@ -354,7 +377,7 @@ function App() {
 } />
 <Route path="/intern/ask-lead" element={
   <PermissionGate requirement={{ type: "role", value: "Intern" }}>
-    <AskProjectLead />
+    <AskProjectLeadIntern />
   </PermissionGate>
 } />
 <Route path="/intern/testing-reports" element={
@@ -372,6 +395,7 @@ function App() {
     <MyPerformance />
   </PermissionGate>
 } />
+<Route path="/project/intern-performance-review" element={<LeadPerformanceReview />} />
 <Route path="/project/create" element={
   <PermissionGate requirement={{ type: "role", value: "System Administrator" }}>
     <CreateProject />
@@ -384,10 +408,12 @@ function App() {
 <Route path="/project/dashboard" element={<ProjectDashboard />} />
 <Route path="/project/team" element={<TeamProjects />} />
 <Route path="/project/:projectId/team" element={<ProjectTeam />} />
+<Route path="/project/:projectId/ask-lead" element={<AskProjectLeadPage />} />
 <Route path="/project/documents" element={<ProjectDocumentsProjects />} />
 <Route path="/project/:projectId/documents" element={<ProjectDocuments />} />
 <Route path="/project/kanban" element={<KanbanProjects />} />
 <Route path="/project/:projectId/kanban" element={<KanbanBoard />} />
+<Route path="/project/team-tasks" element={<LeadTeamTasks />} />
 <Route path="/project/requirements" element={<RequirementsProjects />} />
 <Route path="/project/requirements/:projectId" element={<Requirements />} />
 <Route path="/project/milestones" element={<MilestonesProjects />} />
@@ -398,6 +424,8 @@ function App() {
 <Route path="/project/:projectId/tech-stack" element={<TechStack />} />
 <Route path="/project/change-requests" element={<ChangeRequestsProjects />} />
 <Route path="/project/:projectId/change-requests" element={<ChangeRequests />} />
+<Route path="/project/team-messages" element={<TeamMessages />} />
+
 
 {/* ---- Client Management routes: KEEP PermissionGate ----
     Stays PM/System Administrator only, per requirement. */}

@@ -5,6 +5,7 @@ import Sidebar from "./Sidebar";
 import "../components-styles/AppLayout.css";
 import NotificationBell from "./NotificationBell";
 import AIAssistantWidget from "./AIAssistantWidget";
+import client from "../api/client";
 
 // Shell for every signed-in page — sidebar on the left, topbar + routed
 // page content on the right. Reads "user" once here so Sidebar and the
@@ -27,6 +28,7 @@ function AppLayout() {
   const user = JSON.parse(localStorage.getItem("user") || "null");
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
+  const [photoUrl, setPhotoUrl] = useState(null);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -34,6 +36,15 @@ function AppLayout() {
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Lightweight fetch just for the avatar — login's cached "user" object
+  // doesn't carry the photo, and it can change anytime from the Profile page.
+  useEffect(() => {
+    client
+      .get("/api/identity/profile/")
+      .then(({ data }) => setPhotoUrl(data.photo_url))
+      .catch(() => {});
   }, []);
 
   const handleLogout = () => {
@@ -49,6 +60,7 @@ function AppLayout() {
   };
 
   const rolesToShow = displayRoles(user?.roles);
+  const avatarInitial = (user?.full_name || "?").trim().charAt(0).toUpperCase();
 
   return (
     <div className="app-shell">
@@ -63,6 +75,12 @@ function AppLayout() {
 
             <div className="app-user-menu" ref={menuRef}>
               <button type="button" className="app-user-trigger" onClick={() => setMenuOpen((v) => !v)}>
+                {photoUrl ? (
+                  <img src={photoUrl} alt="" className="app-topbar-avatar" />
+                ) : (
+                  <span className="app-topbar-avatar-fallback">{avatarInitial}</span>
+                )}
+
                 <span className="app-topbar-identity">
                   <span className="app-topbar-user">
                     {user?.full_name}

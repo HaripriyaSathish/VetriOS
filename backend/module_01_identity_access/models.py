@@ -268,3 +268,19 @@ class PermissionRequest(models.Model):
         managed = False
         db_table = 'ext_permission_request'
         ordering = ['-created_at']
+
+from cloudinary.models import CloudinaryField
+
+class UserProfilePhoto(models.Model):
+    """One row per user, holding just their photo — kept separate from
+    the official person/user_account tables (both managed=False) so we
+    never need to alter DA-owned schema for this."""
+    user = models.OneToOneField(
+        UserAccount, on_delete=models.CASCADE, db_column="user_id",
+        related_name="profile_photo_row",
+    )
+    photo = CloudinaryField("photo", blank=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "ext_user_profile_photo"        

@@ -26,6 +26,8 @@ from .serializers import (
     UserAccountListSerializer,
     UserAccountWriteSerializer,
 )
+from django.utils import timezone
+from .models import UserProfilePhoto
 
 # The 3 admin categories any user can direct a request to — matches the
 # real Role names in the seeded `role` table.
@@ -552,3 +554,69 @@ class PermissionRequestDecisionView(APIView):
         )
 
         return Response(PermissionRequestSerializer(req).data)
+
+class MyProfileView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        person = user.person
+        photo_row = UserProfilePhoto.objects.filter(user=user).first()
+
+        from module_02_hr.models import Employee
+        employee = Employee.objects.filter(person=person).first()
+
+        return Response({
+            "user_id": user.user_id,
+            "username": user.username,
+            "first_name": person.first_name,
+            "last_name": person.last_name,
+            "email": person.email,
+            "phone": person.phone,
+            "employee_code": employee.employee_code if employee else None,
+            "designation": user.current_designation_name(),
+            "roles": list(user.active_role_names()),
+            "photo_url": photo_row.photo.url if photo_row and photo_row.photo else None,
+        })
+   
+
+    def patch(self, request):
+        user = request.user
+        person = user.person
+
+        if "email" in request.data:
+            person.email = request.data["email"]
+        if "phone" in request.data:
+            person.phone = request.data["phone"]
+        person.updated_at = timezone.now()
+        person.save(update_fields=["email", "phone", "updated_at"])
+
+        if request.FILES.get("photo"):
+            photo_row, _ = UserProfilePhoto.objects.get_or_create(user=user)
+            photo_row.photo = request.FILES["photo"]
+            photo_row.save()
+
+        return Response({"detail": "Profile updated."})
+
+
+class ChangePasswordView(APIView):
+    """POST {old_password, new_password}."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        old_password = request.data.get("old_password")
+        new_password = request.data.get("new_password")
+
+        if not old_password or not new_password:
+            return Response({"detail": "old_password and new_password are required."}, status=400)
+
+        if not user.check_password(old_password):
+            return Response({"detail": "Current password is incorrect."}, status=400)
+
+        if len(new_password) < 8:
+            return Response({"detail": "New password must be at least 8 characters."}, status=400)
+
+        user.set_password(new_password)
+        user.save(update_fields=["password"])
+        return Response({"detail": "Password changed."})

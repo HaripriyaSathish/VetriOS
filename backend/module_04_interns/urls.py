@@ -17,6 +17,7 @@ from .completion_views import (
     RecommendExtensionView, PendingExtensionsView, ActOnExtensionView,
     MyLeadInternsView,
 )
+from .views import AllInternsForManagerAssignmentView, AssignReportingManagerView, MyMessageThreadsView
 urlpatterns = [
     path("recommend/", RecommendForInternshipView.as_view()),
     path("pending/", PendingInternshipRecommendationsView.as_view()),
@@ -35,7 +36,7 @@ urlpatterns = [
     path("me/tasks/", MyInternTasksView.as_view()),
     path("me/tasks/<int:intern_task_id>/", MyInternTasksView.as_view()),
     path("lead/tasks/", ProjectLeadInternTasksView.as_view()),
-    path("lead/tasks/<int:intern_task_id>/testing-report/", SubmitTestingReportView.as_view()),
+    path("lead/testing-report/", SubmitTestingReportView.as_view()),
     path("me/testing-reports/", MyTestingReportsView.as_view()),
 
     path("me/ask-lead/", AskProjectLeadThreadView.as_view()),
@@ -46,6 +47,8 @@ urlpatterns = [
     path("lead/interns/<int:intern_id>/performance/", SubmitPerformanceReviewView.as_view()),
     path("me/performance/", MyPerformanceView.as_view()),
     path("lead/performance/", ProjectLeadInternPerformanceView.as_view()),
+    path("all-interns-manager-assignment/", AllInternsForManagerAssignmentView.as_view()),
+    path("<int:intern_id>/assign-manager/", AssignReportingManagerView.as_view()),
     path("me/project/", MyProjectView.as_view()),
 
     path("<int:intern_id>/completion/recommend/", RecommendCompletionView.as_view()),
@@ -55,4 +58,5 @@ urlpatterns = [
     path("extensions/pending/", PendingExtensionsView.as_view()),
     path("extensions/<int:extension_id>/act/", ActOnExtensionView.as_view()),
     path("lead/interns/", MyLeadInternsView.as_view()),
+    path("lead/message-threads/", MyMessageThreadsView.as_view()),
 ]

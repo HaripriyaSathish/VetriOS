@@ -234,3 +234,45 @@ class InternshipExtension(models.Model):
     class Meta:
         managed = False
         db_table = "internship_extension"        
+
+# module_04_interns/models.py — InternTestingReport
+
+class InternTestingReport(models.Model):
+    REPORT_STATUS_CHOICES = [
+        ("NEEDS_FIXES", "Needs Fixes"),
+        ("APPROVED", "Approved"),
+    ]
+
+    report_id = models.BigAutoField(primary_key=True)
+    intern_task = models.ForeignKey(
+        InternTask, on_delete=models.CASCADE, db_column="intern_task_id",
+        db_constraint=False, related_name="testing_reports",
+        null=True, blank=True,
+    )
+    project_task = models.ForeignKey(
+        "module_05_clients_projects.ProjectTask",
+        on_delete=models.CASCADE, db_column="project_task_id",
+        db_constraint=False, related_name="testing_reports",
+        null=True, blank=True,
+    )
+    report_text = models.TextField()
+    attachment = CloudinaryField("attachment", resource_type="auto", blank=True, null=True)
+    status = models.CharField(max_length=20, choices=REPORT_STATUS_CHOICES)
+    created_by = models.ForeignKey(
+        "module_01_identity_access.UserAccount", on_delete=models.SET_NULL,
+        null=True, db_column="created_by_user_id", db_constraint=False,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "ext_intern_testing_report"
+        ordering = ["-created_at"]
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(intern_task__isnull=False, project_task__isnull=True) |
+                    models.Q(intern_task__isnull=True, project_task__isnull=False)
+                ),
+                name="testing_report_exactly_one_task_type",
+            )
+        ]   

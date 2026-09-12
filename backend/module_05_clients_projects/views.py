@@ -400,6 +400,8 @@ class TaskUpdateView(APIView):
         return Response({"detail": "Task updated.", "status": task.status})
 
 
+# module_05_clients_projects/views.py — MyTasksView
+
 class MyTasksView(APIView):
     """A team member's tasks across all their projects."""
     permission_classes = [IsAuthenticated]
@@ -415,6 +417,7 @@ class MyTasksView(APIView):
             link = ProjectTask.objects.filter(task=a.task).select_related("project").first()
             results.append({
                 "task_id": a.task.task_id,
+                "project_task_id": link.project_task_id if link else None,  # <-- added
                 "title": a.task.task_title,
                 "project_name": link.project.project_name if link else None,
                 "status": a.task.status,
@@ -422,7 +425,50 @@ class MyTasksView(APIView):
                 "due_date": a.task.due_date,
             })
         return Response(results)
+class MyTeamTasksView(APIView):
+    """Tasks assigned to anyone who reports to the logged-in user,
+    across all their projects. Feeds the lead's 'Team Tasks' page
+    where they can file testing reports."""
+    permission_classes = [IsAuthenticated]
 
+    def get(self, request):
+        # All of MY team-member rows, across every project.
+        my_memberships = ProjectTeamMember.objects.filter(user=request.user, is_active=True)
+
+        # Everyone whose hierarchy row says they report to one of my rows.
+        reports = ProjectTeamHierarchy.objects.filter(
+            reports_to_team_member__in=my_memberships
+        ).select_related("team_member__user__person", "team_member__project")
+
+        report_member_ids = [r.team_member_id for r in reports]
+        name_by_member_id = {
+            r.team_member_id: person_name(r.team_member.user)
+            for r in reports
+        }
+        project_by_member_id = {
+            r.team_member_id: r.team_member.project
+            for r in reports
+        }
+
+        assignments = TaskAssignee.objects.filter(
+            assigned_to_team_member_id__in=report_member_ids
+        ).select_related("task")
+
+        results = []
+        for a in assignments:
+            link = ProjectTask.objects.filter(task=a.task).select_related("project").first()
+            member_id = a.assigned_to_team_member_id
+            results.append({
+                "project_task_id": link.project_task_id if link else None,
+                "task_id": a.task.task_id,
+                "title": a.task.task_title,
+                "assignee_name": name_by_member_id.get(member_id),
+                "project_name": project_by_member_id.get(member_id).project_name if project_by_member_id.get(member_id) else None,
+                "status": a.task.status,
+                "priority": a.task.priority,
+                "due_date": a.task.due_date,
+            })
+        return Response(results)
 
 # ============================================================
 # MILESTONES
@@ -1022,3 +1068,67 @@ class ConvertClientRequestToRequirementView(APIView):
         client_request.save()
 
         return Response(ProjectRequirementSerializer(requirement).data, status=201)
+
+from django.db.models import Q
+from local_extensions.models import Message
+
+
+def _my_lead_on_project(user, project_id):
+    """This user's reports-to lead on a specific project, or None if
+    they're not on the project or have no lead set."""
+    my_membership = ProjectTeamMember.objects.filter(
+        project_id=project_id, user=user, is_active=True
+    ).first()
+    if not my_membership:
+        return None
+
+    hierarchy = ProjectTeamHierarchy.objects.filter(
+        team_member=my_membership
+    ).select_related("reports_to_team_member__user").first()
+
+    if not hierarchy or not hierarchy.reports_to_team_member:
+        return None
+
+    return hierarchy.reports_to_team_member.user
+
+
+class AskProjectLeadThreadView(APIView):
+    """GET: my message thread with my lead on this project.
+    POST: send a message to them. Mirrors the intern module's
+    AskProjectLeadThreadView, but resolves the lead via
+    ProjectTeamHierarchy instead of InternReportingManagerHistory."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, project_id):
+        lead = _my_lead_on_project(request.user, project_id)
+        if not lead:
+            return Response({"detail": "No reporting lead assigned on this project."}, status=404)
+
+        me = request.user.user_id
+        messages = Message.objects.filter(
+            Q(sender_id=me, recipient=lead) | Q(sender=lead, recipient_id=me),
+            batch__isnull=True,
+        ).select_related("sender").order_by("created_at")
+
+        return Response([
+            {
+                "message_id": m.message_id, "sender": m.sender_id,
+                "sender_username": m.sender.username, "content": m.content,
+                "created_at": m.created_at,
+            }
+            for m in messages
+        ])
+
+    def post(self, request, project_id):
+        lead = _my_lead_on_project(request.user, project_id)
+        if not lead:
+            return Response({"detail": "No reporting lead assigned on this project."}, status=404)
+
+        content = request.data.get("content", "").strip()
+        if not content:
+            return Response({"detail": "content is required."}, status=400)
+
+        msg = Message.objects.create(
+            batch=None, sender=request.user, recipient=lead, content=content,
+        )
+        return Response({"message_id": msg.message_id, "created_at": msg.created_at}, status=201)    

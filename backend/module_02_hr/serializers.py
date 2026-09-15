@@ -1,7 +1,7 @@
 from django.utils import timezone
 from rest_framework import serializers
 
-from module_01_identity_access.models import Person, UserAccount
+from module_01_identity_access.models import Person, UserAccount, UserRole
 from module_04_interns.models import Intern
 
 from .models import (
@@ -293,24 +293,37 @@ def _set_current_branch(employee_id, branch_id):
 
 # Who a worklog gets routed to. A regular employee reports to their
 # department's current lead; a department lead reports straight to the
-# Founder instead (small flat company, no further chain above that).
-# Returns None if the employee has no department, no lead is assigned
-# for it, or (for a lead's own worklog) no one holds the Founder
-# designation yet — callers must handle a None recipient gracefully.
+# Founder instead (small flat company, no further chain above that). If
+# no one holds the Founder designation yet (still true as of writing —
+# TEMPORARY until that's decided), a lead's own worklog is routed to
+# themselves rather than dropped. A department with no lead row at all
+# (most departments, currently) falls back to an active System
+# Administrator so it's still routed somewhere.
 def _resolve_worklog_recipient(employee):
     dept_history = _current_department_history(employee.person_id)
-    if not dept_history:
-        return None
-    lead_row = DepartmentLead.objects.filter(department_id=dept_history.department_id).first()
-    if not lead_row:
-        return None
-    if lead_row.employee_id == employee.employee_id:
-        return (
-            Employee.objects.filter(designation__designation_name="Founder", status="ACTIVE")
-            .select_related("person")
-            .first()
-        )
-    return Employee.objects.filter(pk=lead_row.employee_id).select_related("person").first()
+    if dept_history:
+        lead_row = DepartmentLead.objects.filter(department_id=dept_history.department_id).first()
+        if lead_row:
+            if lead_row.employee_id != employee.employee_id:
+                found = Employee.objects.filter(pk=lead_row.employee_id).select_related("person").first()
+                if found:
+                    return found
+            else:
+                founder = (
+                    Employee.objects.filter(designation__designation_name="Founder", status="ACTIVE")
+                    .select_related("person")
+                    .first()
+                )
+                return founder or employee
+
+    sysadmin_user_ids = UserRole.objects.filter(
+        role__role_name="System Administrator", is_active=True,
+    ).values_list("user_id", flat=True)
+    return (
+        Employee.objects.filter(person__useraccount__user_id__in=sysadmin_user_ids, status="ACTIVE")
+        .select_related("person")
+        .first()
+    )
 
 
 # start_time/end_time are free text, not real time values — no time

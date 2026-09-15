@@ -62,7 +62,13 @@ function Login() {
       // Someone promoted from Student to Intern still keeps the
       // underlying Student role active, but should only ever be routed
       // as an Intern — same rule already applied to the topbar/sidebar.
-      if (roles.includes("Intern")) {
+      // Same idea one step further: once converted all the way to
+      // Employee, drop both Student and Intern — they're a real
+      // employee now, not an intern, even though those roles stay
+      // layered (never revoked) in the database.
+      if (roles.includes("Employee") && (roles.includes("Intern") || roles.includes("Student"))) {
+        roles = roles.filter((r) => r !== "Intern" && r !== "Student");
+      } else if (roles.includes("Intern")) {
         roles = roles.filter((r) => r !== "Student");
       }
 

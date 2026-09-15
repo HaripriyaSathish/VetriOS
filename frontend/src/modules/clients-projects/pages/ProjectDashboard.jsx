@@ -17,10 +17,26 @@ function ProjectDashboard() {
   if (loading) return <p className="p-6 text-gray-400">Loading…</p>;
   if (error) return <p className="p-6 text-red-600">{error}</p>;
 
+  const ecosystemCount = projects.filter((p) => p.client_type === "Ecosystem").length;
+  const clientCount = projects.length - ecosystemCount;
+
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <h1 className="text-2xl font-bold text-gray-900 mb-1">Project Management</h1>
-      <p className="text-gray-500 mb-6">Projects you're managing or staffed on.</p>
+      <p className="text-gray-500 mb-4">Projects you're managing or staffed on.</p>
+
+      {projects.length > 0 && (
+        <div className="flex gap-4 mb-6">
+          <div className="bg-white border border-gray-200 rounded-xl px-5 py-3">
+            <p className="text-xs text-gray-500">Client Projects</p>
+            <p className="text-2xl font-bold text-gray-900">{clientCount}</p>
+          </div>
+          <div className="bg-white border border-gray-200 rounded-xl px-5 py-3">
+            <p className="text-xs text-gray-500">Ecosystem Projects</p>
+            <p className="text-2xl font-bold text-gray-900">{ecosystemCount}</p>
+          </div>
+        </div>
+      )}
 
       {projects.length === 0 ? (
         <div className="bg-white border border-gray-200 rounded-xl p-8 text-center text-gray-400">
@@ -39,7 +55,14 @@ function ProjectDashboard() {
                   {p.status}
                 </span>
               </div>
-              <p className="text-xs text-gray-500 mb-1">Client: {p.client_name}</p>
+              <p className="text-xs text-gray-500 mb-1">
+                Client: {p.client_name}
+                {p.client_type === "Ecosystem" && (
+                  <span className="ml-2 px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 text-[10px] font-semibold">
+                    ECOSYSTEM
+                  </span>
+                )}
+              </p>
               <p className="text-xs text-gray-500 mb-4">Your role: {p.my_role}</p>
 
               <div className="flex gap-2 pt-3 border-t border-gray-100">

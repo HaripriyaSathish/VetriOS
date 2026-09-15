@@ -17,6 +17,9 @@ import client from "../api/client";
 // Every other combination of roles displays exactly as-is, unchanged.
 function displayRoles(roles) {
   if (!roles || roles.length === 0) return [];
+  if (roles.includes("Employee") && (roles.includes("Intern") || roles.includes("Student"))) {
+    return roles.filter((r) => r !== "Intern" && r !== "Student");
+  }
   if (roles.includes("Intern")) {
     return roles.filter((r) => r !== "Student");
   }
@@ -68,7 +71,7 @@ function AppLayout() {
 
       <div className="app-main">
         <header className="app-topbar">
-          {user?.employee_id != null && <span className="app-topbar-empcode">EMP{user.employee_id}</span>}
+          {user?.employee_code && <span className="app-topbar-empcode">{user.employee_code}</span>}
 
           <div className="app-topbar-right">
             <NotificationBell />

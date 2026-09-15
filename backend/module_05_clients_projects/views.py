@@ -108,7 +108,6 @@ class CreateProjectView(APIView):
 
 
 class MyProjectsView(APIView):
-    """Projects this user is a team member on."""
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -122,6 +121,7 @@ class MyProjectsView(APIView):
                 "project_name": m.project.project_name,
                 "project_code": m.project.project_code,
                 "client_name": m.project.client.client_name,
+                "client_type": m.project.client.client_type,
                 "my_role": m.project_role,
                 "status": m.project.project_status.status_name,
             }

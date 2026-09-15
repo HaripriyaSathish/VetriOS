@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Search, FileText, Power, Eye, Plus } from "lucide-react";
+import { Search, FileText, Power, Eye, Plus, Download } from "lucide-react";
 import client from "../../../api/client";
 import "../styles/Documents.css";
 
@@ -11,6 +11,7 @@ function Templates() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [togglingId, setTogglingId] = useState(null);
+  const [downloadingId, setDownloadingId] = useState(null);
 
   useEffect(() => {
     client
@@ -24,6 +25,29 @@ function Templates() {
     const q = search.toLowerCase();
     return t.template_name.toLowerCase().includes(q) || t.template_code.toLowerCase().includes(q);
   });
+
+  const handleDownload = async (event, template) => {
+    event.stopPropagation();
+    setDownloadingId(template.document_template_id);
+    try {
+      const { data } = await client.get(
+        `/api/documents/templates/${template.document_template_id}/download/`,
+        { responseType: "blob" }
+      );
+      const url = window.URL.createObjectURL(data);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${template.template_code}.docx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      setError("Couldn't download that template.");
+    } finally {
+      setDownloadingId(null);
+    }
+  };
 
   const handleToggle = async (event, template) => {
     event.stopPropagation();
@@ -133,6 +157,16 @@ function Templates() {
                         >
                           <Power size={14} />
                           {togglingId === t.document_template_id ? "…" : t.is_active ? "Deactivate" : "Activate"}
+                        </button>
+                        <button
+                          type="button"
+                          className="doc-btn-sm"
+                          onClick={(e) => handleDownload(e, t)}
+                          disabled={downloadingId === t.document_template_id}
+                          title="Download as DOCX"
+                        >
+                          <Download size={14} />
+                          {downloadingId === t.document_template_id ? "…" : "Download"}
                         </button>
                       </div>
                     </td>

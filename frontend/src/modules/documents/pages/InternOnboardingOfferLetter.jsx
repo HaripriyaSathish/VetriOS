@@ -4,6 +4,7 @@ import { ArrowLeft, Eye, Download, FolderArchive, UploadCloud, Loader2, RefreshC
 import JSZip from "jszip";
 import client from "../../../api/client";
 import RichTextEditor from "../components/RichTextEditor";
+import SearchSelect from "../components/SearchSelect";
 import "../styles/Documents.css";
 
 function triggerBlobDownload(blob, filename) {
@@ -44,11 +45,9 @@ function InternOnboardingOfferLetter() {
   const [template, setTemplate] = useState(null);
   const [templateError, setTemplateError] = useState("");
   const [templateOptions, setTemplateOptions] = useState([]);
-  const [templateQuery, setTemplateQuery] = useState("");
   const [interns, setInterns] = useState([]);
 
   const [selectedBatch, setSelectedBatch] = useState("");
-  const [batchQuery, setBatchQuery] = useState("");
   const [studentSearch, setStudentSearch] = useState("");
   const [internIds, setInternIds] = useState([]);
 
@@ -85,30 +84,23 @@ function InternOnboardingOfferLetter() {
     client.get("/api/documents/interns/").then(({ data }) => setInterns(data)).catch(() => {});
   }, []);
 
-  const templateLabel = (t) => `${t.template_name} — ${t.template_code}`;
 
+  // No auto-selected default — the admin picks one explicitly every time.
   useEffect(() => {
     client
       .get("/api/documents/templates/")
-      .then(({ data }) => {
-        setTemplateOptions(data);
-        const defaultTemplate = data.find((t) => t.template_code === DEFAULT_TEMPLATE_CODE);
-        if (defaultTemplate) {
-          setTemplate(defaultTemplate);
-          setTemplateQuery(templateLabel(defaultTemplate));
-        }
-      })
+      .then(({ data }) => setTemplateOptions(data))
       .catch(() => {});
   }, []);
 
-  const handleTemplateQueryChange = (event) => {
-    const value = event.target.value;
-    setTemplateQuery(value);
-    const found = templateOptions.find((t) => templateLabel(t) === value);
+  const handleTemplateSelect = (templateId) => {
+    const found = templateOptions.find((t) => String(t.document_template_id) === String(templateId));
     if (found) {
       setTemplate(found);
       setCustomTemplateName("");
       setTemplateError("");
+    } else {
+      setTemplate(null);
     }
   };
 
@@ -128,11 +120,8 @@ function InternOnboardingOfferLetter() {
     }
   }
 
-  const handleBatchQueryChange = (event) => {
-    const value = event.target.value;
-    setBatchQuery(value);
-    const found = batches.find((b) => batchLabel(b) === value);
-    setSelectedBatch(found ? found.batch_name : "");
+  const handleBatchSelect = (batchName) => {
+    setSelectedBatch(batchName);
     setInternIds([]);
     setStudentSearch("");
   };
@@ -168,6 +157,7 @@ function InternOnboardingOfferLetter() {
       const knownFields = [
         "recipient_name", "date", "effective_date", "role", "stipend", "content",
         "company_name", "company_email", "contact_email", "hr_email", "company_website",
+        "corporate_id", "tan_no", "tan_number",
         "department", "location",
       ];
       const extraPlaceholders = (analyzed.placeholders || []).filter((p) => !knownFields.includes(p));
@@ -194,7 +184,6 @@ function InternOnboardingOfferLetter() {
 
       setTemplateOptions((prev) => [...prev, created]);
       setTemplate(created);
-      setTemplateQuery(templateLabel(created));
       setCustomTemplateName(file.name);
       setTemplateError("");
     } catch (err) {
@@ -221,7 +210,7 @@ function InternOnboardingOfferLetter() {
           location,
           effective_date: effectiveDate || fallbackDate,
           stipend,
-          letter_content: letterContent,
+          letter_content: templateNeedsContentStep ? letterContent : "",
         },
       });
       return { intern, ok: true, document_id: data.document_id };
@@ -321,7 +310,7 @@ function InternOnboardingOfferLetter() {
             location,
             effective_date: effectiveDate || fallbackDate,
             stipend,
-            letter_content: letterContent,
+            letter_content: templateNeedsContentStep ? letterContent : "",
           },
         },
         { responseType: "blob" }
@@ -334,6 +323,11 @@ function InternOnboardingOfferLetter() {
       setPreviewing(false);
     }
   };
+
+  // See CourseInternshipOfferLetter.jsx for why this matters: a template
+  // with its own baked-in body (no "{{content}}" marker) doesn't want
+  // this page's Content step text appended after it too.
+  const templateNeedsContentStep = !template || (template.placeholders || []).includes("content");
 
   const showStep2 = Boolean(selectedBatch);
   const showStep3plus = internIds.length > 0;
@@ -358,18 +352,12 @@ function InternOnboardingOfferLetter() {
       <div className="doc-step-panel">
         <h3 className="doc-step-title">1. Choose a batch</h3>
         <div className="doc-form">
-          <input
-            list="onboarding-offer-batch-options"
-            value={batchQuery}
-            onChange={handleBatchQueryChange}
-            placeholder="Search or select a batch…"
-            autoComplete="off"
+          <SearchSelect
+            options={batches.map((b) => ({ value: b.batch_name, label: batchLabel(b) }))}
+            value={selectedBatch}
+            onChange={handleBatchSelect}
+            placeholder="Select a batch…"
           />
-          <datalist id="onboarding-offer-batch-options">
-            {batches.map((b) => (
-              <option key={b.batch_name} value={batchLabel(b)} />
-            ))}
-          </datalist>
         </div>
       </div>
 
@@ -433,25 +421,14 @@ function InternOnboardingOfferLetter() {
       {showStep3plus && (
         <div className="doc-step-panel">
           <h3 className="doc-step-title">4. Template</h3>
-          {!customTemplateName && template?.template_code === DEFAULT_TEMPLATE_CODE && (
-            <div className="doc-badge approved" style={{ marginBottom: 10 }}>
-              ✓ Default Intern Onboarding letterhead design already applied
-            </div>
-          )}
 
           <div className="doc-form">
-            <input
-              list="onboarding-offer-template-options"
-              value={templateQuery}
-              onChange={handleTemplateQueryChange}
+            <SearchSelect
+              options={templateOptions.map((t) => ({ value: t.document_template_id, label: t.template_name, code: t.template_code }))}
+              value={template?.document_template_id || ""}
+              onChange={handleTemplateSelect}
               placeholder="Search or select a template…"
-              autoComplete="off"
             />
-            <datalist id="onboarding-offer-template-options">
-              {templateOptions.map((t) => (
-                <option key={t.document_template_id} value={templateLabel(t)} />
-              ))}
-            </datalist>
           </div>
 
           <div className="doc-upload-row" style={{ marginTop: 10 }}>
@@ -478,11 +455,16 @@ function InternOnboardingOfferLetter() {
         </div>
       )}
 
-      {showStep3plus && (
+      {showStep3plus && templateNeedsContentStep && (
         <div className="doc-step-panel">
           <h3 className="doc-step-title">5. Content</h3>
           <RichTextEditor content={letterContent} onChange={setLetterContent} />
         </div>
+      )}
+      {showStep3plus && !templateNeedsContentStep && (
+        <p className="doc-upload-hint" style={{ marginTop: -6 }}>
+          This template's letter body is already fully written into its design — nothing to fill in here.
+        </p>
       )}
 
       {showStep3plus && (

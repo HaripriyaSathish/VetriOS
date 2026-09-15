@@ -19,7 +19,10 @@ function SearchSelect({ options, value, onChange, placeholder = "Search…", dis
     return () => document.removeEventListener("mousedown", onDocClick);
   }, []);
 
-  const filtered = options.filter((o) => o.label.toLowerCase().includes(query.toLowerCase()));
+  const filtered = options.filter((o) => {
+    const q = query.toLowerCase();
+    return o.label.toLowerCase().includes(q) || (o.code || "").toLowerCase().includes(q);
+  });
 
   return (
     <div className="doc-search-select" ref={rootRef}>
@@ -30,7 +33,7 @@ function SearchSelect({ options, value, onChange, placeholder = "Search…", dis
         onClick={() => setOpen((prev) => !prev)}
       >
         <span className={selected ? "" : "doc-search-select-placeholder"}>
-          {selected ? selected.label : placeholder}
+          {selected ? selected.code || selected.label : placeholder}
         </span>
         {selected ? (
           <X
@@ -64,7 +67,7 @@ function SearchSelect({ options, value, onChange, placeholder = "Search…", dis
                   className={`doc-search-select-option ${String(o.value) === String(value) ? "selected" : ""}`}
                   onClick={() => { onChange(o.value); setOpen(false); setQuery(""); }}
                 >
-                  {o.label}
+                  {o.code || o.label}
                 </div>
               ))
             )}

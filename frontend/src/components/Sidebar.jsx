@@ -114,6 +114,11 @@ function Sidebar() {
 
   const isSystemAdministrator = hasAccess(identityRequirement, user);
   const isIntern = hasAccess(internRequirement, user);
+  // Template management (and the two intern-offer-letter Generate
+  // cards, gated where those routes are defined) stays admin/HR-only —
+  // Employee/Intern keep Library + the general-prompt Generate flow.
+  const isSystemAdminOrHR = isSystemAdministrator || (user?.roles || []).includes("HR Administrator");
+
   // Someone converted to Employee still keeps the Intern role active in
   // the DB (roles are layered, never revoked) — same convention as
   // AppLayout.jsx's displayRoles(). Once they're a real Employee, the
@@ -489,15 +494,17 @@ function Sidebar() {
                 Generate
               </NavLink>
 
-              <NavLink
-                to="/documents/templates"
-                className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
-              >
-                <span className="nav-icon">
-                  <LayoutTemplate size={14} />
-                </span>
-                Templates
-              </NavLink>
+              {isSystemAdminOrHR && (
+                <NavLink
+                  to="/documents/templates"
+                  className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
+                >
+                  <span className="nav-icon">
+                    <LayoutTemplate size={14} />
+                  </span>
+                  Templates
+                </NavLink>
+              )}
             </div>
           )}
         </>

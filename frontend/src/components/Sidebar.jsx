@@ -36,7 +36,10 @@ import {
 import { NAV_ITEMS, hasAccess } from "../config/nav";
 import "../components-styles/Sidebar.css";
 
-const SYSADMIN_PATHS = ["/dashboard", "/identity/users", "/identity/roles", "/identity/permissions", "/system-admin/approvals"];
+// "/dashboard" is deliberately excluded — it's the universal post-login
+// landing page, so including it would force this group open on every
+// login/refresh for a System Administrator regardless of prior toggle state.
+const SYSADMIN_PATHS = ["/identity/users", "/identity/roles", "/identity/permissions", "/system-admin/approvals"];
 const HR_PATHS = ["/hr"];
 const BUSINESS_TEAM_PATHS = [
   "/training/students", "/training/internship-approvals", "/training/enquiries",
@@ -76,6 +79,31 @@ function Sidebar() {
     return () => clearInterval(interval);
   }, []);
 
+  // Pending "Create login credentials for ..." requests specifically —
+  // shown as "User & Accounts (N)" so a System Administrator sees it's
+  // waiting without opening Request Access at all (that page no longer
+  // has anything login-request-specific; this lives only here and in
+  // the Login requests panel on User & Accounts itself). No dedicated
+  // backend endpoint for this narrower count, so it filters the same
+  // "received" list the panel itself loads.
+  const [pendingLoginRequestCount, setPendingLoginRequestCount] = useState(0);
+  useEffect(() => {
+    const loadPendingLoginRequestCount = () => {
+      client
+        .get("/api/identity/permission-requests/", { params: { box: "received" } })
+        .then(({ data }) => {
+          const count = data.filter(
+            (r) => r.status === "PENDING" && r.permission_requested?.startsWith("Create login credentials for ")
+          ).length;
+          setPendingLoginRequestCount(count);
+        })
+        .catch(() => {});
+    };
+    loadPendingLoginRequestCount();
+    const interval = setInterval(loadPendingLoginRequestCount, 20000);
+    return () => clearInterval(interval);
+  }, []);
+
   const identityRequirement = { type: "role", value: "System Administrator" };
   const businessTeamRequirement = { type: "role", value: ["Business Team", "System Administrator"] };
   const trainerRequirement = { type: "role", value: "Employee" };
@@ -86,10 +114,6 @@ function Sidebar() {
 
   const isSystemAdministrator = hasAccess(identityRequirement, user);
   const isIntern = hasAccess(internRequirement, user);
-  // Employee sees Document Generator's Library (view existing docs) but
-  // not Generate/Templates, for now — System Administrator still sees
-  // everything regardless of also holding the Employee role.
-  const isEmployeeOnly = hasAccess(trainerRequirement, user) && !isSystemAdministrator;
 
   const activeWorkspace = localStorage.getItem("active_workspace");
   const inWorkspace = (key) => isSystemAdministrator || activeWorkspace === key;
@@ -109,8 +133,12 @@ function Sidebar() {
   const isOnDocumentsPage = DOCUMENTS_PATHS.some((path) => location.pathname.startsWith(path));
   const [documentsOpen, setDocumentsOpen] = useState(isOnDocumentsPage);
 
+  // Email is open to every login now (Dashboard + Compose) — only the
+  // Bulk (batch send) menu stays limited to whoever the old SYSTEM_ADMIN
+  // permission requirement covers.
   const emailItem = NAV_ITEMS.find((item) => item.id === "email");
-  const canSeeEmail = emailItem && hasAccess(emailItem.requirement, user);
+  const canSeeEmail = true;
+  const canSeeEmailBulk = emailItem && hasAccess(emailItem.requirement, user);
   const isOnEmailPage = EMAIL_PATHS.some((path) => location.pathname.startsWith(path));
   const [emailOpen, setEmailOpen] = useState(isOnEmailPage);
 
@@ -170,7 +198,7 @@ function Sidebar() {
         </NavLink>
       )}
 
-      {inWorkspace("training") && !isSystemAdministrator && !canSeeHR && !isIntern && !!user?.employee_code && (
+      {!isSystemAdministrator && !isIntern && !!user?.employee_code && (
         <>
           <NavLink
             to="/my/attendance"
@@ -179,7 +207,7 @@ function Sidebar() {
             <span className="nav-icon">
               <CalendarCheck size={16} />
             </span>
-            Attendance
+            My Attendance
           </NavLink>
 
           <NavLink
@@ -194,7 +222,7 @@ function Sidebar() {
         </>
       )}
 
-      {inWorkspace("training") && !isSystemAdministrator && !isIntern && !!user?.employee_code && (
+      {!isSystemAdministrator && !isIntern && !!user?.employee_code && (
         <NavLink
           to="/my/worklog"
           className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
@@ -264,6 +292,9 @@ function Sidebar() {
                   <Users size={14} />
                 </span>
                 User & Accounts
+                {pendingLoginRequestCount > 0 && (
+                  <span className="nav-count-badge">{pendingLoginRequestCount}</span>
+                )}
               </NavLink>
 
               <NavLink
@@ -301,7 +332,7 @@ function Sidebar() {
             <span className="nav-icon">
               <Briefcase size={16} />
             </span>
-            HR
+            HR Admin
             <span className="nav-chevron">
               <ChevronDown size={14} />
             </span>
@@ -443,29 +474,25 @@ function Sidebar() {
                 Library
               </NavLink>
 
-              {!isEmployeeOnly && (
-                <>
-                  <NavLink
-                    to="/documents/ai-generator"
-                    className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
-                  >
-                    <span className="nav-icon">
-                      <Sparkles size={14} />
-                    </span>
-                    Generate
-                  </NavLink>
+              <NavLink
+                to="/documents/ai-generator"
+                className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
+              >
+                <span className="nav-icon">
+                  <Sparkles size={14} />
+                </span>
+                Generate
+              </NavLink>
 
-                  <NavLink
-                    to="/documents/templates"
-                    className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
-                  >
-                    <span className="nav-icon">
-                      <LayoutTemplate size={14} />
-                    </span>
-                    Templates
-                  </NavLink>
-                </>
-              )}
+              <NavLink
+                to="/documents/templates"
+                className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
+              >
+                <span className="nav-icon">
+                  <LayoutTemplate size={14} />
+                </span>
+                Templates
+              </NavLink>
             </div>
           )}
         </>
@@ -497,7 +524,7 @@ function Sidebar() {
                 <span className="nav-icon">
                   <LayoutDashboard size={14} />
                 </span>
-                Dashboard
+                Overview
               </NavLink>
 
               <NavLink
@@ -510,15 +537,17 @@ function Sidebar() {
                 Compose
               </NavLink>
 
-              <NavLink
-                to="/email/batches"
-                className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
-              >
-                <span className="nav-icon">
-                  <Layers size={14} />
-                </span>
-                Bulk
-              </NavLink>
+              {canSeeEmailBulk && (
+                <NavLink
+                  to="/email/batches"
+                  className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
+                >
+                  <span className="nav-icon">
+                    <Layers size={14} />
+                  </span>
+                  Bulk
+                </NavLink>
+              )}
             </div>
           )}
         </>

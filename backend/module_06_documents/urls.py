@@ -11,6 +11,7 @@ from .views import (
     DocumentListView,
     DocumentSearchForAccessRequestView,
     DocumentRetentionView,
+    LibraryStatsView,
     DocumentTemplateCreateView,
     DocumentTemplateDetailView,
     DocumentTemplateListView,
@@ -26,7 +27,6 @@ from .views import (
     SaveGeneratedDocumentView,
     StudentCertificatesView,
     TemplateAnalyzeUploadView,
-    TemplateGenerateDesignView,
     TemplatePreviewView,
 )
 
@@ -46,6 +46,7 @@ urlpatterns = [
 
     # Library
     path("library/", DocumentListView.as_view()),
+    path("library/stats/", LibraryStatsView.as_view()),
     path("library/search-for-access-request/", DocumentSearchForAccessRequestView.as_view()),
     path("library/filters/", DocumentFilterOptionsView.as_view()),
     path("library/upload/", DocumentUploadView.as_view()),
@@ -56,7 +57,6 @@ urlpatterns = [
     path("templates/manage/", DocumentTemplateManageListView.as_view()),
     path("templates/create/", DocumentTemplateCreateView.as_view()),
     path("templates/analyze-upload/", TemplateAnalyzeUploadView.as_view()),
-    path("templates/generate-design/", TemplateGenerateDesignView.as_view()),
     path("templates/preview/", TemplatePreviewView.as_view()),
     path("templates/<int:template_id>/toggle/", DocumentTemplateToggleView.as_view()),
     path("templates/<int:template_id>/", DocumentTemplateDetailView.as_view()),

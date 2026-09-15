@@ -215,6 +215,7 @@
   border: 1px solid #d9dfe8;
   border-radius: 10px;
   padding: 16px;
+  box-shadow: 0 2px 10px rgba(22, 26, 38, 0.08);
 }
 
 .mail-stat-icon {
@@ -560,4 +561,88 @@
 .mail-editor-content ol {
   margin: 0 0 0.8em;
   padding-left: 22px;
+}
+
+/* ---- Email dashboard: charts + lists (added alongside the existing
+   mail-stat-row KPI tiles above) ---- */
+.maild-charts-row {
+  display: grid;
+  grid-template-columns: 1.05fr 1.25fr 1fr;
+  gap: 16px;
+  align-items: stretch;
+  margin-top: 20px;
+}
+.maild-card {
+  background: #fff;
+  border: 1px solid #e2e6ed;
+  border-radius: 10px;
+  padding: 18px 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.maild-card-head { display: flex; align-items: baseline; justify-content: space-between; }
+.maild-card-title { font-size: 14px; font-weight: 700; color: #161a26; }
+.maild-card-sub { font-size: 11.5px; color: #8a93a6; font-weight: 500; }
+.maild-loading { color: #8a93a6; font-size: 13px; }
+
+.maild-legend { display: flex; flex-direction: column; gap: 8px; }
+.maild-legend-row { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: #3a4152; }
+.maild-legend-swatch { width: 9px; height: 9px; border-radius: 2px; flex: none; }
+.maild-legend-name { flex: 1; }
+.maild-legend-val { font-weight: 700; color: #161a26; font-variant-numeric: tabular-nums; }
+
+.maild-donut-wrap { position: relative; }
+.maild-donut-center {
+  position: absolute; top: 0; left: 0; right: 0; height: 150px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  pointer-events: none;
+}
+.maild-donut-total { font-size: 22px; font-weight: 800; color: #161a26; line-height: 1.1; }
+.maild-donut-caption { font-size: 10.5px; color: #8a93a6; }
+
+.maild-tooltip {
+  background: #fff;
+  border: 1px solid #e2e6ed;
+  border-radius: 8px;
+  padding: 8px 10px;
+  box-shadow: 0 8px 20px rgba(22, 26, 38, 0.1);
+  font-family: "Manrope", sans-serif;
+}
+.maild-tooltip-label { font-size: 11px; font-weight: 700; color: #8a93a6; margin-bottom: 4px; }
+.maild-tooltip-row { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: #3a4152; }
+.maild-tooltip-swatch { width: 8px; height: 8px; border-radius: 2px; flex: none; }
+.maild-tooltip-name { flex: 1; }
+.maild-tooltip-val { font-weight: 700; color: #161a26; margin-left: 10px; }
+
+.maild-pipeline { display: flex; flex-direction: column; gap: 14px; }
+.maild-pipeline-row { display: flex; align-items: center; gap: 10px; }
+.maild-pipeline-label { font-size: 12px; font-weight: 700; width: 84px; flex: none; }
+.maild-pipeline-bar-track { flex: 1; height: 8px; border-radius: 999px; background: #f0f2f5; overflow: hidden; }
+.maild-pipeline-bar-fill { height: 100%; border-radius: 999px; }
+.maild-pipeline-count { font-size: 12px; font-weight: 700; color: #161a26; width: 20px; text-align: right; flex: none; }
+
+.maild-bottom-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+.maild-list-row {
+  display: flex; align-items: flex-start; gap: 12px; padding: 11px 4px;
+  border-bottom: 1px solid #f0f2f5;
+}
+.maild-list-row:last-child { border-bottom: none; }
+.maild-list-icon {
+  width: 30px; height: 30px; border-radius: 999px; flex: none;
+  display: flex; align-items: center; justify-content: center;
+}
+.maild-list-text { flex: 1; min-width: 0; }
+.maild-list-title { font-size: 13px; font-weight: 600; color: #161a26; line-height: 1.4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.maild-list-sub { font-size: 11.5px; color: #8a93a6; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.maild-list-time { font-size: 11px; color: #8a93a6; font-weight: 600; flex: none; white-space: nowrap; padding-top: 1px; }
+
+@media (max-width: 1280px) {
+  .maild-charts-row { grid-template-columns: 1fr; }
+  .maild-bottom-row { grid-template-columns: 1fr; }
 }

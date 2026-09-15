@@ -18,8 +18,9 @@ const DOCUMENT_TYPES = [
   },
   {
     label: "Intern Onboarding Offer Letter",
-    description: "Standard onboarding offer letter for a new intern.",
+    description: "students who completed their course and interview, contains prefilled content",
     icon: FileSignature,
+    route: "/documents/ai-generator/intern-onboarding-offer",
   },
 ];
 

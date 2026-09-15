@@ -1,8 +1,163 @@
 import { useEffect, useState } from "react";
-import { Search, Upload, Sparkles, FileText, X, Eye, Download, Archive } from "lucide-react";
+import {
+  Search, Upload, Sparkles, FileText, X, Eye, Download, Archive,
+  FolderOpen, CheckCircle2, Clock, Lock,
+} from "lucide-react";
 import { Link } from "react-router-dom";
+import {
+  ResponsiveContainer, PieChart, Pie, Cell,
+  AreaChart, Area, XAxis, CartesianGrid, Tooltip,
+} from "recharts";
 import client from "../../../api/client";
 import "../styles/Documents.css";
+
+// Fixed categorical order (same dataviz-validated set used across the
+// other dashboards) — never cycled, never reassigned per data.
+const TYPE_COLORS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4"];
+const OTHER_COLOR = "#9a9993";
+const UPLOAD_COLOR = "#2a78d6";
+
+function formatDay(iso) {
+  return new Date(iso + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function LibChartTooltip({ label, rows }) {
+  return (
+    <div className="libd-tooltip">
+      {label && <div className="libd-tooltip-label">{label}</div>}
+      {rows.map((r) => (
+        <div className="libd-tooltip-row" key={r.name}>
+          <span className="libd-tooltip-swatch" style={{ background: r.color }} />
+          <span className="libd-tooltip-name">{r.name}</span>
+          <span className="libd-tooltip-val">{r.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function LibraryDashboard({ stats }) {
+  if (!stats) return null;
+
+  const categorySlices = (() => {
+    const top = stats.by_category.slice(0, 5).map((c, i) => ({ ...c, color: TYPE_COLORS[i] }));
+    const otherCount = stats.by_category.slice(5).reduce((s, c) => s + c.count, 0);
+    if (otherCount > 0) top.push({ category_name: "Other", count: otherCount, color: OTHER_COLOR });
+    return top;
+  })();
+  const categoryTotal = categorySlices.reduce((s, c) => s + c.count, 0);
+
+  return (
+    <div className="libd-root">
+      <div className="libd-kpi-row">
+        <div className="libd-kpi-card">
+          <div className="libd-kpi-top">
+            <span className="libd-kpi-label">Total Documents</span>
+            <span className="libd-kpi-icon" style={{ background: "#eef3f7", color: "#235777" }}><FolderOpen size={16} /></span>
+          </div>
+          <div className="libd-kpi-value">{stats.total}</div>
+        </div>
+        <div className="libd-kpi-card">
+          <div className="libd-kpi-top">
+            <span className="libd-kpi-label">Active</span>
+            <span className="libd-kpi-icon" style={{ background: "#dcfce7", color: "#16a34a" }}><CheckCircle2 size={16} /></span>
+          </div>
+          <div className="libd-kpi-value">{stats.active}</div>
+        </div>
+        <div className="libd-kpi-card">
+          <div className="libd-kpi-top">
+            <span className="libd-kpi-label">Pending Review</span>
+            <span className="libd-kpi-icon" style={{ background: "#ffedd5", color: "#b45309" }}><Clock size={16} /></span>
+          </div>
+          <div className="libd-kpi-value">{stats.pending_review}</div>
+        </div>
+        <div className="libd-kpi-card">
+          <div className="libd-kpi-top">
+            <span className="libd-kpi-label">Confidential</span>
+            <span className="libd-kpi-icon" style={{ background: "#fbe7e5", color: "#96271f" }}><Lock size={16} /></span>
+          </div>
+          <div className="libd-kpi-value">{stats.confidential}</div>
+        </div>
+      </div>
+
+      <div className="libd-charts-row">
+        <div className="libd-card">
+          <div className="libd-card-head">
+            <span className="libd-card-title">Documents by Category</span>
+            <span className="libd-card-sub">{categoryTotal} total</span>
+          </div>
+          {categoryTotal === 0 ? (
+            <p className="libd-loading">No documents yet.</p>
+          ) : (
+            <div className="libd-donut-row">
+              <div className="libd-donut-wrap">
+                <ResponsiveContainer width="100%" height={130}>
+                  <PieChart>
+                    <Pie data={categorySlices} dataKey="count" nameKey="category_name" innerRadius={44} outerRadius={62} paddingAngle={1.5} stroke="none">
+                      {categorySlices.map((s) => <Cell key={s.category_name} fill={s.color} />)}
+                    </Pie>
+                    <Tooltip
+                      cursor={false}
+                      content={({ active, payload }) => {
+                        if (!active || !payload?.length) return null;
+                        const p = payload[0];
+                        const pct = categoryTotal > 0 ? Math.round((p.value / categoryTotal) * 100) : 0;
+                        return <LibChartTooltip rows={[{ name: p.name, value: `${p.value} (${pct}%)`, color: p.payload.color }]} />;
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="libd-donut-center">
+                  <span className="libd-donut-total">{categoryTotal}</span>
+                </div>
+              </div>
+              <div className="libd-legend">
+                {categorySlices.map((s) => (
+                  <div className="libd-legend-row" key={s.category_name}>
+                    <span className="libd-legend-swatch" style={{ background: s.color }} />
+                    <span className="libd-legend-name">{s.category_name}</span>
+                    <span className="libd-legend-val">{s.count}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="libd-card">
+          <div className="libd-card-head">
+            <span className="libd-card-title">Uploads</span>
+            <span className="libd-card-sub">last 14 days</span>
+          </div>
+          <ResponsiveContainer width="100%" height={150}>
+            <AreaChart data={stats.uploads_trend} margin={{ top: 16, right: 0, left: 0, bottom: 0 }}>
+              <defs>
+                <linearGradient id="libUploadFade" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={UPLOAD_COLOR} stopOpacity="0.16" />
+                  <stop offset="100%" stopColor={UPLOAD_COLOR} stopOpacity="0" />
+                </linearGradient>
+              </defs>
+              <CartesianGrid vertical={false} stroke="#eef0f3" />
+              <XAxis
+                dataKey="date" tickFormatter={formatDay} axisLine={{ stroke: "#c3c2b7" }} tickLine={false}
+                tick={{ fontSize: 10, fill: "#8a93a6", fontFamily: "Manrope, sans-serif" }}
+                interval="preserveStartEnd"
+              />
+              <Tooltip
+                cursor={{ stroke: "#c3c2b7", strokeDasharray: "3 3" }}
+                content={({ active, payload, label }) => {
+                  if (!active || !payload?.length) return null;
+                  return <LibChartTooltip label={formatDay(label)} rows={[{ name: "Uploads", value: payload[0].value, color: UPLOAD_COLOR }]} />;
+                }}
+              />
+              <Area type="monotone" dataKey="count" stroke={UPLOAD_COLOR} strokeWidth={2.5} fill="url(#libUploadFade)" activeDot={{ r: 4, fill: UPLOAD_COLOR }} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const STATUS_LABEL = {
   DRAFT: "Draft", ACTIVE: "Active", UNDER_REVIEW: "Pending Review",
@@ -36,6 +191,7 @@ function Library() {
   const [filterOptions, setFilterOptions] = useState({ types: [], categories: [], confidentiality_levels: [], access_levels: [], statuses: [], owners: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [stats, setStats] = useState(null);
 
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
@@ -75,6 +231,7 @@ function Library() {
 
   useEffect(() => {
     client.get("/api/documents/library/filters/").then(({ data }) => setFilterOptions(data)).catch(() => {});
+    client.get("/api/documents/library/stats/").then(({ data }) => setStats(data)).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -195,6 +352,8 @@ function Library() {
       </div>
 
       {error && <div className="doc-error">{error}</div>}
+
+      <LibraryDashboard stats={stats} />
 
       <div className="doc-panel">
         <div className="doc-filter-bar">

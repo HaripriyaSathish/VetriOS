@@ -393,6 +393,16 @@
   max-width: 640px;
 }
 
+.ua-modal-wide {
+  max-width: 760px;
+}
+
+.ua-hint {
+  font-size: 12.5px;
+  color: #6b7280;
+  margin: 0 0 14px;
+}
+
 .ua-perm-hint {
   font-size: 11.5px;
   color: #3a4152;

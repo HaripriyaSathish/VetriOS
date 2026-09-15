@@ -2,6 +2,8 @@ import calendar
 import datetime
 
 import cloudinary.uploader
+from django.db.models import Count
+from django.db.models.functions import TruncDate
 from django.http import FileResponse
 from django.utils import timezone
 from rest_framework import generics, status
@@ -12,6 +14,7 @@ from rest_framework.views import APIView
 
 from module_01_identity_access.models import UserAccount
 from local_extensions.email_utils import send_email
+from local_extensions.models import Notification
 from .excel_exports import build_attendance_excel, build_exit_excel, build_onboarding_excel
 from module_04_interns.models import Intern
 from .models import (
@@ -29,6 +32,7 @@ from .models import (
     EmploymentType,
     InternOnboarding,
     LeaveType,
+    PersonDepartmentHistory,
 )
 from .permissions import IsHRorSystemAdministrator, IsSystemAdministrator
 from .serializers import (
@@ -1487,3 +1491,133 @@ class ExitReportExportView(APIView):
             buffer, as_attachment=True, filename=filename,
             content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
+
+
+def _hr_daily_counts(queryset, date_field, days):
+    """Same zero-filled daily bucketing as the System Admin dashboard's
+    version — duplicated locally rather than imported cross-module, since
+    each module keeps its own small view helpers."""
+    today = timezone.localdate()
+    start = today - datetime.timedelta(days=days - 1)
+    counts = {
+        row["day"]: row["count"]
+        for row in queryset.filter(**{f"{date_field}__date__gte": start})
+        .annotate(day=TruncDate(date_field))
+        .values("day")
+        .annotate(count=Count("pk"))
+    }
+    return [
+        {"date": (start + datetime.timedelta(days=i)).isoformat(), "count": counts.get(start + datetime.timedelta(days=i), 0)}
+        for i in range(days)
+    ]
+
+
+class HRDashboardView(APIView):
+    """GET — KPIs, charts, and lists for the HR landing page (/hr). Every
+    figure comes from tables that already exist — same "no new tables"
+    approach as the System Administrator dashboard."""
+    permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
+
+    def get(self, request):
+        active_employees = Employee.objects.filter(status="ACTIVE").select_related("person")
+        active_employee_ids = [e.employee_id for e in active_employees]
+        active_person_ids = [e.person_id for e in active_employees]
+
+        # ---- KPIs ----
+        total_active_employees = len(active_employee_ids)
+        pending_leave_requests = EmployeeLeave.objects.filter(status="PENDING").count()
+        employees_without_login = Employee.objects.filter(status="ACTIVE").exclude(
+            person_id__in=UserAccount.objects.values_list("person_id", flat=True)
+        ).count()
+
+        # ---- today's attendance breakdown (same rule as the Attendance screen) ----
+        today = timezone.localdate()
+        attendance_today = {
+            a.employee_id: a
+            for a in EmployeeAttendance.objects.filter(employee_id__in=active_employee_ids, attendance_date=today)
+        }
+        leaves_today = list(
+            EmployeeLeave.objects.filter(
+                employee_id__in=active_employee_ids, status="APPROVED", start_date__lte=today, end_date__gte=today,
+            )
+        )
+        leave_employee_ids_today = {l.employee_id for l in leaves_today}
+        person_ids_with_login = set(
+            UserAccount.objects.filter(person_id__in=active_person_ids).values_list("person_id", flat=True)
+        )
+        attendance_counts = {"PRESENT": 0, "HALF_DAY": 0, "ON_LEAVE": 0, "ABSENT": 0, "NO_LOGIN": 0}
+        for emp in active_employees:
+            att = attendance_today.get(emp.employee_id)
+            is_on_leave = emp.employee_id in leave_employee_ids_today
+            has_login = emp.person_id in person_ids_with_login
+            day_status, _hours = _attendance_status(att, is_on_leave, has_login)
+            attendance_counts[day_status] = attendance_counts.get(day_status, 0) + 1
+
+        # ---- headcount by department (currently-active assignments only) ----
+        dept_rows = (
+            PersonDepartmentHistory.objects.filter(is_current=True, person_id__in=active_person_ids)
+            .values("department__department_name")
+            .annotate(count=Count("person_id", distinct=True))
+            .order_by("-count")
+        )
+        headcount_by_department = [
+            {"department_name": row["department__department_name"] or "Unassigned", "count": row["count"]}
+            for row in dept_rows
+        ]
+
+        # ---- leave requests trend (last 7 days) ----
+        leave_trend = _hr_daily_counts(EmployeeLeave.objects.all(), "created_at", 7)
+
+        # ---- onboarding pipeline (7-field completion, same rule as Onboarding.jsx) ----
+        stage_counts = {"NOT_STARTED": 0, "IN_PROGRESS": 0, "COMPLETED": 0}
+        for ob in InternOnboarding.objects.all():
+            done = sum([
+                ob.documents_shared, ob.signed_documents_received, ob.documents_verified,
+                ob.designation_stipend_assigned, ob.welcome_email_sent,
+                ob.offer_letter_acknowledged, ob.login_credentials_provided,
+            ])
+            if done == 0:
+                stage_counts["NOT_STARTED"] += 1
+            elif done == 7:
+                stage_counts["COMPLETED"] += 1
+            else:
+                stage_counts["IN_PROGRESS"] += 1
+
+        # ---- pending promotions awaiting approval ----
+        pending_promotions = [
+            {
+                "employee_name": str(p.employee.person),
+                "new_designation": p.new_designation.designation_name,
+                "effective_date": p.effective_date,
+            }
+            for p in EmployeePromotion.objects.filter(status="PENDING")
+            .select_related("employee__person", "new_designation")
+            .order_by("-created_at")[:5]
+        ]
+
+        # ---- recent activity (this admin's own HR notifications) ----
+        recent_activity = [
+            {
+                "title": n.title,
+                "message": n.message,
+                "created_at": n.created_at,
+            }
+            for n in Notification.objects.filter(recipient=request.user, module="HR")
+            .order_by("-created_at")[:6]
+        ]
+
+        return Response({
+            "kpis": {
+                "total_active_employees": total_active_employees,
+                "pending_leave_requests": pending_leave_requests,
+                "employees_without_login": employees_without_login,
+                "present_today": attendance_counts["PRESENT"] + attendance_counts["HALF_DAY"],
+                "on_leave_today": attendance_counts["ON_LEAVE"],
+            },
+            "attendance_today": attendance_counts,
+            "headcount_by_department": headcount_by_department,
+            "leave_trend": leave_trend,
+            "onboarding_pipeline": stage_counts,
+            "pending_promotions": pending_promotions,
+            "recent_activity": recent_activity,
+        })

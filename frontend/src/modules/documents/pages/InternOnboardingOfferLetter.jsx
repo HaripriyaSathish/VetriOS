@@ -17,23 +17,27 @@ function triggerBlobDownload(blob, filename) {
   URL.revokeObjectURL(url);
 }
 
-// recipientname_integrated_internship_letter.pdf — no spaces/punctuation
-// in the name portion, everything lowercased.
+// recipientname_onboarding_offer_letter.pdf — no spaces/punctuation in
+// the name portion, everything lowercased.
 function offerLetterFilename(fullName) {
   const slug = (fullName || "recipient").toLowerCase().replace(/[^a-z0-9]+/g, "");
-  return `${slug}_integrated_internship_letter.pdf`;
+  return `${slug}_onboarding_offer_letter.pdf`;
 }
 
-// The letterhead design template already in the library — see the
-// Step 4 auto-load effect below.
-const DEFAULT_TEMPLATE_CODE = "VIS_INTEGRATED_INTERNSHIP_OFFER_V2";
+// This letter has its own separate letterhead design — not shared with
+// Course Integrated. Nothing exists under this code until the first
+// upload via Step 3's "+ Add new template" claims it (see
+// handleTemplateFileChange), after which it auto-loads here every time.
+const DEFAULT_TEMPLATE_CODE = "VIS_INTERN_ONBOARDING_OFFER";
 
-// Dedicated page for the "Course Integrated Internship Offer Letter" card
-// on the AI Document Generator. A progressive step wizard — interns are
-// auto-loaded (real data, not typed by hand): pick a batch, pick who to
-// generate for, fill in the offer details, pick the design template, write
-// the letter content, then preview/cancel/generate.
-function CourseInternshipOfferLetter() {
+// Dedicated page for the "Intern Onboarding Offer Letter" card on the AI
+// Document Generator — sent to interns who completed their course, cleared
+// the 5-round interview, and were selected as paid interns. Same batch-
+// then-student flow as Course Integrated, but only ACTIVE interns are
+// eligible: choose a batch, pick who it's for, fill in the offer details,
+// pick the design template, write the letter content, then
+// preview/cancel/generate.
+function InternOnboardingOfferLetter() {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
 
@@ -44,29 +48,26 @@ function CourseInternshipOfferLetter() {
   const [interns, setInterns] = useState([]);
 
   const [selectedBatch, setSelectedBatch] = useState("");
+  const [batchQuery, setBatchQuery] = useState("");
   const [studentSearch, setStudentSearch] = useState("");
   const [internIds, setInternIds] = useState([]);
 
   const [role, setRole] = useState("");
+  const [department, setDepartment] = useState("");
+  const [location, setLocation] = useState("Remote");
   const [effectiveDate, setEffectiveDate] = useState("");
-  const [duration, setDuration] = useState("2 Months");
-  const [stipend, setStipend] = useState("No Stipend");
+  const [stipend, setStipend] = useState("");
   const [letterContent, setLetterContent] = useState(
-    "<p>To : <strong>{{recipient_name}}</strong><br>Date : <strong>{{date}}</strong></p>" +
-      "<p><strong>Congratulations and Welcome to our VIS Team!</strong></p>" +
-      "<p>We are pleased to inform you that you have been appointed as a <strong>{{role}}</strong> Intern " +
-      "as part of your <strong>{{course_name}}</strong> Training Program Joined with <strong>{{training_provider}}</strong>.</p>" +
-      "<p>It is a Work From Home Integrated Internship Program, integrated with your <strong>{{course_name}}</strong> " +
-      "Period itself (<strong>{{course_duration_days}}</strong> Days) and there will not be any Stipend Processed from Our Side.</p>" +
-      "<p>An Internship Certificate will be Processed from our side post successful completion of Internship.</p>" +
-      "<p>All assigned Projects/Tasks should be completed within the Internship Period of <strong>{{duration}}</strong> " +
-      "to get the Internship Certificate failing to complete the Assigned Projects/Tasks the Internship Certificate will not be processed.</p>" +
-      "<p>Please note, this Internship Program has been given for Free of Cost without any Additional Fees Collected from your side.</p>" +
-      "<p>The Fees which you had paid to <strong>{{training_provider}}</strong> is only for the Training and not for the Internship with VETRI IT SYSTEMS.</p>" +
-      "<p>As per this Program, You will be Eligible to Attend Five Rounds of Direct Interview with VETRI IT SYSTEMS Only after the " +
-      "Successful Completion of Internship with VETRI IT SYSTEMS &amp; Training with <strong>{{training_provider}}</strong>.</p>" +
-      "<p>Role: <strong>{{role}}</strong><br>Effective From: <strong>{{effective_date}}</strong><br>Duration : <strong>{{duration}}</strong> from Effective Date<br>Stipend: <strong>{{stipend}}</strong></p>" +
-      "<p>Welcome On board!</p>"
+    "<p style=\"font-size:12px;color:#5a6376;\">Corporate ID: U62099TN2024PTC172387 &nbsp;&nbsp; TAN No: MRIV03584A</p>" +
+      "<p>To : <strong>{{recipient_name}}</strong></p>" +
+      "<p>We are pleased to inform you that you have been appointed as a <strong>{{role}}</strong> " +
+      "for our Vetri IT Systems Private Limited.</p>" +
+      "<p>Congratulations and Welcome to our VIS Team!</p>" +
+      "<p>Role: <strong>{{role}}</strong><br>Department: <strong>{{department}}</strong><br>Location: <strong>{{location}}</strong><br>" +
+      "Effective From: <strong>{{effective_date}}</strong><br>Stipend: <strong>{{stipend}}</strong></p>" +
+      "<p>Congratulations on your successful internship selection.</p>" +
+      "<p>Wishing you dedication, learning, and professional development.</p>" +
+      "<p>Welcome On Board!!!</p>"
   );
 
   const [uploading, setUploading] = useState(false);
@@ -84,13 +85,6 @@ function CourseInternshipOfferLetter() {
     client.get("/api/documents/interns/").then(({ data }) => setInterns(data)).catch(() => {});
   }, []);
 
-  // The letterhead design (logo + wave-graphic images, a single
-  // {{content}} anchor for the Content step's text) is already sitting
-  // in the template library — auto-load it so Step 4 starts pre-filled
-  // instead of forcing a choice on every visit. The full active list is
-  // kept too, so Step 4 can offer every template through one searchable
-  // combo box (a text input backed by a <datalist>, not a separate
-  // search bar + plain <select>).
   const templateLabel = (t) => `${t.template_name} — ${t.template_code}`;
 
   useEffect(() => {
@@ -118,31 +112,38 @@ function CourseInternshipOfferLetter() {
     }
   };
 
-  // Batches are derived from the interns list itself (already carries
-  // course_name/batch_name/dates per intern via the Enrollment lookup) —
-  // no separate batches endpoint needed.
+  // Only ACTIVE interns are eligible for onboarding, but the batch picker
+  // still narrows which of them to look through first — same batch-then-
+  // student flow as Course Integrated, just scoped to ACTIVE interns.
+  const activeInterns = interns.filter((i) => i.status === "ACTIVE");
+
+  const batchLabel = (b) => `${b.batch_name} — ${b.course_name}`;
+
   const batches = [];
   const seenBatches = new Set();
-  for (const i of interns) {
+  for (const i of activeInterns) {
     if (i.batch_name && !seenBatches.has(i.batch_name)) {
       seenBatches.add(i.batch_name);
       batches.push({ batch_name: i.batch_name, course_name: i.course_name });
     }
   }
 
-  const internsInBatch = selectedBatch ? interns.filter((i) => i.batch_name === selectedBatch) : [];
+  const handleBatchQueryChange = (event) => {
+    const value = event.target.value;
+    setBatchQuery(value);
+    const found = batches.find((b) => batchLabel(b) === value);
+    setSelectedBatch(found ? found.batch_name : "");
+    setInternIds([]);
+    setStudentSearch("");
+  };
+
+  const internsInBatch = selectedBatch ? activeInterns.filter((i) => i.batch_name === selectedBatch) : [];
   const visibleInterns = internsInBatch.filter((i) =>
     i.full_name.toLowerCase().includes(studentSearch.toLowerCase())
   );
   const selectedInterns = internIds
     .map((id) => interns.find((i) => String(i.intern_id) === String(id)))
     .filter(Boolean);
-
-  const handleBatchChange = (event) => {
-    setSelectedBatch(event.target.value);
-    setInternIds([]);
-    setStudentSearch("");
-  };
 
   const toggleIntern = (id) => {
     setInternIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -165,9 +166,9 @@ function CourseInternshipOfferLetter() {
       });
 
       const knownFields = [
-        "recipient_name", "date", "effective_date", "role", "duration", "stipend", "content",
+        "recipient_name", "date", "effective_date", "role", "stipend", "content",
         "company_name", "company_email", "contact_email", "hr_email", "company_website",
-        "course_name", "course_duration_days", "training_provider",
+        "department", "location",
       ];
       const extraPlaceholders = (analyzed.placeholders || []).filter((p) => !knownFields.includes(p));
       if (extraPlaceholders.length > 0) {
@@ -178,10 +179,15 @@ function CourseInternshipOfferLetter() {
         return;
       }
 
-      const code = `INT-OFFER-${Date.now()}`;
+      // The first upload claims the fixed default code, so it auto-loads
+      // here on every future visit (see the effect above). A later
+      // re-upload falls back to a fresh timestamped code, since that one's
+      // already taken.
+      const alreadyHasDefault = templateOptions.some((t) => t.template_code === DEFAULT_TEMPLATE_CODE);
+      const code = alreadyHasDefault ? `ONBOARD-OFFER-${Date.now()}` : DEFAULT_TEMPLATE_CODE;
       const { data: created } = await client.post("/api/documents/templates/create/", {
         template_code: code,
-        template_name: `Course Integrated Internship Offer Letter — ${file.name}`,
+        template_name: `Intern Onboarding Offer Letter — ${file.name}`,
         template_content: analyzed.template_content,
         template_format: analyzed.template_format,
       });
@@ -199,8 +205,8 @@ function CourseInternshipOfferLetter() {
   };
 
   // Shared by the initial batch generate and a per-row Regenerate — always
-  // reads whatever is currently in the form (role/effective date/etc.), so
-  // editing a field (e.g. the date) and regenerating picks up the change.
+  // reads whatever is currently in the form (role/department/etc.), so
+  // editing a field and regenerating picks up the change.
   const generateForIntern = async (intern) => {
     const fallbackDate = intern.internship_start_date
       ? new Date(intern.internship_start_date).toLocaleDateString("en-GB").replace(/\//g, ".")
@@ -211,8 +217,9 @@ function CourseInternshipOfferLetter() {
         intern_id: intern.intern_id,
         field_values: {
           role,
+          department,
+          location,
           effective_date: effectiveDate || fallbackDate,
-          duration,
           stipend,
           letter_content: letterContent,
         },
@@ -225,7 +232,7 @@ function CourseInternshipOfferLetter() {
 
   const handleGenerate = async () => {
     if (!template || internIds.length === 0) {
-      setError("Pick at least one student first.");
+      setError("Pick at least one intern first.");
       return;
     }
     setError("");
@@ -254,7 +261,7 @@ function CourseInternshipOfferLetter() {
         params: { inline: 1 }, responseType: "blob",
       });
       if (viewerTab) viewerTab.location.href = URL.createObjectURL(data);
-    } catch (err) {
+    } catch {
       if (viewerTab) viewerTab.close();
       setError("Couldn't open that file.");
     }
@@ -264,7 +271,7 @@ function CourseInternshipOfferLetter() {
     try {
       const { data } = await client.get(`/api/documents/library/${documentId}/file/`, { responseType: "blob" });
       triggerBlobDownload(data, offerLetterFilename(fullName));
-    } catch (err) {
+    } catch {
       setError("Couldn't download that file.");
     }
   };
@@ -283,7 +290,7 @@ function CourseInternshipOfferLetter() {
         zip.file(offerLetterFilename(r.intern.full_name), data);
       }
       const blob = await zip.generateAsync({ type: "blob" });
-      triggerBlobDownload(blob, "integrated_internship_letters.zip");
+      triggerBlobDownload(blob, "onboarding_offer_letters.zip");
     } catch {
       setError("Couldn't build the ZIP.");
     } finally {
@@ -291,9 +298,8 @@ function CourseInternshipOfferLetter() {
     }
   };
 
-  // Renders the ACTUAL letterhead design (real VIS letterhead, fonts,
-  // layout) with the first selected intern's real data merged in —
-  // same merge pipeline as Generate, but nothing gets saved.
+  // Renders the ACTUAL letterhead design with the first selected intern's
+  // real data merged in — same merge pipeline as Generate, nothing saved.
   const handlePreview = async () => {
     const intern = selectedInterns[0];
     if (!intern || !template) return;
@@ -311,8 +317,9 @@ function CourseInternshipOfferLetter() {
           intern_id: intern.intern_id,
           field_values: {
             role,
+            department,
+            location,
             effective_date: effectiveDate || fallbackDate,
-            duration,
             stipend,
             letter_content: letterContent,
           },
@@ -322,7 +329,7 @@ function CourseInternshipOfferLetter() {
       if (previewTab) previewTab.location.href = URL.createObjectURL(data);
     } catch {
       if (previewTab) previewTab.close();
-      setError("Couldn't render the preview — check that Role/Effective/Duration/Stipend are filled in.");
+      setError("Couldn't render the preview — check that Role/Department/Location/Effective/Stipend are filled in.");
     } finally {
       setPreviewing(false);
     }
@@ -336,8 +343,8 @@ function CourseInternshipOfferLetter() {
       <div className="doc-head">
         <div>
           <span className="doc-eyebrow">Document Generator</span>
-          <h1>Course Integrated Internship Offer Letter</h1>
-          <p>Choose a batch, pick who it's for, and generate.</p>
+          <h1>Intern Onboarding Offer Letter</h1>
+          <p>Pick who's being onboarded as a paid intern, and generate.</p>
         </div>
         <button type="button" className="doc-btn-sm" onClick={() => navigate("/documents/ai-generator")}>
           <ArrowLeft size={14} />
@@ -351,14 +358,18 @@ function CourseInternshipOfferLetter() {
       <div className="doc-step-panel">
         <h3 className="doc-step-title">1. Choose a batch</h3>
         <div className="doc-form">
-          <select value={selectedBatch} onChange={handleBatchChange}>
-            <option value="">Select a batch…</option>
+          <input
+            list="onboarding-offer-batch-options"
+            value={batchQuery}
+            onChange={handleBatchQueryChange}
+            placeholder="Search or select a batch…"
+            autoComplete="off"
+          />
+          <datalist id="onboarding-offer-batch-options">
             {batches.map((b) => (
-              <option key={b.batch_name} value={b.batch_name}>
-                {b.batch_name} — {b.course_name}
-              </option>
+              <option key={b.batch_name} value={batchLabel(b)} />
             ))}
-          </select>
+          </datalist>
         </div>
       </div>
 
@@ -370,12 +381,12 @@ function CourseInternshipOfferLetter() {
             <input
               value={studentSearch}
               onChange={(e) => setStudentSearch(e.target.value)}
-              placeholder="Search student by name…"
+              placeholder="Search active interns by name…"
             />
           </div>
           <div className="doc-step-checklist">
             {visibleInterns.length === 0 ? (
-              <p className="doc-empty">No students match in this batch.</p>
+              <p className="doc-empty">No active interns match in this batch.</p>
             ) : (
               visibleInterns.map((i) => (
                 <label key={i.intern_id} className="doc-step-check-row">
@@ -398,20 +409,23 @@ function CourseInternshipOfferLetter() {
           <h3 className="doc-step-title">3. Offer details</h3>
           <div className="doc-form">
             <label>Role</label>
-            <input value={role} onChange={(e) => setRole(e.target.value)} placeholder="e.g. AI Fullstack Developer" required />
+            <input value={role} onChange={(e) => setRole(e.target.value)} placeholder="e.g. Junior Developer" required />
+
+            <label>Department</label>
+            <input value={department} onChange={(e) => setDepartment(e.target.value)} placeholder="e.g. Development" required />
+
+            <label>Location</label>
+            <input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. Remote" required />
 
             <label>Effective from</label>
             <input
               value={effectiveDate}
               onChange={(e) => setEffectiveDate(e.target.value)}
-              placeholder="e.g. 03.11.2025 — leave blank to use each intern's own start date"
+              placeholder="e.g. 24.06.2026 — leave blank to use each intern's own start date"
             />
 
-            <label>Duration</label>
-            <input value={duration} onChange={(e) => setDuration(e.target.value)} required />
-
             <label>Stipend</label>
-            <input value={stipend} onChange={(e) => setStipend(e.target.value)} required />
+            <input value={stipend} onChange={(e) => setStipend(e.target.value)} placeholder="e.g. INR 2000" required />
           </div>
         </div>
       )}
@@ -421,19 +435,19 @@ function CourseInternshipOfferLetter() {
           <h3 className="doc-step-title">4. Template</h3>
           {!customTemplateName && template?.template_code === DEFAULT_TEMPLATE_CODE && (
             <div className="doc-badge approved" style={{ marginBottom: 10 }}>
-              ✓ Default VIS letterhead design already applied
+              ✓ Default Intern Onboarding letterhead design already applied
             </div>
           )}
 
           <div className="doc-form">
             <input
-              list="course-offer-template-options"
+              list="onboarding-offer-template-options"
               value={templateQuery}
               onChange={handleTemplateQueryChange}
               placeholder="Search or select a template…"
               autoComplete="off"
             />
-            <datalist id="course-offer-template-options">
+            <datalist id="onboarding-offer-template-options">
               {templateOptions.map((t) => (
                 <option key={t.document_template_id} value={templateLabel(t)} />
               ))}
@@ -527,7 +541,7 @@ function CourseInternshipOfferLetter() {
                   <button
                     type="button"
                     className="doc-btn-sm"
-                    title="Changed a field (e.g. the date)? Regenerate this one."
+                    title="Changed a field? Regenerate this one."
                     onClick={() => handleRegenerate(r.intern)}
                     disabled={isRegenerating}
                   >
@@ -544,4 +558,4 @@ function CourseInternshipOfferLetter() {
   );
 }
 
-export default CourseInternshipOfferLetter;
+export default InternOnboardingOfferLetter;

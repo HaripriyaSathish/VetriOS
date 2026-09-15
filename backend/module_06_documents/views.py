@@ -10,15 +10,14 @@ import cloudinary.utils
 import pypdf
 from cloudinary_storage.storage import RawMediaCloudinaryStorage
 from docx import Document as DocxDocument
-from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml.ns import qn
-from docx.shared import Pt, RGBColor
 from docx2pdf import convert as docx2pdf_convert
 from xhtml2pdf import pisa
 from django.conf import settings
 from django.core.files.base import ContentFile
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Count, Q
+from django.db.models.functions import TruncDate
 from django.http import FileResponse, HttpResponse, HttpResponseRedirect
 from django.utils import timezone
 from rest_framework import generics, status
@@ -439,12 +438,28 @@ def _insert_content_body(doc, resolved_html):
         anchor._p.getparent().remove(anchor._p)
 
 
-def _canvas_known_values(intern):
+def _intern_offer_known_values(intern):
+    """Shared known-value set for the Course Integrated Internship Offer
+    Letter — recipient/date/effective_date plus course_name/
+    course_duration_days (from the intern's most recent Enrollment,
+    same lookup as InternListView) are real HR/training data, never
+    typed by hand. training_provider is fixed — every batch is trained
+    by the same partner company."""
     person = intern.student.person
+    enrollment = (
+        Enrollment.objects.filter(student_id=intern.student_id)
+        .select_related("course")
+        .order_by("-enrollment_date")
+        .first()
+    )
+    course = enrollment.course if enrollment else None
     return {
         "recipient_name": str(person),
         "date": timezone.localdate().strftime("%d %B, %Y"),
         "effective_date": intern.internship_start_date.strftime("%d.%m.%Y") if intern.internship_start_date else "",
+        "course_name": course.course_name if course else "",
+        "course_duration_days": str(course.duration_days) if course and course.duration_days else "",
+        "training_provider": "VETRI TECHNOLOGY SOLUTIONS",
     }
 
 
@@ -516,7 +531,7 @@ def _merge_canvas_pdf(template, intern, field_values):
     all_text = "\n".join(el.get("text", "") for el in elements if el.get("type") == "text")
     placeholders = sorted(set(PLACEHOLDER_RE.findall(all_text)))
 
-    known_values = _canvas_known_values(intern)
+    known_values = _intern_offer_known_values(intern)
     values, missing = {}, []
     for key in placeholders:
         if key in known_values and known_values[key]:
@@ -557,14 +572,15 @@ def _merge_intern_offer_pdf(template, intern, field_values):
         inserted into the design (see _insert_content_body).
     Interns aren't Employee rows in this schema, so employee-shaped
     known_values (designation, joining_date) don't apply —
-    recipient_name/date auto-fill from the intern's own record,
-    everything else (role/duration/stipend/effective_date) is a manual
-    field. Returns (pdf_bytes, error_response) — shared by the real
-    save-and-generate path and the no-save preview."""
+    recipient_name/date/course_name/course_duration_days/
+    training_provider auto-fill from the intern's own enrollment record
+    (see _intern_offer_known_values), everything else (role/duration/
+    stipend/effective_date) is a manual field. Returns (pdf_bytes,
+    error_response) — shared by the real save-and-generate path and the
+    no-save preview."""
     if template.template_format == "HTML":
         return _merge_canvas_pdf(template, intern, field_values)
 
-    person = intern.student.person
     docx_bytes = _raw_cloud_storage.open(template.template_content).read()
     doc = DocxDocument(io.BytesIO(docx_bytes))
 
@@ -584,9 +600,7 @@ def _merge_intern_offer_pdf(template, intern, field_values):
     body_placeholders = sorted(set(PLACEHOLDER_RE.findall(body_text)) - {"content"})
 
     known_values = {
-        "recipient_name": str(person),
-        "date": timezone.localdate().strftime("%d %B, %Y"),
-        "effective_date": intern.internship_start_date.strftime("%d.%m.%Y") if intern.internship_start_date else "",
+        **_intern_offer_known_values(intern),
         # Fixed company branding — always the same, never a per-letter
         # field. The analyze-upload AI step re-derives placeholder names
         # from scratch on every upload and isn't consistent about what it
@@ -609,24 +623,29 @@ def _merge_intern_offer_pdf(template, intern, field_values):
 
     letter_content = field_values.get("letter_content", "")
 
+    # Per-generation manual fields (typed in the Offer Details step) — used
+    # below both to satisfy any of these same placeholders baked directly
+    # into the uploaded design's own header/body (not just the Content
+    # step's text), and to resolve the Content step's own {{tags}}.
+    values = dict(known_values)
+    for key in ("role", "duration", "stipend", "effective_date", "department", "location"):
+        if field_values.get(key):
+            values[key] = field_values[key]
+
     if letter_content:
         # A Content step was actually written — treat this as a design-only
         # template regardless of any body placeholders (the analyze-upload
         # AI step often turns letterhead branding, e.g. company name/email,
         # into placeholders too, which used to be mistaken for "this is an
         # already fully-written body" and silently dropped the Content step
-        # text entirely). Branding placeholders resolve from known_values
-        # only; the letter body itself comes from the Content step.
-        missing = [key for key in body_placeholders if not known_values.get(key)]
+        # text entirely). Placeholders baked into the design itself (company
+        # branding, or manual fields like role/department) resolve from
+        # `values`; the letter body itself comes from the Content step.
+        missing = [key for key in body_placeholders if not values.get(key)]
         if missing:
             return None, Response({"detail": f"Missing values for: {', '.join(missing)}"}, status=400)
 
-        apply_replacements(known_values)
-
-        values = dict(known_values)
-        for key in ("role", "duration", "stipend", "effective_date"):
-            if field_values.get(key):
-                values[key] = field_values[key]
+        apply_replacements(values)
 
         resolved_html = re.sub(
             r"\{\{\s*([a-zA-Z0-9_]+)\s*\}\}",
@@ -1367,6 +1386,69 @@ class DocumentListView(generics.ListAPIView):
         return qs
 
 
+def _library_daily_counts(queryset, date_field, days):
+    """Same zero-filled daily bucketing pattern used across the other
+    module dashboards — duplicated locally rather than imported
+    cross-module."""
+    today = timezone.localdate()
+    start = today - timezone.timedelta(days=days - 1)
+    counts = {
+        row["day"]: row["count"]
+        for row in queryset.filter(**{f"{date_field}__date__gte": start})
+        .annotate(day=TruncDate(date_field))
+        .values("day")
+        .annotate(count=Count("pk"))
+    }
+    return [
+        {"date": (start + timezone.timedelta(days=i)).isoformat(), "count": counts.get(start + timezone.timedelta(days=i), 0)}
+        for i in range(days)
+    ]
+
+
+class LibraryStatsView(APIView):
+    """GET — KPIs and charts for the dashboard header above the Library
+    table. Scoped the same way the Library list itself is (category
+    access via role, plus any per-document DocumentAccessRule grant) so
+    the numbers never reveal more than the user could actually see."""
+    permission_classes = [CanViewDocuments]
+
+    def get(self, request):
+        qs = Document.objects.all()
+        allowed_categories = _allowed_category_ids(request.user)
+        if allowed_categories is not None:
+            today = timezone.localdate()
+            granted_ids = DocumentAccessRule.objects.filter(
+                user=request.user, is_allowed=True, effective_from__lte=today,
+            ).filter(Q(effective_to__isnull=True) | Q(effective_to__gte=today)).values_list("document_id", flat=True)
+            qs = qs.filter(Q(document_category_id__in=allowed_categories) | Q(document_id__in=granted_ids))
+
+        total = qs.count()
+        active = qs.filter(status="ACTIVE").count()
+        pending_review = qs.filter(status="UNDER_REVIEW").count()
+        confidential = qs.filter(confidentiality_level__level_name__in=["Confidential", "Highly Confidential"]).count()
+
+        category_rows = (
+            qs.values("document_category__category_name")
+            .annotate(count=Count("document_id"))
+            .order_by("-count")
+        )
+        by_category = [
+            {"category_name": row["document_category__category_name"] or "Uncategorized", "count": row["count"]}
+            for row in category_rows
+        ]
+
+        uploads_trend = _library_daily_counts(qs, "created_at", 14)
+
+        return Response({
+            "total": total,
+            "active": active,
+            "pending_review": pending_review,
+            "confidential": confidential,
+            "by_category": by_category,
+            "uploads_trend": uploads_trend,
+        })
+
+
 class DocumentFilterOptionsView(APIView):
     """Populates the Library filter dropdowns from real data."""
     permission_classes = [CanViewDocuments]
@@ -1737,105 +1819,6 @@ class TemplateAnalyzeUploadView(APIView):
             "placeholders": placeholders,
             "placeholder_hints": {},
             "source_filename": file_obj.name,
-        })
-
-
-def generate_docx_design(description):
-    """AI Design Generation — no sample letter to copy from, so Groq
-    drafts the letter AND a simple letterhead title from a plain-English
-    description, and we build a formatted .docx around it (bold/colored
-    centered letterhead, body paragraphs) rather than a flat text block.
-    Reuses the same DOCX/design-preserving pipeline as an uploaded
-    sample from here on (storage, placeholders, hints, PDF preview).
-
-    Returns (storage_name, placeholders, hints).
-    """
-    prompt = (
-        "Draft a professional HR letter template for this request: "
-        f'"{description}"\n\n'
-        "Every variable, person-specific, or date-specific detail must be a "
-        "{{snake_case_placeholder}} tag (e.g. {{employee_name}}, "
-        "{{designation}}, {{department}}, {{start_date}}, {{stipend}}).\n\n"
-        "Respond in EXACTLY this format and nothing else:\n\n"
-        "===LETTERHEAD===\n"
-        "<a short title line for the top of the letter, e.g. a company name "
-        "or the letter's title — no placeholders here>\n\n"
-        "===BODY===\n"
-        "<the full letter body text, paragraphs separated by a blank line, "
-        "placeholders included where appropriate>\n\n"
-        "===HINTS===\n"
-        '{"placeholder_name": "short hint describing what to enter", ...}\n'
-        "(one entry per distinct placeholder used above; hints object only, "
-        "no extra text)"
-    )
-    response = ask_groq(prompt, max_tokens=1500)
-
-    letterhead = "Document"
-    body = response
-    hints = {}
-    if "===LETTERHEAD===" in response and "===BODY===" in response:
-        _, rest = response.split("===LETTERHEAD===", 1)
-        letterhead_section, rest = rest.split("===BODY===", 1)
-        letterhead = letterhead_section.strip() or letterhead
-        body = rest
-    if "===HINTS===" in body:
-        body, hints_section = body.split("===HINTS===", 1)
-        try:
-            match = re.search(r"\{.*\}", hints_section, re.DOTALL)
-            hints = json.loads(match.group(0)) if match else {}
-        except (ValueError, AttributeError):
-            hints = {}
-    body = body.strip()
-
-    doc = DocxDocument()
-    head_para = doc.add_paragraph()
-    head_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    head_run = head_para.add_run(letterhead)
-    head_run.bold = True
-    head_run.font.size = Pt(16)
-    head_run.font.color.rgb = RGBColor(0x1A, 0x3C, 0x6E)
-    doc.add_paragraph()
-
-    for block in re.split(r"\n\s*\n", body):
-        block = block.strip()
-        if block:
-            doc.add_paragraph(block)
-
-    placeholders = sorted(set(PLACEHOLDER_RE.findall(letterhead + "\n" + body)))
-    hints = {k: v for k, v in hints.items() if k in placeholders}
-
-    buffer = io.BytesIO()
-    doc.save(buffer)
-    buffer.seek(0)
-    filename = f"templates/ai-generated-{int(timezone.now().timestamp())}.docx"
-    storage_name = _raw_cloud_storage.save(filename, ContentFile(buffer.read()))
-
-    return storage_name, placeholders, hints
-
-
-class TemplateGenerateDesignView(APIView):
-    """POST {description} — AI Design Generation: no sample file, Groq
-    drafts a brand-new letter + letterhead from a plain-English
-    description. Returns the same shape as TemplateAnalyzeUploadView's
-    DOCX branch, so the review/preview/save step is identical either way."""
-    permission_classes = [CanCreateDocuments]
-
-    def post(self, request):
-        description = (request.data.get("description") or "").strip()
-        if not description:
-            return Response({"detail": "description is required."}, status=400)
-
-        try:
-            storage_name, placeholders, hints = generate_docx_design(description)
-        except Exception as exc:
-            return Response({"detail": f"Generation failed: {exc}"}, status=502)
-
-        return Response({
-            "template_format": "DOCX",
-            "template_content": storage_name,
-            "placeholders": placeholders,
-            "placeholder_hints": hints,
-            "source_filename": "AI-generated design",
         })
 
 

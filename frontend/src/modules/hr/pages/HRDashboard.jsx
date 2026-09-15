@@ -12,6 +12,7 @@ import {
   Camera,
   Plus,
   KeyRound,
+  CheckCircle2,
 } from "lucide-react";
 import client from "../../../api/client";
 import Pagination, { paginate } from "../../../components/Pagination";
@@ -134,6 +135,70 @@ function HRDashboard() {
 
   const [confirmTarget, setConfirmTarget] = useState(null);
   const [confirming, setConfirming] = useState(false);
+
+  // "Request login credentials" — clicking the key icon asks which
+  // System Administrator to send it to (not a broadcast to all of
+  // them), then creates one PermissionRequest addressed to just that
+  // person. Handled entirely via the shared permission-requests API —
+  // no changes to Request Access itself, that page just happens to also
+  // list these as a side effect of sharing the same table.
+  const [loginRequestTarget, setLoginRequestTarget] = useState(null); // the employee row
+  const [loginRequestAdmins, setLoginRequestAdmins] = useState([]);
+  const [loginRequestAdminsLoading, setLoginRequestAdminsLoading] = useState(false);
+  const [selectedAdminId, setSelectedAdminId] = useState("");
+  const [loginRequestSubmitting, setLoginRequestSubmitting] = useState(false);
+  const [loginRequestError, setLoginRequestError] = useState("");
+  const [loginRequestSentIds, setLoginRequestSentIds] = useState(new Set());
+
+  const openLoginRequestPicker = async (emp) => {
+    setLoginRequestTarget(emp);
+    setSelectedAdminId("");
+    setLoginRequestError("");
+    setLoginRequestAdminsLoading(true);
+    try {
+      const { data } = await client.get("/api/identity/admins/", {
+        params: { category: "System Administrator" },
+      });
+      setLoginRequestAdmins(data);
+      if (data.length === 1) setSelectedAdminId(String(data[0].user_id));
+    } catch {
+      setLoginRequestError("Couldn't load the list of System Administrators.");
+    } finally {
+      setLoginRequestAdminsLoading(false);
+    }
+  };
+
+  const closeLoginRequestPicker = () => {
+    setLoginRequestTarget(null);
+    setLoginRequestAdmins([]);
+    setSelectedAdminId("");
+    setLoginRequestError("");
+  };
+
+  const sendLoginRequest = async () => {
+    if (!selectedAdminId) {
+      setLoginRequestError("Pick who this should go to.");
+      return;
+    }
+    const emp = loginRequestTarget;
+    setLoginRequestSubmitting(true);
+    setLoginRequestError("");
+    try {
+      await client.post("/api/identity/permission-requests/", {
+        admin_category: "System Administrator",
+        target_admin_id: selectedAdminId,
+        request_type: "GENERAL",
+        permission_requested: `Create login credentials for ${emp.full_name} (${emp.employee_code || "no code"})`,
+        reason: `${emp.full_name} is onboarded (${emp.designation_name || "no designation"}) but doesn't have a login yet.`,
+      });
+      setLoginRequestSentIds((prev) => new Set(prev).add(emp.employee_id));
+      closeLoginRequestPicker();
+    } catch (err) {
+      setLoginRequestError(err.response?.data?.detail || "Couldn't send that request.");
+    } finally {
+      setLoginRequestSubmitting(false);
+    }
+  };
 
   // Departments tab — search + CRUD, same shape as the Employees tab's
   // create/edit/confirm state, just for department instead.
@@ -330,9 +395,7 @@ function HRDashboard() {
     }
   };
 
-  // Button only, for now — waiting on what should actually happen when
-  // it's clicked before wiring any behavior.
-  const requestLoginCredentials = (emp) => {};
+  const requestLoginCredentials = (emp) => openLoginRequestPicker(emp);
 
   const requestToggleActive = (emp) => setConfirmTarget(emp);
   const cancelToggleActive = () => setConfirmTarget(null);
@@ -798,12 +861,23 @@ function HRDashboard() {
                               {!emp.has_login && (
                                 <button
                                   type="button"
-                                  className="hr-icon-btn"
-                                  title="Request login credentials"
+                                  className={
+                                    "hr-icon-btn" +
+                                    (loginRequestSentIds.has(emp.employee_id) ? " sent" : " attention")
+                                  }
+                                  title={
+                                    loginRequestSentIds.has(emp.employee_id)
+                                      ? "Request sent"
+                                      : "Request login credentials"
+                                  }
                                   aria-label={`Request login credentials for ${emp.full_name}`}
                                   onClick={() => requestLoginCredentials(emp)}
                                 >
-                                  <KeyRound size={15} />
+                                  {loginRequestSentIds.has(emp.employee_id) ? (
+                                    <CheckCircle2 size={15} />
+                                  ) : (
+                                    <KeyRound size={15} />
+                                  )}
                                 </button>
                               )}
                               <button
@@ -1431,6 +1505,60 @@ function HRDashboard() {
                 disabled={desigConfirming}
               >
                 {desigConfirming ? "Working…" : desigConfirmTarget.is_active ? "Deactivate" : "Reactivate"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {loginRequestTarget && (
+        <div className="hr-modal-backdrop" onClick={closeLoginRequestPicker}>
+          <div className="hr-modal hr-confirm" onClick={(e) => e.stopPropagation()}>
+            <h2>Request login credentials</h2>
+            <p>
+              Send to which System Administrator, for <strong>{loginRequestTarget.full_name}</strong>?
+            </p>
+
+            {loginRequestAdminsLoading ? (
+              <p className="hr-empty">Loading…</p>
+            ) : loginRequestAdmins.length === 0 ? (
+              <p className="hr-empty">No active System Administrator found.</p>
+            ) : (
+              <div className="hr-admin-picker">
+                {loginRequestAdmins.map((admin) => (
+                  <label
+                    key={admin.user_id}
+                    className={
+                      "hr-admin-picker-row" +
+                      (String(selectedAdminId) === String(admin.user_id) ? " selected" : "")
+                    }
+                  >
+                    <input
+                      type="radio"
+                      name="login-request-admin"
+                      value={admin.user_id}
+                      checked={String(selectedAdminId) === String(admin.user_id)}
+                      onChange={(e) => setSelectedAdminId(e.target.value)}
+                    />
+                    <span>{admin.full_name}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+
+            {loginRequestError && <p className="hr-error">{loginRequestError}</p>}
+
+            <div className="hr-modal-actions">
+              <button type="button" className="hr-btn-sm" onClick={closeLoginRequestPicker}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="hr-btn-accent"
+                onClick={sendLoginRequest}
+                disabled={loginRequestSubmitting || !selectedAdminId}
+              >
+                {loginRequestSubmitting ? "Sending…" : "Send request"}
               </button>
             </div>
           </div>

@@ -9,8 +9,8 @@ sharing one PostgreSQL database.
 
 Two developers, clear module boundaries:
 
-| Area | Developed by |
-|------|--------------|
+| Area | Owner |
+|---|---|
 | Identity & Access, HR, Document Generator, Email Automation | Bhanu Rekha |
 | Training, Internships, Student, Project & Client Management | Haripriya Sathish |
 
@@ -77,6 +77,20 @@ The frontend runs at `http://localhost:5173`, the backend at
 
 > ⚠️ `.env` holds real secrets and is git-ignored — never commit it.
 > Ask a teammate for the actual values.
+
+## Database notes
+
+- Most tables belong to the **official DB schema** (`managed=False` in
+  Django) — they're not created by Django migrations, so don't try to
+  migrate them.
+- Anything new this project adds is prefixed `ext_` (e.g.
+  `ext_permission_request`) and **is** managed via Django migrations as
+  usual.
+- If you ever see new tables landing in the wrong schema, check
+  `search_path` in `config/settings.py` — `public` must be listed first.
+- After pulling changes that touch `models.py`, run
+  `python manage.py check` before assuming everything's fine — this
+  catches duplicate model definitions and other schema mismatches early.
 
 ## Where to look next
 

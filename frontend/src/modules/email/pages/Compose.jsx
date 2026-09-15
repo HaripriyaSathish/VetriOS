@@ -36,7 +36,7 @@ function Compose() {
   const [sentMessage, setSentMessage] = useState("");
 
   useEffect(() => {
-    client.get("/api/identity/users/").then(({ data }) => setUsers(data)).catch(() => {});
+    client.get("/api/email/recipients/").then(({ data }) => setUsers(data)).catch(() => {});
   }, []);
 
   const addRecipient = (email, label) => {

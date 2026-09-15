@@ -3,12 +3,16 @@ import re
 
 from django.conf import settings
 from django.core.mail import EmailMessage, get_connection
+from django.db.models import Count
+from django.db.models.functions import TruncDate
 from django.utils import timezone
 from rest_framework import generics
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
 
 from local_extensions.ai_service import ask_groq
+from module_01_identity_access.models import UserAccount
 from module_02_hr.models import EmployeePromotion
 from module_03_training.models import Enrollment
 from module_04_interns.models import Intern
@@ -61,17 +65,103 @@ def _already_sent(email, email_type_code):
     ).exists()
 
 
-class EmailDashboardStatsView(APIView):
-    """GET — counts for the Email landing page's stat tiles."""
-    permission_classes = [CanUseEmail]
+def _email_daily_counts(queryset, date_field, days):
+    """Same zero-filled daily bucketing pattern as the other dashboards —
+    duplicated locally rather than imported cross-module."""
+    today = timezone.localdate()
+    start = today - timezone.timedelta(days=days - 1)
+    counts = {
+        row["day"]: row["count"]
+        for row in queryset.filter(**{f"{date_field}__date__gte": start})
+        .annotate(day=TruncDate(date_field))
+        .values("day")
+        .annotate(count=Count("pk"))
+    }
+    return [
+        {"date": (start + timezone.timedelta(days=i)).isoformat(), "count": counts.get(start + timezone.timedelta(days=i), 0)}
+        for i in range(days)
+    ]
+
+
+class EmailRecipientDirectoryView(APIView):
+    """GET — a lightweight name+email directory for Compose's recipient
+    picker. Deliberately open to any authenticated user (unlike
+    /api/identity/users/, which is System-Administrator-only since it
+    also handles account creation) and deliberately minimal — no
+    username, role, or account-status fields, just enough to address an
+    email to a real colleague."""
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        accounts = (
+            UserAccount.objects.filter(is_active=True)
+            .exclude(person__email__isnull=True)
+            .exclude(person__email="")
+            .select_related("person")
+        )
+        return Response([
+            {"full_name": str(a.person), "email": a.person.email}
+            for a in accounts
+        ])
+
+
+class EmailDashboardStatsView(APIView):
+    """GET — stats, charts, and lists for the Email landing page. Open to
+    any authenticated user — everyone with an Email menu sees this."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        # ---- emails by type (categorical) ----
+        type_rows = (
+            AiEmail.objects.filter(email_template__isnull=False)
+            .values("email_template__email_type__email_type_name")
+            .annotate(count=Count("ai_email_id"))
+            .order_by("-count")
+        )
+        emails_by_type = [
+            {"type_name": row["email_template__email_type__email_type_name"] or "Untyped", "count": row["count"]}
+            for row in type_rows
+        ]
+
+        # ---- sent trend (last 14 days) ----
+        sent_trend = _email_daily_counts(
+            AiEmail.objects.filter(generation_status="SENT"), "generated_at", 14
+        )
+
+        # ---- batch status breakdown ----
+        batch_rows = EmailBatch.objects.values("status").annotate(count=Count("email_batch_id")).order_by("-count")
+        batch_status = [{"status": row["status"], "count": row["count"]} for row in batch_rows]
+
+        # ---- recent batches ----
+        recent_batches = [
+            {
+                "batch_name": b.batch_name,
+                "status": b.status,
+                "successful_emails": b.successful_emails,
+                "failed_emails": b.failed_emails,
+                "total_emails": b.total_emails,
+            }
+            for b in EmailBatch.objects.order_by("-created_at")[:5]
+        ]
+
+        # ---- recently sent ----
+        recent_sent = [
+            {"subject": e.subject, "recipient_email": e.recipient_email, "generated_at": e.generated_at}
+            for e in AiEmail.objects.filter(generation_status="SENT").order_by("-generated_at")[:5]
+        ]
+
         return Response({
             "total_emails": AiEmail.objects.count(),
             "pending_approval": EmailApproval.objects.filter(approval_status="PENDING").count(),
             "sent": AiEmail.objects.filter(generation_status="SENT").count(),
             "templates": EmailTemplate.objects.filter(is_active=True).count(),
             "active_batches": EmailBatch.objects.filter(status__in=["DRAFT", "SCHEDULED", "PROCESSING"]).count(),
+            "failed": AiEmail.objects.filter(generation_status="FAILED").count(),
+            "emails_by_type": emails_by_type,
+            "sent_trend": sent_trend,
+            "batch_status": batch_status,
+            "recent_batches": recent_batches,
+            "recent_sent": recent_sent,
         })
 
 
@@ -122,8 +212,11 @@ class ComposeEmailView(APIView):
     resolved from field_values, no AI) or free-form (Groq drafts the
     body from a plain-English description, same convention as the
     Document Generator's quick-generate path). Always lands as a
-    DRAFT AiEmail row — sending/approval are separate actions."""
-    permission_classes = [CanUseEmail]
+    DRAFT AiEmail row — sending/approval are separate actions.
+
+    Open to any authenticated user — Compose is meant for every login,
+    not just admins (Bulk/Templates/Approvals stay on CanUseEmail)."""
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         recipient_email = (request.data.get("recipient_email") or "").strip()
@@ -300,8 +393,10 @@ class SendEmailView(APIView):
     without actually delivering real mail) and records an EmailDelivery
     row either way. An attachment, when given, is provided at send time
     (not persisted on the AiEmail row) — same convention as
-    BulkSendEmailView's per-recipient attachment."""
-    permission_classes = [CanUseEmail]
+    BulkSendEmailView's per-recipient attachment.
+
+    Open to any authenticated user, same reasoning as ComposeEmailView."""
+    permission_classes = [IsAuthenticated]
 
     def post(self, request, ai_email_id):
         try:

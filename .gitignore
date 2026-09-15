@@ -17,6 +17,9 @@ frontend/.env
 node_modules/
 dist/
 
+# Dev server run logs
+*.log
+
 # OS/editor junk
 .vscode/
-.DS_Storebackend/.env
+.DS_Store

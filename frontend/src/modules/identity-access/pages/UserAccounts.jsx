@@ -250,6 +250,128 @@ function UserAccounts() {
   const [usernameStatus, setUsernameStatus] = useState("idle");
   const [usernameStatusMsg, setUsernameStatusMsg] = useState("");
 
+  // "Login requests" — pending "Create login credentials for ..." requests
+  // addressed to this admin (from HR's Employees page), surfaced right
+  // here instead of making the admin go to Request Access for this one
+  // specific kind of request. Read-only list for now — Approve/Reject
+  // comes in a later step.
+  const [loginRequests, setLoginRequests] = useState([]);
+  const [loginRequestsLoading, setLoginRequestsLoading] = useState(false);
+  const [loginRequestsPanelOpen, setLoginRequestsPanelOpen] = useState(false);
+
+  const loadLoginRequests = async () => {
+    setLoginRequestsLoading(true);
+    try {
+      const { data } = await client.get("/api/identity/permission-requests/", {
+        params: { box: "received" },
+      });
+      setLoginRequests(
+        data.filter(
+          (r) => r.status === "PENDING" && r.permission_requested?.startsWith("Create login credentials for ")
+        )
+      );
+    } catch {
+      // Non-fatal — button just shows a 0 count if this fails.
+    } finally {
+      setLoginRequestsLoading(false);
+    }
+  };
+
+  // Which login request Approve is currently mid-flow for — set when the
+  // New Account form is opened from the Login requests panel, so that
+  // once the account is actually created, that specific request (and
+  // this employee's other pending copies, one per System Administrator)
+  // gets marked Approved. Null for the normal "+ New account" flow.
+  const [pendingApprovalRequest, setPendingApprovalRequest] = useState(null);
+  const [loginRequestActionError, setLoginRequestActionError] = useState("");
+  const [rejectingRequestId, setRejectingRequestId] = useState(null);
+
+  // Approve — rather than just flip status, this opens the real "New
+  // account" form pre-filled to the requested person, so creating the
+  // account and approving the request happen as one action. The person
+  // is matched by full name against /persons/unlinked/ (the request's
+  // permission_requested text only carries free text, no structured
+  // person_id link) — if no confident match is found, the admin still
+  // gets the form, just without a pre-selection, and can pick manually.
+  const handleApproveLoginRequest = async (request) => {
+    setLoginRequestActionError("");
+    setLoginRequestsPanelOpen(false);
+    setEditingUser(null);
+    setForm(EMPTY_FORM);
+    setFormError("");
+    setPersonMode("existing");
+    setPersonSearch("");
+    setShowPassword(false);
+    setCreateRoleIds(new Set());
+    setUsernameStatus("idle");
+    setUsernameStatusMsg("");
+    setPendingApprovalRequest(request);
+    setModalOpen(true);
+    setUnlinkedLoading(true);
+    try {
+      const { data } = await client.get("/api/identity/persons/unlinked/");
+      setUnlinkedPersons(data);
+      const match = /^Create login credentials for (.+) \([^)]*\)$/.exec(request.permission_requested);
+      const name = match ? match[1] : "";
+      const found = data.find((p) => p.full_name === name);
+      if (found) {
+        setForm((f) => ({ ...f, person_id: String(found.person_id) }));
+        setPersonSearch(found.full_name);
+      }
+    } catch {
+      // Non-fatal — admin can still search/select the person manually.
+    } finally {
+      setUnlinkedLoading(false);
+    }
+  };
+
+  // Every System Administrator got their own copy of this request (see
+  // HRDashboard's requestLoginCredentials) — once one admin actually
+  // creates the account, the other copies need resolving too, so a
+  // second admin doesn't try to create a duplicate account for the same
+  // person. Matched the same way (identical permission_requested text),
+  // since that's the only link back to "which employee" that exists.
+  const resolveDuplicateLoginRequests = async (approvedRequest) => {
+    try {
+      const { data: received } = await client.get("/api/identity/permission-requests/", {
+        params: { box: "received" },
+      });
+      const duplicates = received.filter(
+        (r) =>
+          r.permission_request_id !== approvedRequest.permission_request_id &&
+          r.status === "PENDING" &&
+          r.permission_requested === approvedRequest.permission_requested
+      );
+      await Promise.all(
+        duplicates.map((r) =>
+          client.post(`/api/identity/permission-requests/${r.permission_request_id}/decide/`, {
+            action: "approve",
+            note: "Auto-resolved — handled by another admin.",
+          })
+        )
+      );
+    } catch {
+      // Non-fatal — worst case a duplicate copy just stays visible to
+      // whichever admin didn't handle it, harmless if actioned again.
+    }
+  };
+
+  const handleRejectLoginRequest = async (request) => {
+    setLoginRequestActionError("");
+    setRejectingRequestId(request.permission_request_id);
+    try {
+      await client.post(`/api/identity/permission-requests/${request.permission_request_id}/decide/`, {
+        action: "reject",
+        note: "",
+      });
+      await loadLoginRequests();
+    } catch {
+      setLoginRequestActionError("Couldn't reject that request.");
+    } finally {
+      setRejectingRequestId(null);
+    }
+  };
+
   const [permUser, setPermUser] = useState(null);
   const [permRows, setPermRows] = useState([]); // [{permission_id, code, name, viaRole, override}]
   const [permLoading, setPermLoading] = useState(false);
@@ -284,6 +406,7 @@ function UserAccounts() {
 
   useEffect(() => {
     loadData();
+    loadLoginRequests();
   }, []);
 
   // Debounced live "is this username free" check as it's typed — same
@@ -330,6 +453,7 @@ function UserAccounts() {
     setCreateRoleIds(new Set());
     setUsernameStatus("idle");
     setUsernameStatusMsg("");
+    setPendingApprovalRequest(null);
     setModalOpen(true);
     setUnlinkedLoading(true);
     try {
@@ -407,7 +531,10 @@ function UserAccounts() {
     });
   };
 
-  const closeModal = () => setModalOpen(false);
+  const closeModal = () => {
+    setModalOpen(false);
+    setPendingApprovalRequest(null);
+  };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -415,6 +542,14 @@ function UserAccounts() {
 
     if (form.password && !PASSWORD_PATTERN.test(form.password)) {
       setFormError(PASSWORD_HINT);
+      return;
+    }
+
+    // A brand-new account with no role at all can't do anything once
+    // created — same requirement whether it's a plain "+ New account"
+    // or one opened from the Login requests panel's Approve.
+    if (!editingUser && createRoleIds.size === 0) {
+      setFormError("Assign at least one role before creating this account.");
       return;
     }
 
@@ -433,16 +568,50 @@ function UserAccounts() {
     if (!payload.person_id) delete payload.person_id;
 
     try {
+      let saved;
       if (editingUser) {
-        await client.patch(`/api/identity/users/${editingUser.user_id}/`, payload);
+        ({ data: saved } = await client.patch(`/api/identity/users/${editingUser.user_id}/`, payload));
       } else {
         const { data: created } = await client.post("/api/identity/users/", payload);
+        saved = created;
         // Roles are assigned as separate calls, same endpoint the Edit
         // modal's checkboxes use — a brand-new account can start with
         // more than one role, same as any existing one can hold.
         for (const roleId of createRoleIds) {
           await client.put(`/api/identity/users/${created.user_id}/roles/${roleId}/`);
         }
+      }
+
+      // The backend only attempts this send when a password was actually
+      // set (always on create, only if "Reset password" was filled on
+      // edit) — email_sent/email_reason are absent otherwise.
+      if (payload.password) {
+        if (saved.email_sent) {
+          window.alert(`Login credentials sent to ${saved.email_reason}.`);
+        } else if (saved.email_reason === "no_email_on_file") {
+          window.alert("Account saved, but no email is on file for this person — share the credentials directly.");
+        } else if (saved.email_reason === "send_failed") {
+          window.alert("Account saved, but the credentials email failed to send — share the credentials directly.");
+        }
+      }
+      // The account itself is the real "reply" here — the admin will
+      // hand the credentials to the employee directly (call/in person),
+      // never stored in this decision note. Only completes the loop for
+      // the exact request this form was opened from — a plain
+      // "+ New account" create leaves pendingApprovalRequest null.
+      if (!editingUser && pendingApprovalRequest) {
+        try {
+          await client.post(
+            `/api/identity/permission-requests/${pendingApprovalRequest.permission_request_id}/decide/`,
+            { action: "approve", note: "Login created — credentials emailed to the employee." }
+          );
+          await resolveDuplicateLoginRequests(pendingApprovalRequest);
+        } catch {
+          // Account creation still succeeded — worst case the request
+          // stays PENDING and needs manually approving from the panel.
+        }
+        setPendingApprovalRequest(null);
+        await loadLoginRequests();
       }
       setModalOpen(false);
       await loadData();
@@ -577,9 +746,17 @@ function UserAccounts() {
           <h1>User accounts</h1>
           <p>{users.length} accounts · user_account, person</p>
         </div>
-        <button className="ua-btn-accent" onClick={openCreate}>
-          + New account
-        </button>
+        <div style={{ display: "flex", gap: 10 }}>
+          <button
+            className="ua-btn-sm"
+            onClick={() => setLoginRequestsPanelOpen(true)}
+          >
+            Login requests {loginRequests.length > 0 && `(${loginRequests.length})`}
+          </button>
+          <button className="ua-btn-accent" onClick={openCreate}>
+            + New account
+          </button>
+        </div>
       </div>
 
       {error && <p className="ua-error">{error}</p>}
@@ -1016,6 +1193,95 @@ function UserAccounts() {
 
             <div className="ua-modal-actions">
               <button type="button" className="ua-btn-sm" onClick={closePermissions}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {loginRequestsPanelOpen && (
+        <div className="ua-modal-backdrop" onClick={() => setLoginRequestsPanelOpen(false)}>
+          <div className="ua-modal ua-modal-wide" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="ua-modal-x"
+              onClick={() => setLoginRequestsPanelOpen(false)}
+              aria-label="Close"
+            >
+              ✕
+            </button>
+            <h2>Login requests</h2>
+            <p className="ua-hint">
+              Requests from HR asking for login credentials to be created for an onboarded employee.
+              Approving opens the New account form pre-filled to that person — creating the account
+              completes the approval. The actual credentials are shared with the employee directly,
+              never stored here.
+            </p>
+
+            {loginRequestActionError && <p className="ua-error">{loginRequestActionError}</p>}
+
+            {loginRequestsLoading ? (
+              <p className="ua-empty">Loading…</p>
+            ) : loginRequests.length === 0 ? (
+              <p className="ua-empty">No pending login requests.</p>
+            ) : (
+              <div className="ua-table-scroll">
+                <table className="ua-table">
+                  <thead>
+                    <tr>
+                      <th>Requested by</th>
+                      <th>Requesting</th>
+                      <th>Reason</th>
+                      <th>Sent</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loginRequests.map((r) => (
+                      <tr key={r.permission_request_id}>
+                        <td>{r.requester_name}</td>
+                        <td>{r.permission_requested}</td>
+                        <td>{r.reason}</td>
+                        <td className="ua-mono">
+                          {new Date(r.created_at).toLocaleString(undefined, {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </td>
+                        <td>
+                          <div style={{ display: "flex", gap: 8 }}>
+                            <button
+                              type="button"
+                              className="ua-btn-accent"
+                              style={{ padding: "6px 12px", fontSize: 12.5 }}
+                              onClick={() => handleApproveLoginRequest(r)}
+                            >
+                              Approve
+                            </button>
+                            <button
+                              type="button"
+                              className="ua-btn-sm ua-btn-danger"
+                              style={{ padding: "6px 12px", fontSize: 12.5 }}
+                              disabled={rejectingRequestId === r.permission_request_id}
+                              onClick={() => handleRejectLoginRequest(r)}
+                            >
+                              {rejectingRequestId === r.permission_request_id ? "…" : "Reject"}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div className="ua-modal-actions">
+              <button type="button" className="ua-btn-sm" onClick={() => setLoginRequestsPanelOpen(false)}>
                 Close
               </button>
             </div>

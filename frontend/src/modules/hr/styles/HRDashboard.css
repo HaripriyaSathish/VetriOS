@@ -510,6 +510,16 @@
   background: #f5f7fa;
 }
 
+.ob-checklist-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  background: #f5f7fa;
+}
+
+.ob-checklist-btn:disabled:hover {
+  background: #f5f7fa;
+}
+
 .ob-checklist-row {
   display: flex;
   align-items: center;
@@ -552,7 +562,23 @@
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
   gap: 10px;
-  padding: 0 0 10px 26px;
+  padding: 10px 0;
+}
+
+.ob-action-row {
+  display: flex;
+  gap: 8px;
+}
+
+.ob-action-row .ob-checklist-btn {
+  font-size: 12px;
+  padding: 8px 6px;
+}
+
+.ob-checklist-btn.done {
+  background: #e3f5e9;
+  border-color: #bfe6cd;
+  color: #1f6837;
 }
 
 .ob-assign-fields label {
@@ -898,6 +924,39 @@
   border-color: #e3a8a3;
 }
 
+/* Needs-attention actions — filled amber background so they stand out
+   from the neutral view/edit/deactivate icons at a glance, not just on
+   hover (e.g. "Request login credentials" for an employee with none).
+   Blinks on a slow loop so it keeps catching the eye in a busy table. */
+.hr-icon-btn.attention {
+  color: #93590c;
+  animation: hr-attention-blink 2s ease-in-out infinite;
+}
+
+@keyframes hr-attention-blink {
+  0%, 100% {
+    background: #fff;
+    border-color: #d9dfe8;
+    transform: scale(1);
+  }
+  50% {
+    background: #fdf0dc;
+    border-color: #f0c987;
+    transform: scale(1.18);
+  }
+}
+
+.hr-icon-btn.attention:hover {
+  background: #fbe4b8;
+  border-color: #e0ab5c;
+}
+
+.hr-icon-btn.sent {
+  background: #e3f5e9;
+  border-color: #bfe6cd;
+  color: #1f6837;
+}
+
 .hr-btn-danger {
   color: #96271f;
   border-color: #e3a8a3;
@@ -1080,6 +1139,54 @@
   font-family: inherit;
   width: 100%;
   box-sizing: border-box;
+}
+
+/* Radio/checkbox inputs are laid out inline next to their own label
+   text (e.g. the "which admin" picker) — the generic block-field
+   styling above (full-width, boxed, padded) is for text/select fields
+   only and visibly distorts a radio circle into a stretched box. */
+.hr-modal input[type="radio"],
+.hr-modal input[type="checkbox"] {
+  width: auto;
+  padding: 0;
+  margin-top: 0;
+  border: none;
+}
+
+.hr-admin-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 14px 0;
+}
+
+.hr-admin-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid #d9dfe8;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #3a4152;
+  margin-top: 0;
+}
+
+.hr-admin-picker-row:hover {
+  background: #f5f7fa;
+}
+
+.hr-admin-picker-row.selected {
+  border-color: #235777;
+  background: #eef4f8;
+  color: #161a26;
+  font-weight: 600;
+}
+
+.hr-admin-picker-row input[type="radio"] {
+  flex: none;
 }
 
 .hr-textarea {

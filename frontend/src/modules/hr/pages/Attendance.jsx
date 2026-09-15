@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Clock, Search, SlidersHorizontal } from "lucide-react";
+import { Search, SlidersHorizontal } from "lucide-react";
 import client from "../../../api/client";
 import { EmployeeAvatar } from "../components/EmployeeAvatar";
 import "../styles/HRDashboard.css";
@@ -39,32 +39,20 @@ function formatHours(hours) {
   return `${h}h ${m}m`;
 }
 
-function greetingPrefix() {
-  const hour = new Date().getHours();
-  if (hour < 12) return "Good morning";
-  if (hour < 17) return "Good afternoon";
-  return "Good evening";
-}
-
 const EMPTY_FILTERS = { department: "", status: "" };
 
-// Attendance screen — today's org-wide daily records plus the logged-in
-// user's own check-in/check-out control.
+// Attendance screen — today's org-wide daily records. Personal check-in/
+// check-out lives on the separate "My Attendance" page (/my/attendance),
+// not duplicated here.
 function Attendance() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
-  const [punching, setPunching] = useState(false);
-  const [punchError, setPunchError] = useState("");
-  const [now, setNow] = useState(new Date());
 
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const filtersRef = useRef(null);
-
-  const user = JSON.parse(localStorage.getItem("user") || "null");
-  const firstName = user?.full_name ? user.full_name.split(" ")[0] : "";
 
   const loadData = async () => {
     setLoading(true);
@@ -84,34 +72,12 @@ function Attendance() {
   }, []);
 
   useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), 30000);
-    return () => clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
     const handleClickOutside = (event) => {
       if (filtersRef.current && !filtersRef.current.contains(event.target)) setFiltersOpen(false);
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-
-  const handlePunch = async () => {
-    setPunching(true);
-    setPunchError("");
-    try {
-      if (data?.me?.checked_in) {
-        await client.post("/api/hr/attendance/check-out/");
-      } else {
-        await client.post("/api/hr/attendance/check-in/");
-      }
-      await loadData();
-    } catch (err) {
-      setPunchError(err.response?.data?.detail || "Something went wrong.");
-    } finally {
-      setPunching(false);
-    }
-  };
 
   const departmentOptions = useMemo(() => {
     if (!data) return [];
@@ -135,52 +101,17 @@ function Attendance() {
     });
   }, [data, search, filters]);
 
-  const me = data?.me;
-  const bannerMessage = !me?.employee_id
-    ? "No employee record is linked to your account"
-    : me.checked_out
-    ? `You've completed your workday · checked out at ${formatTime(me.check_out_time)}`
-    : me.checked_in
-    ? `You checked in at ${formatTime(me.check_in_time)}`
-    : "Your workday hasn't started yet";
-
   return (
     <div className="att-screen">
       <div className="att-head">
         <div>
           <span className="att-eyebrow">Time &amp; Attendance</span>
-          <h1>Attendance</h1>
+          <h1>Employee's Attendance</h1>
           <p>Monitor daily presence and resolve exceptions.</p>
         </div>
-        <button
-          type="button"
-          className="att-btn-accent"
-          onClick={handlePunch}
-          disabled={punching || !me?.employee_id || me?.checked_out}
-        >
-          <Clock size={15} />
-          {punching ? "Working…" : me?.checked_in ? "Check out" : "Check in"}
-        </button>
       </div>
 
-      {punchError && <p className="att-error">{punchError}</p>}
       {error && <p className="att-error">{error}</p>}
-
-      <div className="att-banner">
-        <div className="att-banner-left">
-          <Clock size={16} />
-          <span>
-            <strong>
-              {greetingPrefix()}
-              {firstName ? `, ${firstName}` : ""}
-            </strong>{" "}
-            · {bannerMessage}
-          </span>
-        </div>
-        <span className="att-banner-time">
-          {now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-        </span>
-      </div>
 
       <div className="att-stats">
         <div className="att-stat-card">

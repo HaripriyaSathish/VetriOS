@@ -23,6 +23,14 @@ const STEPS = [
 
 const STATUS_CLASS = { PENDING: "pending", APPROVED: "approved", REJECTED: "rejected" };
 
+// Login-credential requests are drafted through HR (Employees / Onboarding)
+// and must be actioned from User & Accounts → Login requests, where
+// Approve opens the New Account form and only marks the request approved
+// once the login is actually created. Approving one here would mark it
+// approved without ever creating an account, so callers get told nothing
+// went wrong.
+const isLoginRequest = (r) => r.permission_requested?.startsWith("Create login credentials for ");
+
 function formatDate(value) {
   if (!value) return "—";
   return new Date(value).toLocaleString(undefined, {
@@ -508,13 +516,23 @@ function RequestAccess() {
                         {tab === "received" && (
                           <td>
                             {r.status === "PENDING" ? (
-                              <div className="preq-row-actions">
-                                <button type="button" className="preq-action-btn preq-approve" onClick={() => openConfirm(r, "approve")}>
-                                  <Check size={14} /> Approve
-                                </button>
-                                <button type="button" className="preq-action-btn preq-reject" onClick={() => openConfirm(r, "reject")}>
-                                  <X size={14} /> Reject
-                                </button>
+                              <div className="preq-actions-col">
+                                <div className="preq-row-actions">
+                                  <button
+                                    type="button"
+                                    className="preq-action-btn preq-approve"
+                                    onClick={() => openConfirm(r, "approve")}
+                                    disabled={isLoginRequest(r)}
+                                  >
+                                    <Check size={14} /> Approve
+                                  </button>
+                                  <button type="button" className="preq-action-btn preq-reject" onClick={() => openConfirm(r, "reject")}>
+                                    <X size={14} /> Reject
+                                  </button>
+                                </div>
+                                {isLoginRequest(r) && (
+                                  <p className="preq-inline-help">Auto-approves in User &amp; Accounts → Login requests</p>
+                                )}
                               </div>
                             ) : (
                               "—"

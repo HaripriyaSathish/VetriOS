@@ -9,6 +9,7 @@ import UserPermissions from "./modules/identity-access/pages/UserPermissions";
 import RequestAccess from "./modules/identity-access/pages/RequestAccess";
 import TrainingRouter from "./modules/training/pages/TrainingRouter";
 import HRDashboard from "./modules/hr/pages/HRDashboard";
+import HROverview from "./modules/hr/pages/HROverview";
 import Attendance from "./modules/hr/pages/Attendance";
 import Leave from "./modules/hr/pages/Leave";
 import Worklogs from "./modules/hr/pages/Worklogs";
@@ -71,10 +72,10 @@ import ProjectDocuments from "./modules/clients-projects/pages/ProjectDocuments"
 import DocumentsLibrary from "./modules/documents/pages/Library";
 import AIGenerator from "./modules/documents/pages/AIGenerator";
 import CourseInternshipOfferLetter from "./modules/documents/pages/CourseInternshipOfferLetter";
+import InternOnboardingOfferLetter from "./modules/documents/pages/InternOnboardingOfferLetter";
 import DocumentTemplates from "./modules/documents/pages/Templates";
 import TemplateCreate from "./modules/documents/pages/TemplateCreate";
 import TemplateDetail from "./modules/documents/pages/TemplateDetail";
-import CanvasEditor from "./modules/documents/pages/CanvasEditor";
 import DocumentApprovals from "./modules/documents/pages/Approvals";
 import DocumentGovernance from "./modules/documents/pages/Governance";
 import EmailDashboard from "./modules/email/pages/EmailDashboard";
@@ -482,7 +483,7 @@ function App() {
           path="/hr"
           element={
             <PermissionGate requirement={{ type: "role", value: ["HR Administrator", "System Administrator"] }}>
-              <ModulePlaceholder name="HR Dashboard" />
+              <HROverview />
             </PermissionGate>
           }
         />
@@ -593,6 +594,14 @@ function App() {
           }
         />
         <Route
+          path="/documents/ai-generator/intern-onboarding-offer"
+          element={
+            <PermissionGate requirement={{ type: "perm", value: "DOCUMENT_VIEW" }}>
+              <InternOnboardingOfferLetter />
+            </PermissionGate>
+          }
+        />
+        <Route
           path="/documents/templates"
           element={
             <PermissionGate requirement={{ type: "perm", value: "DOCUMENT_VIEW" }}>
@@ -605,22 +614,6 @@ function App() {
           element={
             <PermissionGate requirement={{ type: "perm", value: "DOCUMENT_VIEW" }}>
               <TemplateCreate />
-            </PermissionGate>
-          }
-        />
-        <Route
-          path="/documents/templates/canvas/new"
-          element={
-            <PermissionGate requirement={{ type: "perm", value: "DOCUMENT_VIEW" }}>
-              <CanvasEditor />
-            </PermissionGate>
-          }
-        />
-        <Route
-          path="/documents/templates/canvas/:id"
-          element={
-            <PermissionGate requirement={{ type: "perm", value: "DOCUMENT_VIEW" }}>
-              <CanvasEditor />
             </PermissionGate>
           }
         />
@@ -649,11 +642,12 @@ function App() {
           }
         />
 
-        {/* Email group */}
+        {/* Email group — Dashboard and Compose are open to every login;
+            Templates/Batches/Approvals below stay SYSTEM_ADMIN-only. */}
         <Route
           path="/email"
           element={
-            <PermissionGate requirement={{ type: "perm", value: "SYSTEM_ADMIN" }}>
+            <PermissionGate requirement={{ type: "role", value: "ANY" }}>
               <EmailDashboard />
             </PermissionGate>
           }
@@ -661,7 +655,7 @@ function App() {
         <Route
           path="/email/compose"
           element={
-            <PermissionGate requirement={{ type: "perm", value: "SYSTEM_ADMIN" }}>
+            <PermissionGate requirement={{ type: "role", value: "ANY" }}>
               <EmailCompose />
             </PermissionGate>
           }

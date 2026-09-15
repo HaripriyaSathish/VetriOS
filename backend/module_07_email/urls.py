@@ -7,6 +7,7 @@ from .views import (
     EmailApprovalListView,
     EmailBatchListView,
     EmailDashboardStatsView,
+    EmailRecipientDirectoryView,
     EmailTemplateCreateView,
     EmailTemplateListView,
     EmailTypeListView,
@@ -19,6 +20,7 @@ from .views import (
 
 urlpatterns = [
     path("dashboard/", EmailDashboardStatsView.as_view()),
+    path("recipients/", EmailRecipientDirectoryView.as_view()),
     path("types/", EmailTypeListView.as_view()),
     path("templates/", EmailTemplateListView.as_view()),
     path("templates/create/", EmailTemplateCreateView.as_view()),

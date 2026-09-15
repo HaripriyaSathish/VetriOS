@@ -5,6 +5,7 @@ from .views import (
     AdminsByCategoryView,
     LoginView,
     MeView,
+    MyActivityView,
     PermissionListView,
     PermissionRequestDecisionView,
     PermissionRequestListCreateView,
@@ -14,6 +15,7 @@ from .views import (
     RoleListView,
     RolePermissionMatrixView,
     RolePermissionToggleView,
+    SystemAdminDashboardView,
     UnlinkedPersonListView,
     UsernameAvailabilityView,
     UserAccountDetailView,
@@ -31,6 +33,7 @@ urlpatterns = [
     # token expires. Provided directly by simplejwt.
     path("token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     path("me/", MeView.as_view(), name="me"),
+    path("my-activity/", MyActivityView.as_view(), name="my-activity"),
     path("users/", UserAccountListCreateView.as_view(), name="user-list-create"),
     path("users/check-username/", UsernameAvailabilityView.as_view(), name="user-check-username"),
     path("persons/unlinked/", UnlinkedPersonListView.as_view(), name="person-unlinked-list"),
@@ -58,6 +61,7 @@ urlpatterns = [
         name="user-permission-toggle",
     ),
     path("admins/", AdminsByCategoryView.as_view(), name="admins-by-category"),
+    path("admin-dashboard/", SystemAdminDashboardView.as_view(), name="system-admin-dashboard"),
     path("permission-requests/", PermissionRequestListCreateView.as_view(), name="permission-request-list-create"),
     path(
         "permission-requests/pending-count/",

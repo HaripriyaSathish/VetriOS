@@ -15,6 +15,7 @@ from .views import (
     EmployeeDetailView,
     EmployeeListCreateView,
     EmploymentTypeListView,
+    HRDashboardView,
     LeaveRequestApproveView,
     LeaveRequestListCreateView,
     LeaveRequestRejectView,
@@ -40,6 +41,7 @@ from .views import (
 )
 
 urlpatterns = [
+    path("dashboard/", HRDashboardView.as_view(), name="hr-dashboard"),
     path("employees/", EmployeeListCreateView.as_view(), name="employee-list-create"),
     path("employees/<int:pk>/", EmployeeDetailView.as_view(), name="employee-detail"),
     path("employees/<int:pk>/avatar/", EmployeeAvatarUploadView.as_view(), name="employee-avatar-upload"),

@@ -1,4 +1,8 @@
+from decouple import config
+from django.core.mail import EmailMessage
 from django.db import models
+from django.db.models import Count
+from django.db.models.functions import TruncDate
 from django.utils import timezone
 from rest_framework import generics, status
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -6,6 +10,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from local_extensions.models import Notification
 from local_extensions.notification_utils import notify
 from module_06_documents.models import Document, DocumentAccessRule
 
@@ -80,6 +85,60 @@ class MeView(APIView):
         return Response(MeSerializer(request.user).data)
 
 
+class MyActivityView(APIView):
+    """GET — this user's own recent notifications, any module — powers
+    the common (non-System-Administrator) dashboard's Recent Activity
+    card. Unlike the System Admin/HR/Email dashboards' activity feeds,
+    this one is deliberately not filtered to one module, since the
+    common dashboard is shared across every role."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        notifications = [
+            {
+                "title": n.title,
+                "message": n.message,
+                "module": n.module,
+                "created_at": n.created_at,
+            }
+            for n in Notification.objects.filter(recipient=request.user).order_by("-created_at")[:6]
+        ]
+        return Response(notifications)
+
+
+# Sent whenever the System Administrator sets a login's password — on
+# creation always, on edit only if "Reset password" was actually filled
+# in. Uses Django's default mail connection (Haripriya's Gmail while
+# testing — see backend/.env) rather than module_07_email's Outlook
+# connection, since this is a system-triggered notice, not something
+# routed through Email Automation's compose/approval/batch machinery.
+def _send_login_credentials_email(user, plain_password):
+    email = (user.person.email or "").strip()
+    if not email:
+        return False, "no_email_on_file"
+
+    full_name = str(user.person) or user.username
+    subject = "Your VetriOS Login Credentials"
+    body = (
+        f"Dear {full_name},\n\n"
+        "Your VetriOS account has been created. Please find your login credentials below:\n\n"
+        f"Username: {user.username}\n"
+        f"Password: {plain_password}\n\n"
+        "Kindly log in at the VetriOS portal using the above credentials.\n"
+        "Should you encounter any issues during the login process, feel free to reach out for assistance.\n\n"
+        "Thank you for your cooperation.\n\n"
+        "Best Regards,\n"
+        "System Administrator,\n"
+        "IT Team,\n"
+        "VetriOS."
+    )
+    try:
+        EmailMessage(subject=subject, body=body, to=[email]).send(fail_silently=False)
+        return True, email
+    except Exception:
+        return False, "send_failed"
+
+
 # User & Accounts screen — list every account, create a new one.
 # System Administrator only, matching the Identity & Access mockup.
 class UserAccountListCreateView(generics.ListCreateAPIView):
@@ -95,13 +154,18 @@ class UserAccountListCreateView(generics.ListCreateAPIView):
         # A brand-new account needs a password up front — the write
         # serializer leaves it optional so the same serializer can also
         # handle "edit without touching the password".
-        if not request.data.get("password"):
+        plain_password = request.data.get("password")
+        if not plain_password:
             return Response({"password": ["This field is required."]}, status=status.HTTP_400_BAD_REQUEST)
 
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
-        return Response(UserAccountListSerializer(user).data, status=status.HTTP_201_CREATED)
+        email_sent, email_reason = _send_login_credentials_email(user, plain_password)
+        payload = UserAccountListSerializer(user).data
+        payload["email_sent"] = email_sent
+        payload["email_reason"] = email_reason
+        return Response(payload, status=status.HTTP_201_CREATED)
 
 
 # Edit or remove one account. DELETE is a soft delete (is_active=False) —
@@ -119,10 +183,16 @@ class UserAccountDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
+        plain_password = request.data.get("password")
         serializer = self.get_serializer(instance, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
-        return Response(UserAccountListSerializer(user).data)
+        payload = UserAccountListSerializer(user).data
+        if plain_password:
+            email_sent, email_reason = _send_login_credentials_email(user, plain_password)
+            payload["email_sent"] = email_sent
+            payload["email_reason"] = email_reason
+        return Response(payload)
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -260,6 +330,21 @@ class RolePermissionToggleView(APIView):
 # each call only touches the one (user_id, role_id) pair, unlike
 # UserAccountWriteSerializer's role_id field which used to replace the
 # user's entire role set with a single one.
+def _deactivate_active_user_role(user_id, role_id, today):
+    """Retires a user's currently-in-effect assignment of one role —
+    same effective_from/to bookkeeping UserRoleToggleView.delete() uses,
+    shared so other flows (e.g. auto-retiring Student on Intern) don't
+    duplicate the date math."""
+    yesterday = today - timezone.timedelta(days=1)
+    active = UserRole.objects.filter(
+        user_id=user_id, role_id=role_id, is_active=True,
+    ).filter(
+        models.Q(effective_to__isnull=True) | models.Q(effective_to__gte=today)
+    )
+    active.filter(effective_from=today).update(is_active=False, effective_to=today)
+    active.filter(effective_from__lt=today).update(is_active=False, effective_to=yesterday)
+
+
 class UserRoleToggleView(APIView):
     permission_classes = [IsAuthenticated, IsSystemAdministrator]
 
@@ -279,18 +364,19 @@ class UserRoleToggleView(APIView):
                 is_active=True,
                 created_at=timezone.now(),
             )
+            # Someone moving into the Intern role no longer needs the
+            # Student role's access — retire it automatically instead of
+            # relying on the admin to remember to untick it separately.
+            role = Role.objects.filter(pk=role_id).first()
+            if role and role.role_name == "Intern":
+                student_role = Role.objects.filter(role_name="Student").first()
+                if student_role:
+                    _deactivate_active_user_role(user_id, student_role.role_id, today)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     def delete(self, request, user_id, role_id):
         today = timezone.localdate()
-        yesterday = today - timezone.timedelta(days=1)
-        active = UserRole.objects.filter(
-            user_id=user_id, role_id=role_id, is_active=True,
-        ).filter(
-            models.Q(effective_to__isnull=True) | models.Q(effective_to__gte=today)
-        )
-        active.filter(effective_from=today).update(is_active=False, effective_to=today)
-        active.filter(effective_from__lt=today).update(is_active=False, effective_to=yesterday)
+        _deactivate_active_user_role(user_id, role_id, today)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -552,3 +638,113 @@ class PermissionRequestDecisionView(APIView):
         )
 
         return Response(PermissionRequestSerializer(req).data)
+
+
+LOGIN_REQUEST_PREFIX = "Create login credentials for "
+
+
+def _daily_counts(queryset, date_field, days):
+    """Group queryset rows by day for the trailing `days` days (including
+    today), zero-filling any day with no rows — so the chart always has a
+    full, contiguous series instead of gaps."""
+    today = timezone.localdate()
+    start = today - timezone.timedelta(days=days - 1)
+    counts = {
+        row["day"]: row["count"]
+        for row in queryset.filter(**{f"{date_field}__date__gte": start})
+        .annotate(day=TruncDate(date_field))
+        .values("day")
+        .annotate(count=Count("pk"))
+    }
+    return [
+        {"date": (start + timezone.timedelta(days=i)).isoformat(), "count": counts.get(start + timezone.timedelta(days=i), 0)}
+        for i in range(days)
+    ]
+
+
+class SystemAdminDashboardView(APIView):
+    """GET — KPIs, charts, system health, and recent activity for the
+    System Administrator dashboard landing page. Every figure here comes
+    from tables that already exist (no new tables) per Bhanu Rekha's
+    instruction when this was designed."""
+    permission_classes = [IsSystemAdministrator]
+
+    def get(self, request):
+        from module_02_hr.models import Employee  # lazy — avoids a circular import, same pattern as current_designation_name()
+
+        # ---- KPIs ----
+        total_users = UserAccount.objects.filter(is_active=True).count()
+        active_roles = Role.objects.filter(is_active=True).count()
+
+        pending_qs = PermissionRequest.objects.filter(status="PENDING")
+        pending_login_requests = pending_qs.filter(permission_requested__startswith=LOGIN_REQUEST_PREFIX).count()
+        pending_permission_requests = pending_qs.exclude(permission_requested__startswith=LOGIN_REQUEST_PREFIX).count()
+
+        employees_without_login = Employee.objects.filter(status="ACTIVE").exclude(
+            person_id__in=UserAccount.objects.values_list("person_id", flat=True)
+        ).count()
+
+        # ---- role distribution (currently-active assignments only, same
+        # date-bound rule as UserAccount.active_roles()) ----
+        today = timezone.localdate()
+        active_assignments = UserRole.objects.filter(
+            is_active=True, effective_from__lte=today,
+        ).filter(
+            models.Q(effective_to__isnull=True) | models.Q(effective_to__gte=today)
+        )
+        role_distribution = [
+            {"role_name": row["role__role_name"], "count": row["count"]}
+            for row in active_assignments.values("role__role_name")
+            .annotate(count=Count("user_id", distinct=True))
+            .order_by("-count")
+        ]
+
+        # ---- trends ----
+        new_accounts_trend = _daily_counts(UserAccount.objects.all(), "created_at", 14)
+        approvals_trend = _daily_counts(PermissionRequest.objects.all(), "created_at", 7)
+
+        # ---- system health ----
+        db_host = config("DB_HOST", default="localhost")
+        db_mode = "local" if db_host in ("localhost", "127.0.0.1") else "shared"
+        system_health = {
+            "backend": {"status": "online"},
+            "database": {
+                "mode": db_mode,
+                "host": db_host,
+                "connected": True,  # this request already queried it successfully
+            },
+            "email": {
+                "configured": bool(config("OUTLOOK_EMAIL_HOST_USER", default="") or config("EMAIL_HOST_USER", default="")),
+                "backend": config("EMAIL_BACKEND", default="django.core.mail.backends.console.EmailBackend"),
+            },
+        }
+
+        # ---- recent activity (this admin's own notification feed) ----
+        recent_activity = [
+            {
+                "title": n.title,
+                "message": n.message,
+                "module": n.module,
+                "created_at": n.created_at,
+                "actor_name": str(n.actor.person) if n.actor_id else None,
+            }
+            for n in Notification.objects.filter(recipient=request.user)
+            .select_related("actor__person")
+            .order_by("-created_at")[:6]
+        ]
+
+        return Response({
+            "kpis": {
+                "total_users": total_users,
+                "active_roles": active_roles,
+                "pending_login_requests": pending_login_requests,
+                "pending_permission_requests": pending_permission_requests,
+                "employees_without_login": employees_without_login,
+            },
+            "role_distribution": role_distribution,
+            "new_accounts_trend": new_accounts_trend,
+            "approvals_trend": approvals_trend,
+            "system_health": system_health,
+            "recent_activity": recent_activity,
+            "permissions": sorted(request.user.active_permission_codes()),
+        })

@@ -115,6 +115,14 @@ class ApproveCompletionView(APIView):
         intern = completion.intern
         intern.status = "COMPLETED"
 
+        # Close the reporting-manager link regardless of outcome — once
+        # an internship is completed, the intern no longer reports to
+        # anyone through this table. Fixes interns lingering on a lead's
+        # "Recommend Completion/Extension" picker after they're done.
+        InternReportingManagerHistory.objects.filter(
+            intern=intern, is_current=True
+        ).update(is_current=False, effective_to=timezone.now().date())
+
         if completion.outcome == "CONVERTED_TO_EMPLOYEE":
             intern.conversion_status = "CONVERTED"
             try:
@@ -165,6 +173,8 @@ class ApproveCompletionView(APIView):
         intern.save(update_fields=["status", "conversion_status", "updated_at"])
 
         return Response({"detail": "Completion approved.", "outcome": completion.outcome})
+
+
 
 
 class RecommendExtensionView(APIView):
@@ -252,13 +262,16 @@ class ActOnExtensionView(APIView):
 class MyLeadInternsView(APIView):
     """Interns currently reporting to the logged-in Project Lead, per
     InternReportingManagerHistory.is_current — feeds the Recommend
-    Completion/Extension picker page."""
+    Completion/Extension picker page. Excludes already-completed
+    interns, since their reporting link should be closed by
+    ApproveCompletionView — this filter is a safety net for any
+    already-completed interns whose link predates that fix."""
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         histories = InternReportingManagerHistory.objects.filter(
             manager_user=request.user, is_current=True
-        ).select_related("intern__student__person")
+        ).exclude(intern__status="COMPLETED").select_related("intern__student__person")
 
         return Response([
             {

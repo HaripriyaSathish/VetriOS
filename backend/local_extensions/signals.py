@@ -5,7 +5,7 @@ from .models import StudentTask, Message, GeneratedReport
 from .notification_utils import notify
 from module_01_identity_access.models import UserAccount
 from module_03_training.models import Enrollment, StudentAssessment
-
+from module_04_interns.models import InternshipCompletion, Intern
 
 def _user_for_person(person):
     return UserAccount.objects.filter(person=person).first()
@@ -85,3 +85,28 @@ def notify_student_of_mock_interview(sender, instance, created, **kwargs):
         link="/student/assessments",
         entity_type="student_assessment", entity_id=instance.student_assessment_id,
     )
+
+def _hr_recipients():
+    from module_02_hr.permissions import IsHRorSystemAdministrator
+    role_names = IsHRorSystemAdministrator.allowed_roles
+    return (u for u in UserAccount.objects.filter(is_active=True) if u.active_role_names() & role_names)
+
+
+@receiver(post_save, sender=InternshipCompletion)
+def notify_hr_of_conversion(sender, instance, created, **kwargs):
+    """Fires only once Business Team actually approves a conversion —
+    approved_by_user is set in ApproveCompletionView, not at the
+    recommendation stage. Points HR to generate the revised offer
+    letter manually through the existing Document Generator."""
+    if instance.outcome != "CONVERTED_TO_EMPLOYEE" or not instance.approved_by_user_id:
+        return
+
+    full_name = str(instance.intern.student.person)
+    for user in _hr_recipients():
+        notify(
+            recipient=user, module="HR", notification_type="INTERN_CONVERTED",
+            title=f"{full_name} converted to Employee — offer letter needed",
+            message=f"{instance.intern.intern_code} approved for conversion on {instance.approval_date}",
+            link="/hr/onboarding",
+            entity_type="intern", entity_id=instance.intern_id,
+        )    

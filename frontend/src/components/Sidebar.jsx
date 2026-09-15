@@ -119,6 +119,12 @@ function Sidebar() {
   // Employee/Intern keep Library + the general-prompt Generate flow.
   const isSystemAdminOrHR = isSystemAdministrator || (user?.roles || []).includes("HR Administrator");
 
+  // Someone converted to Employee still keeps the Intern role active in
+  // the DB (roles are layered, never revoked) — same convention as
+  // AppLayout.jsx's displayRoles(). Once they're a real Employee, the
+  // Intern sidebar section should stop showing.
+  const isConvertedEmployee = hasAccess(trainerRequirement, user) && isIntern;
+
   const activeWorkspace = localStorage.getItem("active_workspace");
   const inWorkspace = (key) => isSystemAdministrator || activeWorkspace === key;
 
@@ -691,13 +697,13 @@ function Sidebar() {
                 Internship Approvals
               </NavLink>
               <NavLink to="/training/completion-extension-approvals" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
-  <span className="nav-icon"><UserCheck size={14} /></span>
-  Completion & Extension Approvals
-</NavLink>
-<NavLink to="/training/assign-reporting-manager" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
-  <span className="nav-icon"><UserCheck size={14} /></span>
-  Assign Reporting Manager
-</NavLink>
+                <span className="nav-icon"><UserCheck size={14} /></span>
+                Completion & Extension Approvals
+              </NavLink>
+              <NavLink to="/training/assign-reporting-manager" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
+                <span className="nav-icon"><UserCheck size={14} /></span>
+                Assign Reporting Manager
+              </NavLink>
               <NavLink to="/training/enquiries" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
                 <span className="nav-icon"><ClipboardList size={14} /></span>
                 Enquiries
@@ -748,7 +754,7 @@ function Sidebar() {
         </>
       )}
 
-      {inWorkspace("intern") && isIntern && (
+      {inWorkspace("intern") && isIntern && !isConvertedEmployee && (
         <>
           <NavLink to="/intern/my-internship" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
             <span className="nav-icon">🎓</span> My Internship
@@ -813,9 +819,9 @@ function Sidebar() {
                 Project Team
               </NavLink>
               <NavLink to="/project/documents" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
-  <span className="nav-icon"><FileText size={14} /></span>
-  Project Documents
-</NavLink>
+                <span className="nav-icon"><FileText size={14} /></span>
+                Project Documents
+              </NavLink>
               <NavLink to="/project/requirements" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
                 <span className="nav-icon"><FileText size={14} /></span>
                 Requirements
@@ -825,13 +831,13 @@ function Sidebar() {
                 Kanban Board
               </NavLink>
               <NavLink to="/project/team-tasks" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
-  <span className="nav-icon"><ClipboardList size={14} /></span>
-  Team Tasks
-</NavLink>
-<NavLink to="/project/intern-performance-review" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
-  <span className="nav-icon"><BarChart3 size={14} /></span>
-  Intern Performance Review
-</NavLink>
+                <span className="nav-icon"><ClipboardList size={14} /></span>
+                Team Tasks
+              </NavLink>
+              <NavLink to="/project/intern-performance-review" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
+                <span className="nav-icon"><BarChart3 size={14} /></span>
+                Intern Performance Review
+              </NavLink>
               <NavLink to="/project/milestones" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
                 <span className="nav-icon"><ClipboardList size={14} /></span>
                 Milestones
@@ -845,25 +851,25 @@ function Sidebar() {
                 Repository & Tech Stack
               </NavLink>
               <NavLink to="/project/team-messages" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
-  <span className="nav-icon"><MessageCircle size={14} /></span>
-  Team Messages
-</NavLink>
+                <span className="nav-icon"><MessageCircle size={14} /></span>
+                Team Messages
+              </NavLink>
               <NavLink to="/project/change-requests" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
                 <span className="nav-icon"><MessageCircle size={14} /></span>
                 Change Requests
               </NavLink>
               {(isSystemAdministrator || isActualProjectManager) && (
-  <NavLink to="/project/recommend-internship-action" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
-    <span className="nav-icon"><UserCheck size={14} /></span>
-    Internship Completion/Extension
-  </NavLink>
-)}
-{isSystemAdministrator && (
-  <NavLink to="/project/create" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
-    <span className="nav-icon"><FolderKanban size={14} /></span>
-    Create Project
-  </NavLink>
-)}
+                <NavLink to="/project/recommend-internship-action" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
+                  <span className="nav-icon"><UserCheck size={14} /></span>
+                  Internship Completion/Extension
+                </NavLink>
+              )}
+              {isSystemAdministrator && (
+                <NavLink to="/project/create" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
+                  <span className="nav-icon"><FolderKanban size={14} /></span>
+                  Create Project
+                </NavLink>
+              )}
             </div>
           )}
         </>
@@ -901,9 +907,9 @@ function Sidebar() {
                 Meetings / Call Log
               </NavLink>
               <NavLink to="/clients/follow-ups" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
-  <span className="nav-icon"><MessageCircle size={14} /></span>
-  Follow-Ups
-</NavLink>
+                <span className="nav-icon"><MessageCircle size={14} /></span>
+                Follow-Ups
+              </NavLink>
               <NavLink to="/clients/requests" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
                 <span className="nav-icon"><ClipboardList size={14} /></span>
                 Client Requests

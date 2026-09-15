@@ -8,6 +8,8 @@ function InternshipApprovals() {
   const [message, setMessage] = useState("");
   const [processing, setProcessing] = useState(null);
   const [startDates, setStartDates] = useState({});
+  const [managerIds, setManagerIds] = useState({});
+  const [users, setUsers] = useState([]);
 
   const load = async () => {
     setLoading(true);
@@ -26,13 +28,27 @@ function InternshipApprovals() {
     load();
   }, []);
 
+  useEffect(() => {
+    client
+      .get("/api/projects/users-lookup/")
+      .then(({ data }) => setUsers(data))
+      .catch(() => {});
+  }, []);
+
   const approve = async (recommendationId) => {
+    const managerId = managerIds[recommendationId];
+    if (!managerId) {
+      setError("Please select a reporting manager before approving.");
+      return;
+    }
+
     setProcessing(recommendationId);
     setError("");
     try {
       const startDate = startDates[recommendationId] || new Date().toISOString().slice(0, 10);
       const { data } = await client.post(`/api/interns/${recommendationId}/approve/`, {
         internship_start_date: startDate,
+        manager_user_id: managerId,
       });
       setMessage(`Approved — intern code ${data.intern_code} created.`);
       setPending((prev) => prev.filter((r) => r.recommendation_id !== recommendationId));
@@ -108,6 +124,25 @@ function InternshipApprovals() {
                     className="border border-gray-300 rounded-md px-3 py-2 text-sm"
                   />
                 </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Reporting Manager</label>
+                  <select
+                    value={managerIds[r.recommendation_id] || ""}
+                    onChange={(e) =>
+                      setManagerIds((prev) => ({ ...prev, [r.recommendation_id]: e.target.value }))
+                    }
+                    className="border border-gray-300 rounded-md px-3 py-2 text-sm min-w-[180px]"
+                  >
+                    <option value="">Select manager…</option>
+                    {users.map((u) => (
+                      <option key={u.user_id} value={u.user_id}>
+                        {u.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 <button
                   onClick={() => approve(r.recommendation_id)}
                   disabled={processing === r.recommendation_id}

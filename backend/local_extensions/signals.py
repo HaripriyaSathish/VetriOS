@@ -29,15 +29,26 @@ def notify_student_of_new_task(sender, instance, created, **kwargs):
 
 
 @receiver(post_save, sender=Message)
-def notify_student_of_trainer_message(sender, instance, created, **kwargs):
+def notify_of_new_message(sender, instance, created, **kwargs):
     if not created:
         return
-    if "Employee" not in instance.sender.active_role_names():
-        return
+
+    recipient_roles = instance.recipient.active_role_names()
+
+    if "Intern" in recipient_roles:
+        link = "/intern/ask-lead"
+    elif "Student" in recipient_roles:
+        link = "/student/ask-trainer"
+    else:
+        link = "/project/team-messages"
+
+    sender_person = instance.sender.person
+    sender_name = f"{sender_person.first_name} {sender_person.last_name or ''}".strip()
+
     notify(
-        recipient=instance.recipient, module="TRAINING", notification_type="TRAINER_MESSAGE",
-        title="New message from your trainer",
-        message=instance.content[:200], link="/student/ask-trainer",
+        recipient=instance.recipient, module="TRAINING", notification_type="NEW_MESSAGE",
+        title=f"New message from {sender_name}",
+        message=instance.content[:200], link=link,
         entity_type="message", entity_id=instance.message_id, actor=instance.sender,
     )
 

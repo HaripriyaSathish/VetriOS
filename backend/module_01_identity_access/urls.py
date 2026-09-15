@@ -25,6 +25,7 @@ from .views import (
     UserRoleMatrixView,
     UserRoleToggleView,
 )
+from .views import MyProfileView, ChangePasswordView
 
 urlpatterns = [
     path("login/", LoginView.as_view(), name="login"),
@@ -73,4 +74,6 @@ urlpatterns = [
         PermissionRequestDecisionView.as_view(),
         name="permission-request-decide",
     ),
+    path("profile/", MyProfileView.as_view()),
+    path("change-password/", ChangePasswordView.as_view()),
 ]

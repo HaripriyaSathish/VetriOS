@@ -18,7 +18,7 @@ from module_02_hr.models import LeaveType, EmployeeLeave
 from .models import InternTestingReport
 from .models import InternPerformance
 from module_05_clients_projects.models import ProjectTeamMember
-
+from module_05_clients_projects.models import ProjectTask, TaskAssignee, ProjectTeamHierarchy
 
 def user_is_business_team(user):
     return bool(user.active_role_names() & {"Business Team", "System Administrator"})
@@ -109,9 +109,6 @@ class PendingInternshipRecommendationsView(APIView):
 
 
 class ApproveInternshipRecommendationView(APIView):
-    """Business Team only. Approving creates the real Intern row —
-    this is the only place a row in the official intern table gets
-    created from this flow."""
     permission_classes = [IsAuthenticated]
 
     def post(self, request, recommendation_id):
@@ -126,6 +123,10 @@ class ApproveInternshipRecommendationView(APIView):
         if rec.status != "PENDING_APPROVAL":
             return Response({"detail": f"This recommendation is already {rec.status}."}, status=400)
 
+        manager_user_id = request.data.get("manager_user_id")
+        if not manager_user_id:
+            return Response({"detail": "manager_user_id is required."}, status=400)
+
         start_date = request.data.get("internship_start_date") or timezone.now().date()
 
         with transaction.atomic():
@@ -136,6 +137,13 @@ class ApproveInternshipRecommendationView(APIView):
                 status="ACTIVE",
                 created_at=timezone.now(),
                 updated_at=timezone.now(),
+            )
+            InternReportingManagerHistory.objects.create(
+                intern=intern,
+                manager_user_id=manager_user_id,
+                effective_from=start_date,
+                is_current=True,
+                created_at=timezone.now(),
             )
             rec.status = "APPROVED"
             rec.reviewed_by = request.user
@@ -716,34 +724,79 @@ class ProjectLeadInternTasksView(APIView):
 
 # --- Remove UpdateInternTaskScoreView entirely, replace with: ---
 
+# module_04_interns/views.py
+
+
+
+def _user_leads_project_task(user, project_task):
+    """True if `user` is the reports-to lead for whoever this
+    ProjectTask's underlying Task is assigned to."""
+    assignee = TaskAssignee.objects.filter(task=project_task.task).select_related(
+        "assigned_to_team_member"
+    ).first()
+    if not assignee or not assignee.assigned_to_team_member:
+        return False
+
+    hierarchy = ProjectTeamHierarchy.objects.filter(
+        team_member=assignee.assigned_to_team_member
+    ).select_related("reports_to_team_member__user").first()
+
+    if not hierarchy or not hierarchy.reports_to_team_member:
+        return False
+
+    return hierarchy.reports_to_team_member.user_id == user.user_id
+
 class SubmitTestingReportView(APIView):
     permission_classes = [IsAuthenticated]
 
-    def post(self, request, intern_task_id):
-        try:
-            it = InternTask.objects.select_related("intern").get(intern_task_id=intern_task_id)
-        except InternTask.DoesNotExist:
-            return Response({"detail": "Not found."}, status=404)
+    def post(self, request):
+        intern_task_id = request.data.get("intern_task_id")
+        project_task_id = request.data.get("project_task_id")
 
-        if not InternReportingManagerHistory.objects.filter(
-            intern=it.intern, manager_user=request.user, is_current=True
-        ).exists():
-            return Response({"detail": "This intern doesn't report to you."}, status=403)
+        if bool(intern_task_id) == bool(project_task_id):
+            return Response(
+                {"detail": "Provide exactly one of intern_task_id or project_task_id."}, status=400
+            )
 
         report_text = request.data.get("report_text", "").strip()
         status_val = request.data.get("status")
         if not report_text or status_val not in ("NEEDS_FIXES", "APPROVED"):
-            return Response({"detail": "report_text and a valid status (NEEDS_FIXES or APPROVED) are required."}, status=400)
+            return Response(
+                {"detail": "report_text and a valid status (NEEDS_FIXES or APPROVED) are required."}, status=400
+            )
 
-        report = InternTestingReport.objects.create(
-            intern_task=it,
-            report_text=report_text,
-            attachment=request.FILES.get("attachment"),
-            status=status_val,
-            created_by=request.user,
-        )
+        if intern_task_id:
+            try:
+                it = InternTask.objects.select_related("intern").get(intern_task_id=intern_task_id)
+            except InternTask.DoesNotExist:
+                return Response({"detail": "Intern task not found."}, status=404)
+
+            if not InternReportingManagerHistory.objects.filter(
+                intern=it.intern, manager_user=request.user, is_current=True
+            ).exists():
+                return Response({"detail": "This intern doesn't report to you."}, status=403)
+
+            report = InternTestingReport.objects.create(
+                intern_task=it, report_text=report_text,
+                attachment=request.FILES.get("attachment"),
+                status=status_val, created_by=request.user,
+            )
+        else:
+            try:
+                pt = ProjectTask.objects.select_related("task").get(project_task_id=project_task_id)
+            except ProjectTask.DoesNotExist:
+                return Response({"detail": "Project task not found."}, status=404)
+
+            if not _user_leads_project_task(request.user, pt):
+                return Response({"detail": "Not authorized for this task."}, status=403)
+
+            report = InternTestingReport.objects.create(
+                project_task=pt, report_text=report_text,
+                attachment=request.FILES.get("attachment"),
+                status=status_val, created_by=request.user,
+            )
+
         return Response({"report_id": report.report_id}, status=201)
-
 
 class MyTestingReportsView(APIView):
     permission_classes = [IsAuthenticated]
@@ -753,11 +806,26 @@ class MyTestingReportsView(APIView):
         if not intern:
             return Response({"detail": "You are not currently an intern."}, status=404)
 
-        reports = InternTestingReport.objects.filter(
+        # Reports filed against this intern's InternTask assignments.
+        intern_task_reports = InternTestingReport.objects.filter(
             intern_task__intern=intern
         ).select_related("intern_task__task", "created_by")
 
-        return Response([
+        # Reports filed against Kanban tasks assigned to this intern's
+        # ProjectTeamMember row(s).
+        my_team_member_ids = ProjectTeamMember.objects.filter(
+            user=request.user, is_active=True
+        ).values_list("project_team_member_id", flat=True)
+
+        kanban_task_ids = TaskAssignee.objects.filter(
+            assigned_to_team_member_id__in=my_team_member_ids
+        ).values_list("task_id", flat=True)
+
+        project_task_reports = InternTestingReport.objects.filter(
+            project_task__task_id__in=kanban_task_ids
+        ).select_related("project_task__task", "created_by")
+
+        data = [
             {
                 "report_id": r.report_id,
                 "task_title": r.intern_task.task.task_title,
@@ -766,9 +834,24 @@ class MyTestingReportsView(APIView):
                 "status": r.status,
                 "created_by": r.created_by.username if r.created_by else None,
                 "created_at": r.created_at,
+                "source": "intern",
             }
-            for r in reports
-        ])
+            for r in intern_task_reports
+        ] + [
+            {
+                "report_id": r.report_id,
+                "task_title": r.project_task.task.task_title,
+                "report_text": r.report_text,
+                "attachment_url": r.attachment.url if r.attachment else None,
+                "status": r.status,
+                "created_by": r.created_by.username if r.created_by else None,
+                "created_at": r.created_at,
+                "source": "kanban",
+            }
+            for r in project_task_reports
+        ]
+
+        return Response(sorted(data, key=lambda x: x["created_at"], reverse=True))
 
 
 # --- Leave applications, reusing official EmployeeLeave + LeaveType ---
@@ -941,4 +1024,97 @@ class MyProjectView(APIView):
             }
             for m in memberships
         ])
-     
+class AllInternsForManagerAssignmentView(APIView):
+    """Every intern, with their current reporting manager if any —
+    lets Business Team/Admin fix missing or outdated assignments
+    without touching the database directly."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if not (user_is_business_team(request.user) or user_is_admin(request.user)):
+            return Response({"detail": "Not authorized."}, status=403)
+
+        interns = Intern.objects.select_related("student__person").all()
+        current_links = {
+            h.intern_id: h.manager_user
+            for h in InternReportingManagerHistory.objects.filter(is_current=True).select_related("manager_user__person")
+        }
+
+        data = []
+        for i in interns:
+            person = i.student.person
+            manager = current_links.get(i.intern_id)
+            manager_name = None
+            if manager:
+                mp = manager.person
+                manager_name = f"{mp.first_name} {mp.last_name or ''}".strip()
+            data.append({
+                "intern_id": i.intern_id,
+                "intern_code": i.intern_code,
+                "name": f"{person.first_name} {person.last_name or ''}".strip(),
+                "current_manager": manager_name,
+            })
+        return Response(data)
+
+
+class AssignReportingManagerView(APIView):
+    """POST {manager_user_id}. Closes any existing current link for
+    this intern and creates a new current one — same convention used
+    everywhere else in this app (close old, open new, keep history)."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, intern_id):
+        if not (user_is_business_team(request.user) or user_is_admin(request.user)):
+            return Response({"detail": "Not authorized."}, status=403)
+
+        try:
+            intern = Intern.objects.get(intern_id=intern_id)
+        except Intern.DoesNotExist:
+            return Response({"detail": "Intern not found."}, status=404)
+
+        manager_user_id = request.data.get("manager_user_id")
+        if not manager_user_id:
+            return Response({"detail": "manager_user_id is required."}, status=400)
+
+        with transaction.atomic():
+            InternReportingManagerHistory.objects.filter(
+                intern=intern, is_current=True
+            ).update(is_current=False, effective_to=timezone.now().date())
+
+            InternReportingManagerHistory.objects.create(
+                intern=intern,
+                manager_user_id=manager_user_id,
+                effective_from=timezone.now().date(),
+                is_current=True,
+                created_at=timezone.now(),
+            )
+
+        return Response({"detail": "Reporting manager assigned."}, status=201)     
+
+class MyMessageThreadsView(APIView):
+    """Every distinct person who has exchanged 1-on-1 messages with the
+    logged-in user (batch__isnull=True), most recent first — feeds the
+    lead's inbox-style list, regardless of whether the other person is
+    an intern or a regular project team member."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        me = request.user.user_id
+        messages = Message.objects.filter(
+            Q(sender_id=me) | Q(recipient_id=me),
+            batch__isnull=True,
+        ).select_related("sender__person", "recipient__person").order_by("-created_at")
+
+        seen = {}
+        for m in messages:
+            other = m.recipient if m.sender_id == me else m.sender
+            if other.user_id not in seen:
+                person = other.person
+                seen[other.user_id] = {
+                    "user_id": other.user_id,
+                    "name": f"{person.first_name} {person.last_name or ''}".strip(),
+                    "last_message": m.content[:80],
+                    "last_message_at": m.created_at,
+                }
+
+        return Response(list(seen.values()))    

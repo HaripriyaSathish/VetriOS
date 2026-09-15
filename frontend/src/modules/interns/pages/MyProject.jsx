@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import client from "../../../api/client";
 
 function MyProject() {
@@ -36,7 +37,14 @@ function MyProject() {
                 </span>
               </div>
               <p className="text-xs text-gray-500 mb-1">Client: {p.client_name}</p>
-              <p className="text-xs text-gray-500">Your role: {p.my_role}</p>
+              <p className="text-xs text-gray-500 mb-3">Your role: {p.my_role}</p>
+
+              <Link
+                to={`/project/${p.project_id}/ask-lead`}
+                className="inline-block bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-md text-xs font-semibold"
+              >
+                💬 Ask Project Lead
+              </Link>
             </div>
           ))}
         </div>

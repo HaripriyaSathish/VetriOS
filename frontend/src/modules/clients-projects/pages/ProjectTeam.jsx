@@ -106,14 +106,22 @@ function ProjectTeam() {
 
       <div className="flex justify-between items-center mt-3 mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Project Team</h1>
-        {isPM && (
-          <button
-            onClick={() => setShowAssignForm((prev) => !prev)}
-            className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-semibold"
+        <div className="flex items-center gap-3">
+          <Link
+            to={`/project/${projectId}/ask-lead`}
+            className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-md text-sm font-semibold"
           >
-            {showAssignForm ? "Cancel" : "+ Assign Team Member"}
-          </button>
-        )}
+            💬 Ask Project Lead
+          </Link>
+          {isPM && (
+            <button
+              onClick={() => setShowAssignForm((prev) => !prev)}
+              className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-semibold"
+            >
+              {showAssignForm ? "Cancel" : "+ Assign Team Member"}
+            </button>
+          )}
+        </div>
       </div>
 
       {error && <p className="text-red-600 mb-4">{error}</p>}

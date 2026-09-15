@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useOutletContext } from "react-router-dom";
 import { Paperclip, Sparkles, FileSignature, X } from "lucide-react";
 import client from "../../../api/client";
 import "../styles/Documents.css";
@@ -8,19 +8,24 @@ const MAX_LEN = 500;
 
 // A card with a `route` skips the general-purpose prompt entirely and
 // opens its own dedicated page instead (real data auto-loaded there,
-// not typed into the free-text box).
+// not typed into the free-text box). Both of these are System
+// Administrator/HR Administrator only (see App.jsx's route guards and
+// IsSystemAdminOrHR on the backend) — Employee and Intern shouldn't
+// even see the cards, let alone reach the pages.
 const DOCUMENT_TYPES = [
   {
     label: "Course Integrated Internship Offer Letter",
     description: "students who are selected as interns, contains prefilled content",
     icon: FileSignature,
     route: "/documents/ai-generator/course-integrated-internship-offer",
+    adminOrHrOnly: true,
   },
   {
     label: "Intern Onboarding Offer Letter",
     description: "students who completed their course and interview, contains prefilled content",
     icon: FileSignature,
     route: "/documents/ai-generator/intern-onboarding-offer",
+    adminOrHrOnly: true,
   },
 ];
 
@@ -29,6 +34,11 @@ const DOCUMENT_TYPES = [
 // The paperclip attaches a reference file (.txt/.pdf/.docx) whose text
 // gets folded into the prompt as context.
 function AIGenerator() {
+  const { user } = useOutletContext();
+  const roles = user?.roles || [];
+  const isSystemAdminOrHR = roles.includes("System Administrator") || roles.includes("HR Administrator");
+  const visibleDocumentTypes = DOCUMENT_TYPES.filter((type) => !type.adminOrHrOnly || isSystemAdminOrHR);
+
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
   const [description, setDescription] = useState("");
@@ -90,9 +100,11 @@ function AIGenerator() {
 
       {error && <div className="doc-error">{error}</div>}
 
+      {visibleDocumentTypes.length > 0 && (
+        <>
       <p className="doc-type-label">Document Types</p>
       <div className="doc-type-grid">
-        {DOCUMENT_TYPES.map((type) => (
+        {visibleDocumentTypes.map((type) => (
           <button key={type.label} type="button" className="doc-type-card" onClick={() => chooseType(type)}>
             <span className="doc-type-card-icon">
               <type.icon size={20} />
@@ -102,6 +114,8 @@ function AIGenerator() {
           </button>
         ))}
       </div>
+        </>
+      )}
 
       <p className="doc-type-label">General Prompt</p>
       <div className="doc-prompt-card">

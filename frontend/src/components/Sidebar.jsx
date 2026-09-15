@@ -114,6 +114,10 @@ function Sidebar() {
 
   const isSystemAdministrator = hasAccess(identityRequirement, user);
   const isIntern = hasAccess(internRequirement, user);
+  // Template management (and the two intern-offer-letter Generate
+  // cards, gated where those routes are defined) stays admin/HR-only —
+  // Employee/Intern keep Library + the general-prompt Generate flow.
+  const isSystemAdminOrHR = isSystemAdministrator || (user?.roles || []).includes("HR Administrator");
 
   const activeWorkspace = localStorage.getItem("active_workspace");
   const inWorkspace = (key) => isSystemAdministrator || activeWorkspace === key;
@@ -484,15 +488,17 @@ function Sidebar() {
                 Generate
               </NavLink>
 
-              <NavLink
-                to="/documents/templates"
-                className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
-              >
-                <span className="nav-icon">
-                  <LayoutTemplate size={14} />
-                </span>
-                Templates
-              </NavLink>
+              {isSystemAdminOrHR && (
+                <NavLink
+                  to="/documents/templates"
+                  className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
+                >
+                  <span className="nav-icon">
+                    <LayoutTemplate size={14} />
+                  </span>
+                  Templates
+                </NavLink>
+              )}
             </div>
           )}
         </>

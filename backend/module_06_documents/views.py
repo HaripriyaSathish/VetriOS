@@ -41,7 +41,7 @@ from .models import (
     DocumentType,
     DocumentVersion,
 )
-from .permissions import CanCreateDocuments, CanViewDocuments
+from .permissions import CanCreateDocuments, CanViewDocuments, IsSystemAdminOrHR
 from .serializers import (
     DocumentAccessRuleSerializer,
     DocumentListSerializer,
@@ -243,8 +243,10 @@ def _current_department_name(person_id):
 
 
 class DocumentTemplateListView(generics.ListAPIView):
-    """Templates available to Vetri Tool (AI Generator)."""
-    permission_classes = [CanViewDocuments]
+    """Templates available to Vetri Tool (AI Generator). Only ever
+    called from the two intern-offer-letter pages (System
+    Administrator/HR Administrator only), so gated the same way."""
+    permission_classes = [CanViewDocuments, IsSystemAdminOrHR]
     serializer_class = DocumentTemplateSerializer
     queryset = DocumentTemplate.objects.filter(is_active=True).order_by("template_name")
 
@@ -301,7 +303,7 @@ def _generate_docx_document(template, employee, data, request_user):
             confidentiality_level_id=3,  # RESTRICTED
             access_level_id=3,
             document_code=f"GEN-{template.template_code}-{employee.employee_id}-{timezone.now().strftime('%Y%m%d%H%M%S')}",
-            document_title=unique_document_title(f"{template.template_name} — {employee.person}"),
+            document_title=unique_document_title(f"{employee.person} — {template.template_name}"),
             owner_user=request_user,
             created_by_user=request_user,
             current_version_number=1,
@@ -612,6 +614,9 @@ def _merge_intern_offer_pdf(template, intern, field_values):
         "contact_email": "hrteam@vetriitsystems.com",
         "hr_email": "hrteam@vetriitsystems.com",
         "company_website": "www.vetriitsystems.com",
+        "corporate_id": "U62099TN2024PTC172387",
+        "tan_no": "MRIV03584A",
+        "tan_number": "MRIV03584A",
     }
 
     def apply_replacements(values):
@@ -693,7 +698,7 @@ def _generate_intern_offer_document(template, intern, field_values, request_user
             confidentiality_level_id=3,
             access_level_id=3,
             document_code=f"GEN-{template.template_code}-INT{intern.intern_id}-{timezone.now().strftime('%Y%m%d%H%M%S')}",
-            document_title=unique_document_title(f"{template.template_name} — {person}"),
+            document_title=unique_document_title(f"{person} — {template.template_name}"),
             owner_user=request_user,
             created_by_user=request_user,
             current_version_number=1,
@@ -826,7 +831,7 @@ def _save_markdown_document(generation, employee, final_html, request_user):
             confidentiality_level_id=3,  # RESTRICTED
             access_level_id=3,           # RESTRICTED
             document_code=f"GEN-{generation.ai_document_generation_id}-{employee.employee_id}",
-            document_title=unique_document_title(f"{generation.document_template.template_name} — {employee.person}"),
+            document_title=unique_document_title(f"{employee.person} — {generation.document_template.template_name}"),
             owner_user=request_user,
             created_by_user=request_user,
             current_version_number=1,
@@ -951,8 +956,10 @@ class InternListView(APIView):
     page's auto-loaded name picker — including which course/batch they
     came from (their most recent Enrollment, module_03_training, also
     read-only from here). Interns/Training/Students are Haripriya's
-    module, not edited here."""
-    permission_classes = [CanCreateDocuments]
+    module, not edited here. System Administrator/HR Administrator
+    only — these two document types stay admin/HR-only even though
+    Employee and Intern both carry DOCUMENT_CREATE."""
+    permission_classes = [CanCreateDocuments, IsSystemAdminOrHR]
 
     def get(self, request):
         interns = Intern.objects.select_related("student__person").order_by("-internship_start_date")
@@ -983,8 +990,9 @@ class GenerateInternOfferLetterView(APIView):
     """POST {template_id, intern_id, field_values} — the Course
     Integrated Internship Offer Letter page's dedicated generate
     action. Always a design-preserving DOCX merge (this document type
-    only exists as that one real template), saved immediately."""
-    permission_classes = [CanCreateDocuments]
+    only exists as that one real template), saved immediately.
+    System Administrator/HR Administrator only — see InternListView."""
+    permission_classes = [CanCreateDocuments, IsSystemAdminOrHR]
 
     def post(self, request):
         template_id = request.data.get("template_id")
@@ -1014,8 +1022,9 @@ class PreviewInternOfferLetterView(APIView):
     and saves nothing, so the Course Integrated Internship Offer Letter
     page's Preview action can show the real letterhead design WITH the
     selected intern's real data merged in, without creating a Document
-    every time someone just wants to look."""
-    permission_classes = [CanCreateDocuments]
+    every time someone just wants to look. System Administrator/HR
+    Administrator only — see InternListView."""
+    permission_classes = [CanCreateDocuments, IsSystemAdminOrHR]
 
     def post(self, request):
         template_id = request.data.get("template_id")
@@ -1765,8 +1774,9 @@ class TemplateAnalyzeUploadView(APIView):
     .txt/.pdf upload has no design to preserve, so its templatized text
     is wrapped into a plain .docx instead (see build_plain_docx). There's
     no plain-text/markdown template format — only Word (DOCX) or the
-    final generated PDF."""
-    permission_classes = [CanCreateDocuments]
+    final generated PDF. System Administrator/HR Administrator only —
+    see DocumentTemplateListView."""
+    permission_classes = [CanCreateDocuments, IsSystemAdminOrHR]
 
     def post(self, request):
         file_obj = request.FILES.get("file")
@@ -1827,8 +1837,9 @@ class TemplatePreviewView(APIView):
     stored file as a real PDF, so the create-template page can show the
     actual design (fonts/letterhead/layout) instead of just a text
     summary. Used for both an uploaded sample and an AI-generated one,
-    since both land in the same DOCX storage pipeline."""
-    permission_classes = [CanCreateDocuments]
+    since both land in the same DOCX storage pipeline. System
+    Administrator/HR Administrator only — see DocumentTemplateListView."""
+    permission_classes = [CanCreateDocuments, IsSystemAdminOrHR]
 
     def get(self, request):
         storage_name = request.query_params.get("content")
@@ -1845,15 +1856,17 @@ class TemplatePreviewView(APIView):
 
 
 class DocumentTemplateManageListView(generics.ListAPIView):
-    """Template Manager — every template, active and inactive."""
-    permission_classes = [CanCreateDocuments]
+    """Template Manager — every template, active and inactive. System
+    Administrator/HR Administrator only — see DocumentTemplateListView."""
+    permission_classes = [CanCreateDocuments, IsSystemAdminOrHR]
     serializer_class = DocumentTemplateSerializer
     queryset = DocumentTemplate.objects.all().order_by("template_name")
 
 
 class DocumentTemplateCreateView(APIView):
-    """POST — create a new document template."""
-    permission_classes = [CanCreateDocuments]
+    """POST — create a new document template. System Administrator/HR
+    Administrator only — see DocumentTemplateListView."""
+    permission_classes = [CanCreateDocuments, IsSystemAdminOrHR]
 
     def post(self, request):
         serializer = DocumentTemplateCreateSerializer(data=request.data)
@@ -1874,8 +1887,9 @@ class DocumentTemplateDetailView(APIView):
     by clicking a template card. DOCX-format templates keep their design
     (template_content is a Cloudinary path, not editable text here) —
     only the name/code/type can change; MARKDOWN templates can also have
-    their body text edited."""
-    permission_classes = [CanCreateDocuments]
+    their body text edited. System Administrator/HR Administrator
+    only — see DocumentTemplateListView."""
+    permission_classes = [CanCreateDocuments, IsSystemAdminOrHR]
 
     def get(self, request, template_id):
         try:
@@ -1901,8 +1915,9 @@ class DocumentTemplateDetailView(APIView):
 
 
 class DocumentTemplateToggleView(APIView):
-    """PATCH — flip a template's is_active flag."""
-    permission_classes = [CanCreateDocuments]
+    """PATCH — flip a template's is_active flag. System
+    Administrator/HR Administrator only — see DocumentTemplateListView."""
+    permission_classes = [CanCreateDocuments, IsSystemAdminOrHR]
 
     def patch(self, request, template_id):
         try:
@@ -1913,6 +1928,45 @@ class DocumentTemplateToggleView(APIView):
         template.updated_at = timezone.now()
         template.save(update_fields=["is_active", "updated_at"])
         return Response(DocumentTemplateSerializer(template).data)
+
+
+class DocumentTemplateDownloadView(APIView):
+    """GET — download a template as a real .docx attachment, for the
+    Template Manager's "Download as DOCX" action. A DOCX-format template
+    is served byte-identical to its stored file; any other format's
+    template_content (plain {{placeholder}} text) is wrapped into a
+    paragraph-per-line .docx on the fly — built in memory, not saved to
+    storage, so a download never leaves a side effect behind. System
+    Administrator/HR Administrator only — see DocumentTemplateListView."""
+    permission_classes = [CanCreateDocuments, IsSystemAdminOrHR]
+
+    def get(self, request, template_id):
+        try:
+            template = DocumentTemplate.objects.get(pk=template_id)
+        except DocumentTemplate.DoesNotExist:
+            return Response({"detail": "Template not found."}, status=404)
+
+        if template.template_format == "DOCX":
+            try:
+                docx_bytes = _raw_cloud_storage.open(template.template_content).read()
+            except Exception as exc:
+                return Response({"detail": f"Download failed: {exc}"}, status=502)
+        else:
+            doc = DocxDocument()
+            for block in re.split(r"\n\s*\n", (template.template_content or "").strip()):
+                block = block.strip()
+                if block:
+                    doc.add_paragraph(block)
+            buffer = io.BytesIO()
+            doc.save(buffer)
+            docx_bytes = buffer.getvalue()
+
+        response = HttpResponse(
+            docx_bytes,
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
+        response["Content-Disposition"] = f'attachment; filename="{template.template_code}.docx"'
+        return response
 
 
 class DocumentAccessRuleListCreateView(APIView):

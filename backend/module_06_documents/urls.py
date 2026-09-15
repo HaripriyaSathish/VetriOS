@@ -14,6 +14,7 @@ from .views import (
     LibraryStatsView,
     DocumentTemplateCreateView,
     DocumentTemplateDetailView,
+    DocumentTemplateDownloadView,
     DocumentTemplateListView,
     DocumentTemplateManageListView,
     DocumentTemplateToggleView,
@@ -59,6 +60,7 @@ urlpatterns = [
     path("templates/analyze-upload/", TemplateAnalyzeUploadView.as_view()),
     path("templates/preview/", TemplatePreviewView.as_view()),
     path("templates/<int:template_id>/toggle/", DocumentTemplateToggleView.as_view()),
+    path("templates/<int:template_id>/download/", DocumentTemplateDownloadView.as_view()),
     path("templates/<int:template_id>/", DocumentTemplateDetailView.as_view()),
 
     # Governance (per-document)

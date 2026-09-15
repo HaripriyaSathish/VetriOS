@@ -613,10 +613,13 @@ function App() {
             </PermissionGate>
           }
         />
+        {/* System Administrator / HR Administrator only — Employee and
+            Intern both carry DOCUMENT_VIEW/CREATE but shouldn't reach
+            these two intern-offer-letter generators. */}
         <Route
           path="/documents/ai-generator/course-integrated-internship-offer"
           element={
-            <PermissionGate requirement={{ type: "perm", value: "DOCUMENT_VIEW" }}>
+            <PermissionGate requirement={{ type: "role", value: ["System Administrator", "HR Administrator"] }}>
               <CourseInternshipOfferLetter />
             </PermissionGate>
           }
@@ -624,15 +627,18 @@ function App() {
         <Route
           path="/documents/ai-generator/intern-onboarding-offer"
           element={
-            <PermissionGate requirement={{ type: "perm", value: "DOCUMENT_VIEW" }}>
+            <PermissionGate requirement={{ type: "role", value: ["System Administrator", "HR Administrator"] }}>
               <InternOnboardingOfferLetter />
             </PermissionGate>
           }
         />
+        {/* Template management — System Administrator / HR Administrator
+            only, same reasoning as the two intern-offer-letter routes
+            above. */}
         <Route
           path="/documents/templates"
           element={
-            <PermissionGate requirement={{ type: "perm", value: "DOCUMENT_VIEW" }}>
+            <PermissionGate requirement={{ type: "role", value: ["System Administrator", "HR Administrator"] }}>
               <DocumentTemplates />
             </PermissionGate>
           }
@@ -640,7 +646,7 @@ function App() {
         <Route
           path="/documents/templates/new"
           element={
-            <PermissionGate requirement={{ type: "perm", value: "DOCUMENT_VIEW" }}>
+            <PermissionGate requirement={{ type: "role", value: ["System Administrator", "HR Administrator"] }}>
               <TemplateCreate />
             </PermissionGate>
           }
@@ -648,7 +654,7 @@ function App() {
         <Route
           path="/documents/templates/:id"
           element={
-            <PermissionGate requirement={{ type: "perm", value: "DOCUMENT_VIEW" }}>
+            <PermissionGate requirement={{ type: "role", value: ["System Administrator", "HR Administrator"] }}>
               <TemplateDetail />
             </PermissionGate>
           }

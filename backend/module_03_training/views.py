@@ -24,6 +24,8 @@ import re
 from local_extensions.models import Enquiry
 from local_extensions.email_utils import send_email
 from local_extensions.models import MockInterviewDetail
+from module_08_audit.log_utils import log_system_event
+
 CATEGORY_LABELS = {"task": "Daily Task", "mini_project": "Mini Project", "main_project": "Main Project", "seminar": "Seminar"}
 ADMIN_ROLES = {"System Administrator", "Manager", "Business Team"}
 
@@ -602,6 +604,13 @@ class ZoneReportView(APIView):
             batch=batch, period=period, start_date=start, end_date=end,
             generated_by=request.user, rows_json=rows,
         )
+        log_system_event(
+            event_code="REPORT_GENERATED", event_type="REPORT",
+            event_status="SUCCESS", event_source="training",
+            entity_type="Batch", entity_id=str(batch.batch_id),
+            user=request.user,
+            event_message=f"{period.capitalize()} zone report generated for {batch.batch_name}",
+        )
 
         title = f"{batch.batch_name} - {period.capitalize()} Production Report ({start} to {end})"
         excel_buffer = build_zone_report_excel(rows, title)
@@ -851,6 +860,14 @@ class InviteToMockInterviewView(APIView):
                 if was_created:
                     created += 1
 
+        log_system_event(
+            event_code="MOCK_INTERVIEW_INVITES_SENT", event_type="MOCK_INTERVIEW",
+            event_status="SUCCESS", event_source="training",
+            entity_type="Batch", entity_id=str(batch.batch_id),
+            user=request.user,
+            event_message=f"Round {round_number} invites created for {created} student(s)",
+        )
+
         return Response({
             "assessment_id": assessment.assessment_id,
             "round_number": round_number,
@@ -1050,6 +1067,13 @@ class AssistantBatchReportDownloadView(APIView):
             batch=batch, period=period, start_date=start, end_date=end,
             generated_by=request.user, rows_json=rows,
         )
+        log_system_event(
+            event_code="REPORT_GENERATED", event_type="REPORT",
+            event_status="SUCCESS", event_source="training",
+            entity_type="Batch", entity_id=str(batch.batch_id),
+            user=request.user,
+            event_message=f"{period.capitalize()} zone report generated for {batch.batch_name} (assistant)",
+        )
 
         title = f"{batch.batch_name} - {period.capitalize()} Production Report"
         excel_buffer = build_zone_report_excel(rows, title)
@@ -1057,6 +1081,4 @@ class AssistantBatchReportDownloadView(APIView):
         return FileResponse(
             excel_buffer, as_attachment=True, filename=filename,
             content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        )   
-
-     
+        )

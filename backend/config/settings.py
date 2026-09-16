@@ -60,12 +60,13 @@ INSTALLED_APPS = [
 AUTH_USER_MODEL = 'module_01_identity_access.UserAccount'
 
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',        # must sit near the top, before CommonMiddleware
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'module_08_audit.middleware.CurrentUserMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]

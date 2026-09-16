@@ -3,11 +3,11 @@ import client from "../../../api/client";
 
 function LeadTeamTasks() {
   const [tasks, setTasks] = useState([]);
+  const [reportsByTask, setReportsByTask] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
-  // Testing-report modal state
   const [reportModalTask, setReportModalTask] = useState(null);
   const [reportText, setReportText] = useState("");
   const [reportStatus, setReportStatus] = useState("APPROVED");
@@ -17,9 +17,19 @@ function LeadTeamTasks() {
   const load = () => {
     setLoading(true);
     setError("");
-    client
-      .get("/api/projects/my-team-tasks/")
-      .then(({ data }) => setTasks(data || []))
+    Promise.all([
+      client.get("/api/projects/my-team-tasks/"),
+      client.get("/api/projects/my-filed-testing-reports/"),
+    ])
+      .then(([tasksRes, reportsRes]) => {
+        setTasks(tasksRes.data || []);
+        const grouped = {};
+        (reportsRes.data || []).forEach((r) => {
+          if (!grouped[r.project_task_id]) grouped[r.project_task_id] = [];
+          grouped[r.project_task_id].push(r);
+        });
+        setReportsByTask(grouped);
+      })
       .catch((err) => setError(err.response?.data?.detail || "Couldn't load your team's tasks."))
       .finally(() => setLoading(false));
   };
@@ -68,7 +78,7 @@ function LeadTeamTasks() {
   const statusBadgeClasses = (status) => {
     if (status === "COMPLETED" || status === "DONE") return "bg-green-100 text-green-700";
     if (status === "IN_PROGRESS") return "bg-blue-100 text-blue-700";
-    return "bg-amber-100 text-amber-700"; // PENDING / TODO
+    return "bg-amber-100 text-amber-700";
   };
 
   const statusLabel = (status) => {
@@ -95,34 +105,74 @@ function LeadTeamTasks() {
         </div>
       ) : (
         <div className="flex flex-col gap-4">
-          {tasks.map((t) => (
-            <div key={t.project_task_id || t.task_id} className="bg-white border border-gray-200 rounded-xl p-5">
-              <div className="flex justify-between items-start mb-2">
-                <div>
-                  <p className="font-semibold text-gray-900">{t.title}</p>
-                  <p className="text-xs text-gray-500">
-                    {t.assignee_name ? `Assigned to: ${t.assignee_name} · ` : ""}
-                    {t.project_name ? `Project: ${t.project_name} · ` : ""}
-                    Due: {t.due_date || "—"}
-                  </p>
+          {tasks.map((t) => {
+            const taskReports = reportsByTask[t.project_task_id] || [];
+            return (
+              <div key={t.project_task_id || t.task_id} className="bg-white border border-gray-200 rounded-xl p-5">
+                <div className="flex justify-between items-start mb-2">
+                  <div>
+                    <p className="font-semibold text-gray-900">{t.title}</p>
+                    <p className="text-xs text-gray-500">
+                      {t.assignee_name ? `Assigned to: ${t.assignee_name} · ` : ""}
+                      {t.project_name ? `Project: ${t.project_name} · ` : ""}
+                      Due: {t.due_date || "—"}
+                    </p>
+                  </div>
+                  <span className={`px-2 py-1 rounded-full text-xs font-semibold ${statusBadgeClasses(t.status)}`}>
+                    {statusLabel(t.status)}
+                  </span>
                 </div>
-                <span className={`px-2 py-1 rounded-full text-xs font-semibold ${statusBadgeClasses(t.status)}`}>
-                  {statusLabel(t.status)}
-                </span>
-              </div>
 
-              <div className="bg-gray-50 border border-gray-100 rounded-lg p-3 text-sm flex items-center justify-between">
-                <p className="text-gray-500">Priority: {t.priority || "—"}</p>
-                <button
-                  onClick={() => openReportModal(t)}
-                  disabled={!t.project_task_id}
-                  className="bg-gray-900 text-white px-3 py-1.5 rounded-md text-xs font-semibold disabled:opacity-40"
-                >
-                  File Testing Report
-                </button>
+                {taskReports.length > 0 && (
+                  <div className="flex flex-col gap-2 mb-3">
+                    {taskReports.map((r) => (
+                      <div key={r.report_id} className="bg-gray-50 border border-gray-100 rounded-lg p-3">
+                        <div className="flex justify-between items-start">
+                          <p className="text-sm text-gray-700">{r.report_text}</p>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${r.status === "APPROVED" ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
+                            {r.status === "APPROVED" ? "Approved" : "Needs Fixes"}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-1">
+                          Filed {new Date(r.created_at).toLocaleString()}
+                        </p>
+
+                        {(r.resolution_link || r.resolution_notes) ? (
+                          <div className="bg-white border border-gray-200 rounded-md p-2 mt-2">
+                            <p className="text-xs font-semibold text-gray-500 mb-1">Developer's fix</p>
+                            {r.resolution_link && (
+                              <a href={r.resolution_link} target="_blank" rel="noreferrer" className="text-blue-600 text-sm hover:underline block">
+                                {r.resolution_link}
+                              </a>
+                            )}
+                            {r.resolution_notes && (
+                              <p className="text-sm text-gray-600 mt-1">{r.resolution_notes}</p>
+                            )}
+                            <p className="text-xs text-gray-400 mt-1">
+                              Submitted {new Date(r.resolved_at).toLocaleString()}
+                            </p>
+                          </div>
+                        ) : r.status === "NEEDS_FIXES" ? (
+                          <p className="text-xs text-amber-600 mt-2 italic">Waiting for developer's fix…</p>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="bg-gray-50 border border-gray-100 rounded-lg p-3 text-sm flex items-center justify-between">
+                  <p className="text-gray-500">Priority: {t.priority || "—"}</p>
+                  <button
+                    onClick={() => openReportModal(t)}
+                    disabled={!t.project_task_id}
+                    className="bg-gray-900 text-white px-3 py-1.5 rounded-md text-xs font-semibold disabled:opacity-40"
+                  >
+                    File Testing Report
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

@@ -1,4 +1,5 @@
 from django.core.mail import EmailMultiAlternatives
+from module_08_audit.log_utils import log_system_event
 
 
 def send_email(to, subject, html_body, cc=None):
@@ -10,6 +11,11 @@ def send_email(to, subject, html_body, cc=None):
         to = [to]
     to = [t for t in to if t]
     if not to:
+        log_system_event(
+            event_code="EMAIL_FAILED", event_type="EMAIL",
+            event_status="FAILED", event_source="email_utils",
+            event_message="No valid recipients after filtering.",
+        )
         return False
 
     try:
@@ -21,6 +27,18 @@ def send_email(to, subject, html_body, cc=None):
         )
         msg.attach_alternative(html_body, "text/html")
         msg.send()
+        log_system_event(
+            event_code="EMAIL_SENT", event_type="EMAIL",
+            event_status="SUCCESS", event_source="email_utils",
+            event_message=f"Sent to {len(to)} recipient(s): {subject}",
+            event_payload={"to": to, "cc": cc or []},
+        )
         return True
-    except Exception:
+    except Exception as e:
+        log_system_event(
+            event_code="EMAIL_FAILED", event_type="EMAIL",
+            event_status="FAILED", event_source="email_utils",
+            event_message=str(e),
+            event_payload={"to": to, "subject": subject},
+        )
         return False

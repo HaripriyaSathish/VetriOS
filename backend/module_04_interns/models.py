@@ -264,6 +264,16 @@ class InternTestingReport(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
+    # --- NEW: developer's fix submission, filled in after the lead's report ---
+    resolution_link = models.CharField(max_length=1000, blank=True, null=True)
+    resolution_notes = models.TextField(blank=True, null=True)
+    resolved_by = models.ForeignKey(
+        "module_01_identity_access.UserAccount", on_delete=models.SET_NULL,
+        null=True, blank=True, db_column="resolved_by_user_id",
+        db_constraint=False, related_name="testing_reports_resolved",
+    )
+    resolved_at = models.DateTimeField(blank=True, null=True)
+
     class Meta:
         db_table = "ext_intern_testing_report"
         ordering = ["-created_at"]
@@ -275,4 +285,4 @@ class InternTestingReport(models.Model):
                 ),
                 name="testing_report_exactly_one_task_type",
             )
-        ]   
+        ]

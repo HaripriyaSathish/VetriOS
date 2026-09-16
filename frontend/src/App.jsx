@@ -120,6 +120,8 @@ import Profile from "./pages/Profile";
 import Settings from "./pages/Settings";
 import AskProjectLead from "./modules/clients-projects/pages/AskProjectLead";
 import TeamMessages from "./modules/clients-projects/pages/TeamMessages";
+import AuditLogs from "./modules/audit/pages/AuditLogs";
+import ProjectTestingReports from "./modules/clients-projects/pages/TestingReports";
 
 // Route table for the whole app. Everything under AppLayout requires a
 // signed-in user (ProtectedRoute); each module route is additionally
@@ -426,7 +428,7 @@ function App() {
 <Route path="/project/change-requests" element={<ChangeRequestsProjects />} />
 <Route path="/project/:projectId/change-requests" element={<ChangeRequests />} />
 <Route path="/project/team-messages" element={<TeamMessages />} />
-
+<Route path="/project/testing-reports" element={<ProjectTestingReports />} />
 
 {/* ---- Client Management routes: KEEP PermissionGate ----
     Stays PM/System Administrator only, per requirement. */}
@@ -743,7 +745,18 @@ function App() {
           }
         />
 
-        {NAV_ITEMS.filter((item) => item.id !== "training" && item.id !== "hr" && item.id !== "documents" && item.id !== "email").map((item) => (
+        {/* Audit module — Business Team operates it, System
+            Administrator gets the same view for oversight. */}
+        <Route
+          path="/audit"
+          element={
+            <PermissionGate requirement={{ type: "role", value: ["Business Team", "System Administrator"] }}>
+              <AuditLogs />
+            </PermissionGate>
+          }
+        />
+
+        {NAV_ITEMS.filter((item) => !["training", "hr", "documents", "email", "audit"].includes(item.id)).map((item) => (
           <Route
             key={item.id}
             path={item.path}

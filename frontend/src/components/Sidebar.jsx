@@ -4,6 +4,7 @@ import client from "../api/client";
 import {
   LayoutDashboard,
   ShieldCheck,
+  ShieldAlert,
   KeyRound,
   Users,
   Lock,
@@ -106,6 +107,7 @@ function Sidebar() {
 
   const identityRequirement = { type: "role", value: "System Administrator" };
   const businessTeamRequirement = { type: "role", value: ["Business Team", "System Administrator"] };
+  const auditRequirement = { type: "role", value: ["Business Team", "System Administrator"] };
   const trainerRequirement = { type: "role", value: "Employee" };
   const studentRequirement = { type: "role", value: "Student" };
   const internRequirement = { type: "role", value: "Intern" };
@@ -195,6 +197,21 @@ function Sidebar() {
         Request access
         {pendingRequestCount > 0 && <span className="nav-count-badge">{pendingRequestCount}</span>}
       </NavLink>
+
+      {/* Audit Logs — Business Team operates it day-to-day, System
+          Administrator gets the same view for oversight. Not tied to
+          any workspace, so it sits standalone like Request access. */}
+      {hasAccess(auditRequirement, user) && (
+        <NavLink
+          to="/audit"
+          className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
+        >
+          <span className="nav-icon">
+            <ShieldAlert size={16} />
+          </span>
+          Audit Logs
+        </NavLink>
+      )}
 
       {!isSystemAdministrator && (
         <NavLink

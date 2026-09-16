@@ -28,6 +28,8 @@ from .views import (
 )
 from .views import MyTeamTasksView
 from .views import AskProjectLeadThreadView
+from .views import MyProjectTestingReportsView, MyFiledTestingReportsView
+from .views import TaskSubmissionsView
 
 urlpatterns = [
     # ---------- Projects (core) ----------
@@ -46,7 +48,7 @@ urlpatterns = [
     path("tasks/<int:task_id>/", TaskUpdateView.as_view()),
     path("my-tasks/", MyTasksView.as_view()),
     path("my-team-tasks/", MyTeamTasksView.as_view()),
-
+    path("tasks/<int:task_id>/submissions/", TaskSubmissionsView.as_view()),
     # ---------- Milestones ----------
     path("<int:project_id>/milestones/", MilestoneViewSet.as_view()),
 
@@ -75,4 +77,7 @@ urlpatterns = [
     path('client-requests/<int:request_id>/convert/', ConvertClientRequestToRequirementView.as_view()),
     path('deployments/<int:deployment_id>/status/', DeploymentStatusUpdateView.as_view()),
     path("<int:project_id>/ask-lead/", AskProjectLeadThreadView.as_view()),
+    path("my-testing-reports/", MyProjectTestingReportsView.as_view()),
+    path("my-filed-testing-reports/", MyFiledTestingReportsView.as_view()),
+
 ]

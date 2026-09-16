@@ -11,7 +11,7 @@ from .models import (
     Project, ProjectStatus, ProjectTeamMember, ProjectTeamHierarchy,
     ProjectRequirement, ProjectMilestone, ProjectRepository, ProjectTechnology,
     ProjectDeployment, Task, ProjectTask, TaskAssignee, ChangeRequest,
-    DocumentProject, DocumentApproval,
+    DocumentProject, DocumentApproval, TaskSubmission,
 )
 from .serializers import (
     ClientSerializer, ClientLiteSerializer, ClientContactSerializer,
@@ -28,6 +28,7 @@ from django.conf import settings
 from module_06_documents.models import Document, DocumentVersion
 from module_01_identity_access.models import UserAccount
 from django.core.files.storage import default_storage
+from module_04_interns.models import InternTestingReport
 
 # ============================================================
 # HELPERS
@@ -60,6 +61,18 @@ def person_name(user):
     if not person:
         return None
     return f"{person.first_name} {person.last_name or ''}".strip()
+
+
+def effective_task_status(task):
+    """The Kanban column a task should show under: the review flag on
+    TaskAssignee overrides the official task.status for display, since
+    IN_REVIEW/NEEDS_FIXES can't live in that locked, DA-owned column
+    (chk_task_status only allows PENDING/IN_PROGRESS/COMPLETED/
+    CANCELLED/ON_HOLD)."""
+    assignee = getattr(task, "assignee", None)
+    if assignee and assignee.review_status and assignee.review_status != "NONE":
+        return assignee.review_status
+    return task.status
 
 
 # ============================================================
@@ -288,7 +301,8 @@ def task_assignee_name(task):
 
 
 class KanbanBoardView(APIView):
-    """All tasks on a project, grouped by status. Any team member can view."""
+    """All tasks on a project, grouped by effective status (including
+    the virtual IN_REVIEW/NEEDS_FIXES states). Any team member can view."""
     permission_classes = [IsAuthenticated]
 
     def get(self, request, project_id):
@@ -305,7 +319,8 @@ class KanbanBoardView(APIView):
         board = {}
         for link in links:
             t = link.task
-            board.setdefault(t.status, []).append({
+            column = effective_task_status(t)
+            board.setdefault(column, []).append({
                 "project_task_id": link.project_task_id,
                 "task_id": t.task_id,
                 "title": t.task_title,
@@ -314,6 +329,7 @@ class KanbanBoardView(APIView):
                 "requirement_id": link.project_requirement_id,
                 "milestone_id": link.project_milestone_id,
                 "assignee": task_assignee_name(t),
+                "status": column,
             })
         return Response(board)
 
@@ -362,9 +378,14 @@ class CreateTaskView(APIView):
 
 
 class TaskUpdateView(APIView):
-    """PATCH: move across kanban columns, reassign, reprioritize. Any
-    team member can update — they need to move their own tasks."""
+    """PATCH: move across kanban columns, reassign, reprioritize.
+    IN_REVIEW/NEEDS_FIXES are virtual columns stored on TaskAssignee
+    (the official task.status column can't hold them — locked CHECK
+    constraint). Moving OUT of IN_REVIEW into COMPLETED is lead/PM only."""
     permission_classes = [IsAuthenticated]
+
+    VIRTUAL_STATUSES = {"IN_REVIEW", "NEEDS_FIXES"}
+    REAL_STATUSES = {"PENDING", "IN_PROGRESS", "COMPLETED", "CANCELLED", "ON_HOLD"}
 
     def patch(self, request, task_id):
         try:
@@ -378,10 +399,40 @@ class TaskUpdateView(APIView):
         if not can_view_project(request.user, link.project):
             return Response({"detail": "Not authorized on this project."}, status=403)
 
+        assignee_obj = TaskAssignee.objects.filter(task=task).first()
+        current_review_status = assignee_obj.review_status if assignee_obj else "NONE"
+
         if "status" in request.data:
-            task.status = request.data["status"]
-            if task.status == "COMPLETED":
-                task.completed_at = timezone.now()
+            new_status = request.data["status"]
+
+            if current_review_status == "IN_REVIEW" and new_status == "COMPLETED":
+                is_lead = False
+                if assignee_obj and assignee_obj.assigned_to_team_member:
+                    hierarchy = ProjectTeamHierarchy.objects.filter(
+                        team_member=assignee_obj.assigned_to_team_member
+                    ).select_related("reports_to_team_member").first()
+                    if hierarchy and hierarchy.reports_to_team_member and hierarchy.reports_to_team_member.user_id == request.user.user_id:
+                        is_lead = True
+                if not (is_admin(request.user) or is_pm_of(request.user, link.project) or is_lead):
+                    return Response(
+                        {"detail": "Only the lead or Project Manager can mark a task Completed from review."},
+                        status=403
+                    )
+
+            if new_status in self.VIRTUAL_STATUSES:
+                if assignee_obj:
+                    assignee_obj.review_status = new_status
+                    assignee_obj.save(update_fields=["review_status"])
+            elif new_status in self.REAL_STATUSES:
+                if assignee_obj and assignee_obj.review_status != "NONE":
+                    assignee_obj.review_status = "NONE"
+                    assignee_obj.save(update_fields=["review_status"])
+                task.status = new_status
+                if new_status == "COMPLETED":
+                    task.completed_at = timezone.now()
+            else:
+                return Response({"detail": "Invalid status."}, status=400)
+
         if "priority" in request.data:
             task.priority = request.data["priority"]
         if "due_date" in request.data:
@@ -397,10 +448,8 @@ class TaskUpdateView(APIView):
             if new_id:
                 TaskAssignee.objects.create(task=task, assigned_to_team_member_id=new_id)
 
-        return Response({"detail": "Task updated.", "status": task.status})
+        return Response({"detail": "Task updated.", "status": effective_task_status(task)})
 
-
-# module_05_clients_projects/views.py — MyTasksView
 
 class MyTasksView(APIView):
     """A team member's tasks across all their projects."""
@@ -417,30 +466,32 @@ class MyTasksView(APIView):
             link = ProjectTask.objects.filter(task=a.task).select_related("project").first()
             results.append({
                 "task_id": a.task.task_id,
-                "project_task_id": link.project_task_id if link else None,  # <-- added
+                "project_task_id": link.project_task_id if link else None,
                 "title": a.task.task_title,
                 "project_name": link.project.project_name if link else None,
-                "status": a.task.status,
+                "status": effective_task_status(a.task),
                 "priority": a.task.priority,
                 "due_date": a.task.due_date,
             })
         return Response(results)
+
+
 class MyTeamTasksView(APIView):
-    """Tasks assigned to anyone who reports to the logged-in user,
-    across all their projects. Feeds the lead's 'Team Tasks' page
-    where they can file testing reports."""
+    """Tasks the logged-in user can file a testing report against:
+    tasks assigned to their direct reports (existing), PLUS every task
+    on any project where they hold a tester-like role or are the PM
+    (new — testers and PMs don't need a formal reports-to link)."""
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        # All of MY team-member rows, across every project.
         my_memberships = ProjectTeamMember.objects.filter(user=request.user, is_active=True)
 
-        # Everyone whose hierarchy row says they report to one of my rows.
+        # ---- Path 1: existing — people who report to me ----
         reports = ProjectTeamHierarchy.objects.filter(
             reports_to_team_member__in=my_memberships
         ).select_related("team_member__user__person", "team_member__project")
 
-        report_member_ids = [r.team_member_id for r in reports]
+        report_member_ids = {r.team_member_id for r in reports}
         name_by_member_id = {
             r.team_member_id: person_name(r.team_member.user)
             for r in reports
@@ -450,12 +501,33 @@ class MyTeamTasksView(APIView):
             for r in reports
         }
 
+        # ---- Path 2: new — projects where I'm a tester or the PM ----
+        tester_or_pm_project_ids = set()
+        for m in my_memberships:
+            if "test" in (m.project_role or "").lower() or is_pm_of(request.user, m.project):
+                tester_or_pm_project_ids.add(m.project_id)
+
+        if tester_or_pm_project_ids:
+            other_members = ProjectTeamMember.objects.filter(
+                project_id__in=tester_or_pm_project_ids, is_active=True
+            ).exclude(user=request.user).select_related("user__person", "project")
+
+            for m in other_members:
+                report_member_ids.add(m.project_team_member_id)
+                name_by_member_id[m.project_team_member_id] = person_name(m.user)
+                project_by_member_id[m.project_team_member_id] = m.project
+
         assignments = TaskAssignee.objects.filter(
             assigned_to_team_member_id__in=report_member_ids
         ).select_related("task")
 
         results = []
+        seen_task_ids = set()
         for a in assignments:
+            if a.task_id in seen_task_ids:
+                continue
+            seen_task_ids.add(a.task_id)
+
             link = ProjectTask.objects.filter(task=a.task).select_related("project").first()
             member_id = a.assigned_to_team_member_id
             results.append({
@@ -464,12 +536,11 @@ class MyTeamTasksView(APIView):
                 "title": a.task.task_title,
                 "assignee_name": name_by_member_id.get(member_id),
                 "project_name": project_by_member_id.get(member_id).project_name if project_by_member_id.get(member_id) else None,
-                "status": a.task.status,
+                "status": effective_task_status(a.task),
                 "priority": a.task.priority,
                 "due_date": a.task.due_date,
             })
         return Response(results)
-
 # ============================================================
 # MILESTONES
 # ============================================================
@@ -586,7 +657,9 @@ class DeploymentStatusUpdateView(APIView):
 
 
 class ProjectTechStackView(APIView):
-    """GET: any team member can view. POST: PM/admin only."""
+    """GET and POST: any active team member can view and add repos/tech
+    entries — this is shared reference info, not something that needs
+    PM-only control."""
     permission_classes = [IsAuthenticated]
 
     def get(self, request, project_id):
@@ -609,8 +682,8 @@ class ProjectTechStackView(APIView):
             project = Project.objects.get(project_id=project_id)
         except Project.DoesNotExist:
             return Response({"detail": "Project not found."}, status=404)
-        if not can_manage_project(request.user, project):
-            return Response({"detail": "Only the Project Manager can update the tech stack."}, status=403)
+        if not can_view_project(request.user, project):
+            return Response({"detail": "Not authorized on this project."}, status=403)
 
         kind = request.data.get("kind")
         if kind == "repository":
@@ -1132,3 +1205,155 @@ class AskProjectLeadThreadView(APIView):
             batch=None, sender=request.user, recipient=lead, content=content,
         )
         return Response({"message_id": msg.message_id, "created_at": msg.created_at}, status=201)    
+
+
+class MyProjectTestingReportsView(APIView):
+    """Testing reports filed against Kanban tasks assigned to the
+    logged-in user's ProjectTeamMember row(s) — the project-team
+    equivalent of the intern's MyTestingReportsView, but without
+    requiring an Intern record."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        my_team_member_ids = ProjectTeamMember.objects.filter(
+            user=request.user, is_active=True
+        ).values_list("project_team_member_id", flat=True)
+
+        kanban_task_ids = TaskAssignee.objects.filter(
+            assigned_to_team_member_id__in=my_team_member_ids
+        ).values_list("task_id", flat=True)
+
+        reports = InternTestingReport.objects.filter(
+            project_task__task_id__in=kanban_task_ids
+        ).select_related("project_task__task", "created_by")
+
+        data = [
+            {
+                "report_id": r.report_id,
+                "task_title": r.project_task.task.task_title,
+                "report_text": r.report_text,
+                "attachment_url": r.attachment.url if r.attachment else None,
+                "status": r.status,
+                "created_by": r.created_by.username if r.created_by else None,
+                "created_at": r.created_at,
+                "resolution_link": r.resolution_link,
+                "resolution_notes": r.resolution_notes,
+                "resolved_at": r.resolved_at,
+            }
+            for r in reports
+        ]
+        return Response(sorted(data, key=lambda x: x["created_at"], reverse=True))
+
+class MyFiledTestingReportsView(APIView):
+    """Testing reports this lead has filed against their team's Kanban
+    tasks — with any developer-submitted fix attached, so the lead can
+    see what's already been reported and resolved."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        reports = InternTestingReport.objects.filter(
+            created_by=request.user, project_task__isnull=False
+        ).select_related("project_task__task")
+
+        data = [
+            {
+                "report_id": r.report_id,
+                "project_task_id": r.project_task_id,
+                "task_title": r.project_task.task.task_title,
+                "report_text": r.report_text,
+                "status": r.status,
+                "created_at": r.created_at,
+                "resolution_link": r.resolution_link,
+                "resolution_notes": r.resolution_notes,
+                "resolved_at": r.resolved_at,
+            }
+            for r in reports
+        ]
+        return Response(sorted(data, key=lambda x: x["created_at"], reverse=True))    
+
+
+class TaskSubmissionsView(APIView):
+    """GET: submission history for one task — visible to the assignee,
+    their lead (via ProjectTeamHierarchy), and the project's PM.
+    POST: create a new submission — assignee only. Submitting
+    automatically moves the task into IN_REVIEW (stored on
+    TaskAssignee.review_status, not task.status)."""
+    permission_classes = [IsAuthenticated]
+
+    def _assignee_team_member(self, task):
+        assignee = TaskAssignee.objects.filter(task=task).select_related(
+            "assigned_to_team_member"
+        ).first()
+        return assignee.assigned_to_team_member if assignee else None
+
+    def _can_view(self, user, task):
+        team_member = self._assignee_team_member(task)
+        if not team_member:
+            return False
+        if team_member.user_id == user.user_id:
+            return True
+        hierarchy = ProjectTeamHierarchy.objects.filter(
+            team_member=team_member
+        ).select_related("reports_to_team_member").first()
+        if hierarchy and hierarchy.reports_to_team_member and hierarchy.reports_to_team_member.user_id == user.user_id:
+            return True
+        project_task = ProjectTask.objects.filter(task=task).select_related("project").first()
+        if project_task and project_task.project.project_manager_user_id == user.user_id:
+            return True
+        return False
+
+    def get(self, request, task_id):
+        try:
+            task = Task.objects.get(task_id=task_id)
+        except Task.DoesNotExist:
+            return Response({"detail": "Task not found."}, status=404)
+
+        if not self._can_view(request.user, task):
+            return Response({"detail": "Not authorized."}, status=403)
+
+        submissions = TaskSubmission.objects.filter(task=task).select_related("submitted_by")
+        return Response([
+            {
+                "task_submission_id": s.task_submission_id,
+                "submission_url": s.submission_url,
+                "attachment_url": s.attachment.url if s.attachment else None,
+                "notes": s.notes,
+                "submitted_by": s.submitted_by.username if s.submitted_by else None,
+                "submitted_at": s.submitted_at,
+            }
+            for s in submissions
+        ])
+
+    def post(self, request, task_id):
+        try:
+            task = Task.objects.get(task_id=task_id)
+        except Task.DoesNotExist:
+            return Response({"detail": "Task not found."}, status=404)
+
+        team_member = self._assignee_team_member(task)
+        if not team_member or team_member.user_id != request.user.user_id:
+            return Response({"detail": "Only the assignee can submit work for this task."}, status=403)
+
+        submission_url = (request.data.get("submission_url") or "").strip()
+        notes = (request.data.get("notes") or "").strip()
+        attachment = request.FILES.get("attachment")
+
+        if not submission_url and not attachment:
+            return Response(
+                {"detail": "Provide a submission_url and/or an attachment."}, status=400
+            )
+
+        submission = TaskSubmission.objects.create(
+            task=task,
+            submitted_by=request.user,
+            submission_url=submission_url or None,
+            attachment=attachment,
+            notes=notes or None,
+        )
+
+        assignee_row = TaskAssignee.objects.filter(task=task).first()
+        if assignee_row:
+            assignee_row.review_status = "IN_REVIEW"
+            assignee_row.save(update_fields=["review_status"])
+
+        return Response({"task_submission_id": submission.task_submission_id}, status=201)

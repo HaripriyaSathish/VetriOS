@@ -19,7 +19,7 @@ from .models import InternTestingReport
 from .models import InternPerformance
 from module_05_clients_projects.models import ProjectTeamMember
 from module_05_clients_projects.models import ProjectTask, TaskAssignee, ProjectTeamHierarchy
-
+from local_extensions.notification_utils import notify
 def user_is_business_team(user):
     return bool(user.active_role_names() & {"Business Team", "System Administrator"})
 
@@ -729,22 +729,38 @@ class ProjectLeadInternTasksView(APIView):
 
 
 def _user_leads_project_task(user, project_task):
-    """True if `user` is the reports-to lead for whoever this
-    ProjectTask's underlying Task is assigned to."""
+    """True if `user` may file a testing report against this Kanban
+    task — the assignee's direct lead, the project's PM, or anyone
+    whose project_role marks them as a tester."""
+    from module_05_clients_projects.models import ProjectTeamMember
+
     assignee = TaskAssignee.objects.filter(task=project_task.task).select_related(
         "assigned_to_team_member"
     ).first()
     if not assignee or not assignee.assigned_to_team_member:
         return False
 
+    # 1. The assignee's direct lead (existing rule).
     hierarchy = ProjectTeamHierarchy.objects.filter(
         team_member=assignee.assigned_to_team_member
     ).select_related("reports_to_team_member__user").first()
+    if hierarchy and hierarchy.reports_to_team_member and hierarchy.reports_to_team_member.user_id == user.user_id:
+        return True
 
-    if not hierarchy or not hierarchy.reports_to_team_member:
-        return False
+    # 2. The project's PM.
+    if project_task.project.project_manager_user_id == user.user_id:
+        return True
 
-    return hierarchy.reports_to_team_member.user_id == user.user_id
+    # 3. Anyone whose project_role marks them as a tester on this project.
+    is_tester = ProjectTeamMember.objects.filter(
+        project=project_task.project, user=user, is_active=True,
+        project_role__icontains="test",
+    ).exists()
+    if is_tester:
+        return True
+
+    return False
+
 
 class SubmitTestingReportView(APIView):
     permission_classes = [IsAuthenticated]
@@ -781,6 +797,7 @@ class SubmitTestingReportView(APIView):
                 attachment=request.FILES.get("attachment"),
                 status=status_val, created_by=request.user,
             )
+
         else:
             try:
                 pt = ProjectTask.objects.select_related("task").get(project_task_id=project_task_id)
@@ -796,7 +813,107 @@ class SubmitTestingReportView(APIView):
                 status=status_val, created_by=request.user,
             )
 
+            # Update the Kanban task's effective status. IN_REVIEW/
+            # NEEDS_FIXES live on TaskAssignee.review_status, since
+            # task.status has a locked CHECK constraint that can't hold
+            # them. APPROVED clears the review flag and marks the real
+            # task.status COMPLETED; NEEDS_FIXES sets the review flag
+            # and leaves task.status untouched.
+            from module_05_clients_projects.models import TaskAssignee as PTaskAssignee
+            assignee_row = PTaskAssignee.objects.filter(task=pt.task).first()
+
+            if status_val == "APPROVED":
+                if assignee_row:
+                    assignee_row.review_status = "NONE"
+                    assignee_row.save(update_fields=["review_status"])
+                pt.task.status = "COMPLETED"
+                pt.task.completed_at = timezone.now()
+                pt.task.updated_at = timezone.now()
+                pt.task.save(update_fields=["status", "completed_at", "updated_at"])
+            else:
+                if assignee_row:
+                    assignee_row.review_status = "NEEDS_FIXES"
+                    assignee_row.save(update_fields=["review_status"])
+
+            # Notify the developer the task is assigned to, if there is one.
+            assignee = TaskAssignee.objects.filter(
+                task=pt.task
+            ).select_related("assigned_to_team_member").first()
+            if assignee and assignee.assigned_to_team_member:
+                notify(
+                    recipient=assignee.assigned_to_team_member.user,
+                    module="PROJECTS",
+                    notification_type="TESTING_REPORT_FILED",
+                    title="New testing report on your task",
+                    message=report_text[:150],
+                    link="/project/testing-reports",
+                    entity_type="InternTestingReport",
+                    entity_id=report.report_id,
+                    actor=request.user,
+                )
+
         return Response({"report_id": report.report_id}, status=201)
+
+class SubmitTestingReportFixView(APIView):
+    """POST {resolution_link, resolution_notes} — the developer's reply
+    to a testing report filed against their Kanban task. Only the
+    person the underlying task is assigned to can submit this. Notifies
+    the original report's author (the lead) so they know to re-check."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, report_id):
+        try:
+            report = InternTestingReport.objects.select_related(
+                "project_task__task", "intern_task__intern"
+            ).get(report_id=report_id)
+        except InternTestingReport.DoesNotExist:
+            return Response({"detail": "Not found."}, status=404)
+
+        authorized = False
+        if report.project_task:
+            assignee = TaskAssignee.objects.filter(
+                task=report.project_task.task
+            ).select_related("assigned_to_team_member").first()
+            authorized = bool(
+                assignee and assignee.assigned_to_team_member
+                and assignee.assigned_to_team_member.user_id == request.user.user_id
+            )
+        elif report.intern_task:
+            intern = _get_intern(request.user)
+            authorized = bool(intern and report.intern_task.intern_id == intern.intern_id)
+
+        if not authorized:
+            return Response({"detail": "Not your task."}, status=403)
+
+        resolution_link = (request.data.get("resolution_link") or "").strip()
+        resolution_notes = (request.data.get("resolution_notes") or "").strip()
+        if not resolution_link and not resolution_notes:
+            return Response(
+                {"detail": "Provide a resolution_link and/or resolution_notes."}, status=400
+            )
+
+        report.resolution_link = resolution_link or None
+        report.resolution_notes = resolution_notes or None
+        report.resolved_by = request.user
+        report.resolved_at = timezone.now()
+        report.save(update_fields=[
+            "resolution_link", "resolution_notes", "resolved_by", "resolved_at"
+        ])
+
+        if report.created_by:
+            notify(
+                recipient=report.created_by,
+                module="PROJECTS",
+                notification_type="TESTING_REPORT_RESOLVED",
+                title="Fix submitted for your testing report",
+                message=resolution_notes[:150] if resolution_notes else "A fix link was submitted.",
+                link="/project/team-tasks",
+                entity_type="InternTestingReport",
+                entity_id=report.report_id,
+                actor=request.user,
+            )
+
+        return Response({"detail": "Fix submitted."})    
 
 class MyTestingReportsView(APIView):
     permission_classes = [IsAuthenticated]
@@ -806,13 +923,10 @@ class MyTestingReportsView(APIView):
         if not intern:
             return Response({"detail": "You are not currently an intern."}, status=404)
 
-        # Reports filed against this intern's InternTask assignments.
         intern_task_reports = InternTestingReport.objects.filter(
             intern_task__intern=intern
         ).select_related("intern_task__task", "created_by")
 
-        # Reports filed against Kanban tasks assigned to this intern's
-        # ProjectTeamMember row(s).
         my_team_member_ids = ProjectTeamMember.objects.filter(
             user=request.user, is_active=True
         ).values_list("project_team_member_id", flat=True)
@@ -834,6 +948,9 @@ class MyTestingReportsView(APIView):
                 "status": r.status,
                 "created_by": r.created_by.username if r.created_by else None,
                 "created_at": r.created_at,
+                "resolution_link": r.resolution_link,
+                "resolution_notes": r.resolution_notes,
+                "resolved_at": r.resolved_at,
                 "source": "intern",
             }
             for r in intern_task_reports
@@ -846,6 +963,9 @@ class MyTestingReportsView(APIView):
                 "status": r.status,
                 "created_by": r.created_by.username if r.created_by else None,
                 "created_at": r.created_at,
+                "resolution_link": r.resolution_link,
+                "resolution_notes": r.resolution_notes,
+                "resolved_at": r.resolved_at,
                 "source": "kanban",
             }
             for r in project_task_reports

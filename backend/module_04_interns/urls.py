@@ -18,6 +18,8 @@ from .completion_views import (
     MyLeadInternsView,
 )
 from .views import AllInternsForManagerAssignmentView, AssignReportingManagerView, MyMessageThreadsView
+from .views import SubmitTestingReportFixView
+
 urlpatterns = [
     path("recommend/", RecommendForInternshipView.as_view()),
     path("pending/", PendingInternshipRecommendationsView.as_view()),
@@ -59,4 +61,5 @@ urlpatterns = [
     path("extensions/<int:extension_id>/act/", ActOnExtensionView.as_view()),
     path("lead/interns/", MyLeadInternsView.as_view()),
     path("lead/message-threads/", MyMessageThreadsView.as_view()),
+    path("testing-report/<int:report_id>/resolve/", SubmitTestingReportFixView.as_view()),
 ]

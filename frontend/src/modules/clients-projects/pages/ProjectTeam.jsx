@@ -108,6 +108,12 @@ function ProjectTeam() {
         <h1 className="text-2xl font-bold text-gray-900">Project Team</h1>
         <div className="flex items-center gap-3">
           <Link
+            to="/project/testing-reports"
+            className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-md text-sm font-semibold"
+          >
+            🧪 Testing Reports
+          </Link>
+          <Link
             to={`/project/${projectId}/ask-lead`}
             className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-md text-sm font-semibold"
           >

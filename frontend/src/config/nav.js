@@ -83,6 +83,17 @@ export const NAV_ITEMS = [
     path: "/ai",
     requirement: { type: "perm", value: "SYSTEM_ADMIN" },
   },
+  {
+    id: "audit",
+    icon: "🛡️",
+    name: "Audit Logs",
+    path: "/audit",
+    // Business Team operates this module day-to-day; System
+    // Administrator gets the same view for oversight/approval —
+    // no dedicated AUDIT_* permission code exists, so gated by role
+    // same as HR's array-role pattern above.
+    requirement: { type: "role", value: ["Business Team", "System Administrator"] },
+  },
 ];
 
 // Same gating rule shapes used above — checked against the user's

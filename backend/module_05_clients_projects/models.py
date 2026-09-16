@@ -404,6 +404,12 @@ class TaskAssignee(models.Model):
     """task has no assigned_to column anywhere in the official schema —
     this fills that gap. One row per task (single assignee for now);
     extend to many-to-many later if a task ever needs co-owners."""
+    REVIEW_STATUS_CHOICES = [
+        ("NONE", "None"),
+        ("IN_REVIEW", "In Review"),
+        ("NEEDS_FIXES", "Needs Fixes"),
+    ]
+
     task_assignee_id = models.BigAutoField(primary_key=True)
     task = models.OneToOneField(
         Task, on_delete=models.CASCADE, db_column="task_id",
@@ -414,6 +420,13 @@ class TaskAssignee(models.Model):
         db_column="assigned_to_project_team_member_id", db_constraint=False,
     )
     assigned_at = models.DateTimeField(auto_now_add=True)
+    # NEW — kanban "virtual" review state, since the official task.status
+    # column has a locked CHECK constraint (PENDING/IN_PROGRESS/COMPLETED/
+    # CANCELLED/ON_HOLD only) that we cannot alter. This is our own
+    # column, not DA-owned, so it can hold values the official table can't.
+    review_status = models.CharField(
+        max_length=20, choices=REVIEW_STATUS_CHOICES, default="NONE"
+    )
 
     class Meta:
         db_table = "ext_task_assignee"
@@ -458,3 +471,26 @@ class ClientPayment(models.Model):
     class Meta:
         db_table = "ext_client_payment"
         ordering = ["-payment_date"]
+
+class TaskSubmission(models.Model):
+    """A developer's submission of work for a specific Task — link
+    and/or file, with full history (multiple submissions per task,
+    e.g. resubmitting after Needs Fixes). Fills the gap where Task
+    itself has no submission_url/attachment field."""
+    task_submission_id = models.BigAutoField(primary_key=True)
+    task = models.ForeignKey(
+        Task, on_delete=models.CASCADE, db_column="task_id",
+        db_constraint=False, related_name="submissions",
+    )
+    submitted_by = models.ForeignKey(
+        UserAccount, on_delete=models.SET_NULL, null=True,
+        db_column="submitted_by_user_id", db_constraint=False,
+    )
+    submission_url = models.CharField(max_length=1000, blank=True, null=True)
+    attachment = models.FileField(upload_to="task_submissions/", blank=True, null=True)
+    notes = models.TextField(blank=True, null=True)
+    submitted_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "ext_task_submission"
+        ordering = ["-submitted_at"]        

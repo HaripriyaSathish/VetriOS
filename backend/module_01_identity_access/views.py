@@ -32,7 +32,7 @@ from .serializers import (
     UserAccountWriteSerializer,
 )
 from .models import UserProfilePhoto
-
+from module_08_audit.log_utils import log_access
 # The 3 admin categories any user can direct a request to — matches the
 # real Role names in the seeded `role` table.
 ADMIN_CATEGORIES = ("System Administrator", "HR Administrator", "Business Team")
@@ -48,30 +48,42 @@ class LoginView(APIView):
     user_account.password_hash and validates the active-role logic in
     UserAccount, matching the Identity & Access normal flow.
     """
-    # Anyone can hit the login endpoint itself — that's the point of it.
     permission_classes = [AllowAny]
 
     def post(self, request):
-        # Runs LoginSerializer.validate(): resolves the user, checks the
-        # password hash, checks is_active. Raises 400 automatically if any
-        # of that fails.
+        attempted_username = request.data.get("username", "")
+
         serializer = LoginSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        try:
+            serializer.is_valid(raise_exception=True)
+        except Exception:
+            # Bad username/password/inactive account — log the failed
+            # attempt (user stays None; we don't know who they claimed
+            # to be with confidence, and AccessLog.user is nullable for
+            # exactly this reason) before re-raising the original 400.
+            log_access(
+                request, user=None, event_type="LOGIN", event_status="FAILED",
+                resource_type="Session", resource_id=attempted_username,
+            )
+            raise
+
         user = serializer.validated_data["user"]
 
-        # Record this login, same as last_login_at on user_account.
         user.last_login = timezone.now()
         user.save(update_fields=["last_login"])
 
-        # Issues a linked access/refresh token pair for this user's pk.
         refresh = RefreshToken.for_user(user)
+
+        log_access(
+            request, user=user, event_type="LOGIN", event_status="SUCCESS",
+            resource_type="Session", session_reference=str(refresh.access_token)[:40],
+        )
 
         return Response({
             "access": str(refresh.access_token),
             "refresh": str(refresh),
             "user": MeSerializer(user).data,
         })
-
 
 # Lets the React frontend re-check "who am I" on page load, without
 # needing to log in again — just needs a still-valid access token.

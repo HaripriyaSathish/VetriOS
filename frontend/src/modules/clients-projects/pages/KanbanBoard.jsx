@@ -5,6 +5,8 @@ import client from "../../../api/client";
 const COLUMNS = [
   { key: "PENDING", label: "To Do" },
   { key: "IN_PROGRESS", label: "In Progress" },
+  { key: "IN_REVIEW", label: "In Review" },
+  { key: "NEEDS_FIXES", label: "Needs Fixes" },
   { key: "ON_HOLD", label: "On Hold" },
   { key: "COMPLETED", label: "Completed" },
   { key: "CANCELLED", label: "Cancelled" },
@@ -17,12 +19,23 @@ const PRIORITY_STYLES = {
   CRITICAL: "bg-red-100 text-red-700",
 };
 
-function TaskCard({ task, onStatusChange, requirementsMap, milestonesMap }) {
+function TaskCard({ task, onStatusChange, requirementsMap, milestonesMap, onOpenSubmit }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [submissions, setSubmissions] = useState([]);
+  const [showSubmissions, setShowSubmissions] = useState(false);
   const isOverdue = task.due_date && new Date(task.due_date) < new Date();
 
   const requirementTitle = task.requirement_id ? requirementsMap[task.requirement_id] : null;
   const milestoneName = task.milestone_id ? milestonesMap[task.milestone_id] : null;
+
+  const toggleSubmissions = () => {
+    if (!showSubmissions) {
+      client.get(`/api/projects/tasks/${task.task_id}/submissions/`)
+        .then(({ data }) => setSubmissions(data))
+        .catch(() => setSubmissions([]));
+    }
+    setShowSubmissions((v) => !v);
+  };
 
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-3 mb-3 relative">
@@ -61,11 +74,53 @@ function TaskCard({ task, onStatusChange, requirementsMap, milestonesMap }) {
       )}
 
       <button
-        onClick={() => setMenuOpen((v) => !v)}
-        className="w-full text-xs font-semibold text-blue-600 border border-gray-200 rounded-md py-1.5 hover:bg-blue-50"
+        onClick={toggleSubmissions}
+        className="w-full text-xs text-gray-500 mb-2 text-left hover:text-gray-700"
       >
-        Move to →
+        {showSubmissions ? "▾ Hide submissions" : "▸ View submissions"}
       </button>
+
+      {showSubmissions && (
+        <div className="bg-gray-50 border border-gray-100 rounded-md p-2 mb-2 flex flex-col gap-2">
+          {submissions.length === 0 ? (
+            <p className="text-xs text-gray-400">No submissions yet.</p>
+          ) : (
+            submissions.map((s) => (
+              <div key={s.task_submission_id} className="text-xs">
+                {s.submission_url && (
+                  <a href={s.submission_url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline block">
+                    {s.submission_url}
+                  </a>
+                )}
+                {s.attachment_url && (
+                  <a href={s.attachment_url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline block">
+                    📎 Attachment
+                  </a>
+                )}
+                {s.notes && <p className="text-gray-600 mt-0.5">{s.notes}</p>}
+                <p className="text-gray-400 mt-0.5">
+                  {s.submitted_by} — {new Date(s.submitted_at).toLocaleString()}
+                </p>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      <div className="flex gap-2">
+        <button
+          onClick={() => onOpenSubmit(task)}
+          className="flex-1 text-xs font-semibold text-white bg-gray-900 rounded-md py-1.5 hover:bg-gray-800"
+        >
+          Submit Work
+        </button>
+        <button
+          onClick={() => setMenuOpen((v) => !v)}
+          className="flex-1 text-xs font-semibold text-blue-600 border border-gray-200 rounded-md py-1.5 hover:bg-blue-50"
+        >
+          Move to →
+        </button>
+      </div>
 
       {menuOpen && (
         <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-md shadow-md z-10 overflow-hidden">
@@ -103,6 +158,12 @@ function KanbanBoard() {
   const [linkedRequirement, setLinkedRequirement] = useState("");
   const [linkedMilestone, setLinkedMilestone] = useState("");
   const [creating, setCreating] = useState(false);
+
+  const [submitTask, setSubmitTask] = useState(null);
+  const [submissionUrl, setSubmissionUrl] = useState("");
+  const [submissionNotes, setSubmissionNotes] = useState("");
+  const [submissionFile, setSubmissionFile] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const loadBoard = () => {
     return client.get(`/api/projects/${projectId}/kanban/`)
@@ -155,6 +216,8 @@ function KanbanBoard() {
     });
     try {
       await client.patch(`/api/projects/tasks/${taskId}/`, { status: newStatus });
+    } catch (err) {
+      setError(err.response?.data?.detail || "Couldn't move the task.");
     } finally {
       loadBoard();
     }
@@ -186,6 +249,44 @@ function KanbanBoard() {
       setError(err.response?.data?.detail || "Couldn't create the task.");
     } finally {
       setCreating(false);
+    }
+  };
+
+  const openSubmitModal = (task) => {
+    setSubmitTask(task);
+    setSubmissionUrl("");
+    setSubmissionNotes("");
+    setSubmissionFile(null);
+    setMessage("");
+    setError("");
+  };
+
+  const closeSubmitModal = () => setSubmitTask(null);
+
+  const submitWork = async () => {
+    if (!submitTask) return;
+    if (!submissionUrl.trim() && !submissionFile) {
+      setError("Provide a link and/or a file.");
+      return;
+    }
+    setSubmitting(true);
+    setError("");
+    try {
+      const formData = new FormData();
+      if (submissionUrl.trim()) formData.append("submission_url", submissionUrl.trim());
+      if (submissionNotes.trim()) formData.append("notes", submissionNotes.trim());
+      if (submissionFile) formData.append("attachment", submissionFile);
+
+      await client.post(`/api/projects/tasks/${submitTask.task_id}/submissions/`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      setMessage("Work submitted.");
+      closeSubmitModal();
+      loadBoard();
+    } catch (err) {
+      setError(err.response?.data?.detail || "Couldn't submit work.");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -318,6 +419,7 @@ function KanbanBoard() {
                       onStatusChange={handleStatusChange}
                       requirementsMap={requirementsMap}
                       milestonesMap={milestonesMap}
+                      onOpenSubmit={openSubmitModal}
                     />
                   ))
                 )}
@@ -326,6 +428,52 @@ function KanbanBoard() {
           );
         })}
       </div>
+
+      {submitTask && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md">
+            <h2 className="text-lg font-bold text-gray-900 mb-1">Submit Work</h2>
+            <p className="text-xs text-gray-500 mb-4">{submitTask.title}</p>
+
+            <input
+              placeholder="Link (GitHub PR, live URL, etc.)"
+              value={submissionUrl}
+              onChange={(e) => setSubmissionUrl(e.target.value)}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm mb-3"
+            />
+
+            <textarea
+              placeholder="Notes (optional)"
+              value={submissionNotes}
+              onChange={(e) => setSubmissionNotes(e.target.value)}
+              rows={3}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm mb-3"
+            />
+
+            <input
+              type="file"
+              onChange={(e) => setSubmissionFile(e.target.files?.[0] || null)}
+              className="w-full text-sm mb-4"
+            />
+
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={closeSubmitModal}
+                className="px-4 py-2 rounded-md text-sm font-semibold text-gray-600"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitWork}
+                disabled={submitting}
+                className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-semibold disabled:opacity-60"
+              >
+                {submitting ? "Submitting…" : "Submit"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

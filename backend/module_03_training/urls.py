@@ -13,7 +13,7 @@ from .views import (
 )
 from .views import BatchMockInterviewsView, InviteToMockInterviewView, NotifyMockInterviewInvitesView, UpdateMockInterviewResultView, RevokeMockInterviewInviteView
 from .views import GenerateMockInterviewQuestionsView
-from .views import AssistantBatchReportDownloadView
+from .views import AssistantBatchReportDownloadView, CourseCreateView
 
 router = DefaultRouter()
 router.register("batches", BatchViewSet, basename="batch")
@@ -45,4 +45,5 @@ urlpatterns = [
     path("student-assessments/<int:student_assessment_id>/revoke/", RevokeMockInterviewInviteView.as_view()),
     path("mock-interview-questions/generate/", GenerateMockInterviewQuestionsView.as_view(), name="generate-mock-questions"),
     path("batches/<int:batch_id>/assistant-report-download/<str:period>/", AssistantBatchReportDownloadView.as_view(), name="assistant-batch-report-download"),
+    path("courses/create/", CourseCreateView.as_view()),
 ] + router.urls

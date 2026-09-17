@@ -8,6 +8,7 @@ const DEFAULT_WELCOME_BODY =
   "<p>Hi {{full_name}},</p><p>Welcome aboard! You've been placed in a new batch — we're excited to start your training journey with us.</p><p>Best,<br/>Vetri Technology Solutions</p>";
 
 const DEFAULT_TRAINER_SUBJECT = "New Batch Assigned to You";
+const ADD_NEW_COURSE_VALUE = "__ADD_NEW__";
 
 function BatchForm() {
   const navigate = useNavigate();
@@ -38,6 +39,14 @@ function BatchForm() {
   const [trainerCc, setTrainerCc] = useState("");
   const [sendingTrainerMail, setSendingTrainerMail] = useState(false);
   const [trainerMailResult, setTrainerMailResult] = useState(null);
+
+  // New-course inline form state
+  const [showNewCourseForm, setShowNewCourseForm] = useState(false);
+  const [newCourseName, setNewCourseName] = useState("");
+  const [newCourseDescription, setNewCourseDescription] = useState("");
+  const [newCourseDuration, setNewCourseDuration] = useState("");
+  const [savingCourse, setSavingCourse] = useState(false);
+  const [courseError, setCourseError] = useState("");
 
   const loadData = async () => {
     setLoading(true);
@@ -94,6 +103,50 @@ function BatchForm() {
     const next = new Set(selectedStudents);
     next.has(id) ? next.delete(id) : next.add(id);
     setSelectedStudents(next);
+  };
+
+  const handleCourseSelect = (value) => {
+    if (value === ADD_NEW_COURSE_VALUE) {
+      setShowNewCourseForm(true);
+      setCourseError("");
+      return;
+    }
+    updateField("course", value);
+  };
+
+  const cancelNewCourse = () => {
+    setShowNewCourseForm(false);
+    setNewCourseName("");
+    setNewCourseDescription("");
+    setNewCourseDuration("");
+    setCourseError("");
+  };
+
+  const saveNewCourse = async () => {
+    if (!newCourseName.trim()) {
+      setCourseError("Course name is required.");
+      return;
+    }
+    setSavingCourse(true);
+    setCourseError("");
+    try {
+      const { data } = await client.post("/api/training/courses/create/", {
+        course_name: newCourseName.trim(),
+        description: newCourseDescription.trim(),
+        duration_days: newCourseDuration ? parseInt(newCourseDuration, 10) : null,
+      });
+
+      // Refresh the course list, then select the newly created one.
+      const { data: freshCourses } = await client.get("/api/training/courses/");
+      setCourses(freshCourses);
+      updateField("course", String(data.course_id));
+
+      cancelNewCourse();
+    } catch (err) {
+      setCourseError(err.response?.data?.detail || "Couldn't create course.");
+    } finally {
+      setSavingCourse(false);
+    }
   };
 
   const handleSubmit = async (event) => {
@@ -243,12 +296,65 @@ function BatchForm() {
           <div className="fc-field-grid">
             <div className="fc-field">
               <label>Course</label>
-              <select required value={form.course} onChange={(e) => updateField("course", e.target.value)}>
+              <select
+                required={!showNewCourseForm}
+                value={form.course}
+                onChange={(e) => handleCourseSelect(e.target.value)}
+              >
                 <option value="">Select a course</option>
+                <option value={ADD_NEW_COURSE_VALUE}>+ Add New Course</option>
                 {courses.map((c) => (
                   <option key={c.course_id} value={c.course_id}>{c.course_name}</option>
                 ))}
               </select>
+
+              {showNewCourseForm && (
+                <div style={{
+                  marginTop: 10, padding: 12, border: "1px solid #d1d5db",
+                  borderRadius: 8, background: "#f9fafb",
+                }}>
+                  <p style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>New Course</p>
+                  {courseError && <p className="td-error" style={{ fontSize: 12, marginBottom: 8 }}>{courseError}</p>}
+                  <input
+                    placeholder="Course name"
+                    value={newCourseName}
+                    onChange={(e) => setNewCourseName(e.target.value)}
+                    style={{ width: "100%", marginBottom: 8, padding: 6, fontSize: 13 }}
+                  />
+                  <textarea
+                    placeholder="Description (optional)"
+                    value={newCourseDescription}
+                    onChange={(e) => setNewCourseDescription(e.target.value)}
+                    rows={2}
+                    style={{ width: "100%", marginBottom: 8, padding: 6, fontSize: 13 }}
+                  />
+                  <input
+                    type="number"
+                    placeholder="Duration in days (optional)"
+                    value={newCourseDuration}
+                    onChange={(e) => setNewCourseDuration(e.target.value)}
+                    style={{ width: "100%", marginBottom: 8, padding: 6, fontSize: 13 }}
+                  />
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button
+                      type="button"
+                      onClick={saveNewCourse}
+                      disabled={savingCourse}
+                      className="rp-btn-accent"
+                      style={{ fontSize: 12, padding: "6px 12px" }}
+                    >
+                      {savingCourse ? "Saving…" : "Save Course"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={cancelNewCourse}
+                      style={{ fontSize: 12, padding: "6px 12px", border: "none", background: "none", color: "#6b7280", cursor: "pointer" }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="fc-field">
@@ -329,7 +435,7 @@ function BatchForm() {
         </div>
 
         <div className="fc-submit-row">
-          <button type="submit" className="rp-btn-accent" disabled={saving}>
+          <button type="submit" className="rp-btn-accent" disabled={saving || showNewCourseForm}>
             {saving ? "Creating…" : "Create Batch"}
           </button>
         </div>

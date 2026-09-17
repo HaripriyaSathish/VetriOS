@@ -1082,3 +1082,34 @@ class AssistantBatchReportDownloadView(APIView):
             excel_buffer, as_attachment=True, filename=filename,
             content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
+
+class CourseCreateView(APIView):
+    """Business Team creates a new course — used when the New Batch
+    dropdown doesn't have the course they need yet."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        if not (request.user.active_role_names() & ADMIN_ROLES):
+            return Response({"detail": "Only Business Team can create courses."}, status=403)
+
+        course_name = (request.data.get("course_name") or "").strip()
+        if not course_name:
+            return Response({"detail": "course_name is required."}, status=400)
+
+        course_code = (request.data.get("course_code") or "").strip()
+        if not course_code:
+            course_code = course_name.upper().replace(" ", "_")[:40] + f"-{int(timezone.now().timestamp())}"
+
+        if Course.objects.filter(course_code=course_code).exists():
+            return Response({"detail": "A course with this code already exists."}, status=400)
+
+        course = Course.objects.create(
+            course_code=course_code,
+            course_name=course_name,
+            description=request.data.get("description", ""),
+            duration_days=request.data.get("duration_days") or None,
+            status="ACTIVE",
+            created_at=timezone.now(),
+            updated_at=timezone.now(),
+        )
+        return Response({"course_id": course.course_id, "course_name": course.course_name}, status=201)    

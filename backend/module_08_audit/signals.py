@@ -15,9 +15,15 @@ AUDITED_MODELS = [
     ("module_05_clients_projects", "Client"),
     ("module_05_clients_projects", "Project"),
     ("module_05_clients_projects", "ClientPayment"),
+    ("module_05_clients_projects", "ClientContact"),
+    ("module_05_clients_projects", "ProjectRepository"),
+    ("module_05_clients_projects", "ProjectTechnology"),
+    ("module_05_clients_projects", "TaskSubmission"),
     ("module_04_interns", "Intern"),
     ("module_04_interns", "InternshipRecommendation"),
     ("module_06_documents", "Document"),
+    ("local_extensions", "StudentFeePayment"),
+    ("local_extensions", "StudentFeeInstallment"),
 ]
 
 # Fields never written into old_value/new_value — password hashes and
@@ -51,6 +57,14 @@ def _entity_id(instance):
 
 def make_save_handler(model_label):
     def handler(sender, instance, created, **kwargs):
+        update_fields = kwargs.get("update_fields")
+
+        # Skip pure last_login timestamp updates — these are routine
+        # login side-effects already captured in access_log, not a
+        # meaningful business change worth an audit_log row.
+        if update_fields is not None and set(update_fields) == {"last_login"}:
+            return
+
         try:
             AuditLog.objects.create(
                 user=get_current_user(),
@@ -64,7 +78,6 @@ def make_save_handler(model_label):
                 created_at=timezone.now(),
             )
         except Exception:
-            # Never let audit logging break the actual save.
             pass
     return handler
 

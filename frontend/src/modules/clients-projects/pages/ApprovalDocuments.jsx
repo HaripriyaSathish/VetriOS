@@ -78,6 +78,16 @@ function ApprovalDocuments() {
     }
   };
 
+  const markClientApproved = async (documentId) => {
+    try {
+      await client.post(`/api/projects/documents/${documentId}/client-approve/`);
+      setMessage("Marked as approved by client.");
+      load();
+    } catch (err) {
+      setError(err.response?.data?.detail || "Couldn't mark as approved by client.");
+    }
+  };
+
   if (loading) return <p className="p-6 text-gray-400">Loading…</p>;
 
   return (
@@ -157,6 +167,7 @@ function ApprovalDocuments() {
                 <p className="font-medium text-gray-900">{d.document_title}</p>
                 <span className="text-xs text-gray-600">{d.relationship_type}</span>
               </div>
+
               {d.approvals.length === 0 ? (
                 <p className="text-xs text-gray-500">No approval requested</p>
               ) : (
@@ -184,6 +195,22 @@ function ApprovalDocuments() {
                   </div>
                 ))
               )}
+
+              <div className="mt-3 pt-3 border-t border-gray-100">
+                {d.client_approved ? (
+                  <p className="text-xs font-semibold text-green-700">
+                    ✅ Approved by Client — {d.client_approved_by || "—"} on{" "}
+                    {new Date(d.client_approved_at).toLocaleDateString()}
+                  </p>
+                ) : (
+                  <button
+                    onClick={() => markClientApproved(d.document_id)}
+                    className="text-xs font-semibold text-blue-600 hover:text-blue-800"
+                  >
+                    Mark as Approved by Client
+                  </button>
+                )}
+              </div>
             </div>
           ))}
         </div>

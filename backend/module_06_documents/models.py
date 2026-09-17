@@ -243,3 +243,19 @@ class DocumentRetention(models.Model):
     class Meta:
         managed = False
         db_table = 'document_retention'
+
+class DocumentClientApproval(models.Model):
+    document_client_approval_id = models.BigAutoField(primary_key=True)
+    document = models.OneToOneField(
+        Document, on_delete=models.CASCADE, related_name='client_approval',
+        db_constraint=False,
+    )
+    approved_by = models.ForeignKey(
+        UserAccount, on_delete=models.SET_NULL, null=True,
+        db_column='approved_by_user_id', db_constraint=False,
+    )
+    approved_at = models.DateTimeField(auto_now_add=True)
+    notes = models.TextField(blank=True, null=True)
+
+    class Meta:
+        db_table = 'ext_document_client_approval'

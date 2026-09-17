@@ -137,6 +137,9 @@ function InternshipOnboarding() {
       setError("Pick at least one intern, plus subject and content, are required.");
       return;
     }
+    if (!window.confirm(`Send this email to ${selectedInterns.length} intern(s)? This can't be undone.`)) {
+      return;
+    }
     setError("");
     setResult(null);
     setSending(true);

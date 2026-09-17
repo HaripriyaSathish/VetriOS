@@ -111,6 +111,9 @@ function StudentsWelcomeEmail() {
       setError("Pick at least one student, plus subject and content, are required.");
       return;
     }
+    if (!window.confirm(`Send this email to ${selectedStudents.length} student(s)? This can't be undone.`)) {
+      return;
+    }
     setError("");
     setResult(null);
     setSending(true);

@@ -21,7 +21,7 @@ const STEPS = [
   { label: "Review", icon: ClipboardCheck },
 ];
 
-const STATUS_CLASS = { PENDING: "pending", APPROVED: "approved", REJECTED: "rejected" };
+const STATUS_CLASS = { PENDING: "pending", APPROVED: "approved", REJECTED: "rejected", REVOKED: "revoked" };
 
 // Login-credential requests are drafted through HR (Employees / Onboarding)
 // and must be actioned from User & Accounts → Login requests, where
@@ -388,6 +388,7 @@ function RequestAccess() {
                                 <div className="reqa-doc-meta">
                                   {d.confidentiality_level_name || "—"}
                                   {d.owner_name ? ` · Owned by ${d.owner_name}` : ""}
+                                  {d.already_has_access ? " · You already have access" : ""}
                                 </div>
                               </div>
                               {selectedDoc?.document_id === d.document_id && <Check size={16} />}
@@ -395,6 +396,11 @@ function RequestAccess() {
                           ))
                         )}
                       </div>
+                      {selectedDoc?.already_has_access && (
+                        <p className="reqa-already-has-access">
+                          You already have access to this document — submitting this request isn't necessary.
+                        </p>
+                      )}
                     </>
                   )}
 

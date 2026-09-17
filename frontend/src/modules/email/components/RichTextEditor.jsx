@@ -1,7 +1,6 @@
 import { useEffect } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import Underline from "@tiptap/extension-underline";
 import { Bold, Italic, UnderlineIcon, List, ListOrdered, Heading2, Undo, Redo } from "lucide-react";
 import "../styles/Email.css";
 
@@ -23,7 +22,7 @@ function ToolbarButton({ active, onClick, title, children }) {
 // bold/italic/underline/headings/lists, not just a plain textarea.
 function RichTextEditor({ content, onChange }) {
   const editor = useEditor({
-    extensions: [StarterKit, Underline],
+    extensions: [StarterKit],
     content,
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
   });

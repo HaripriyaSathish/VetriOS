@@ -1,8 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Search, FileText, Power, Eye, Plus, Download } from "lucide-react";
+import { Search, FileText, Power, Eye, Plus, Download, Trash2 } from "lucide-react";
 import client from "../../../api/client";
 import "../styles/Documents.css";
+
+const canHardDelete = (JSON.parse(localStorage.getItem("user") || "null")?.roles || []).some(
+  (r) => r === "System Administrator" || r === "HR Administrator"
+);
 
 function Templates() {
   const navigate = useNavigate();
@@ -12,6 +16,7 @@ function Templates() {
   const [search, setSearch] = useState("");
   const [togglingId, setTogglingId] = useState(null);
   const [downloadingId, setDownloadingId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
 
   useEffect(() => {
     client
@@ -46,6 +51,22 @@ function Templates() {
       setError("Couldn't download that template.");
     } finally {
       setDownloadingId(null);
+    }
+  };
+
+  const handleHardDelete = async (event, template) => {
+    event.stopPropagation();
+    if (!window.confirm(`Permanently delete "${template.template_name}" (${template.template_code})? This cannot be undone.`)) {
+      return;
+    }
+    setDeletingId(template.document_template_id);
+    try {
+      await client.delete(`/api/documents/templates/${template.document_template_id}/hard-delete/`);
+      setTemplates((prev) => prev.filter((t) => t.document_template_id !== template.document_template_id));
+    } catch {
+      setError("Couldn't delete that template.");
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -138,36 +159,44 @@ function Templates() {
                       <div style={{ display: "flex", gap: 8 }}>
                         <button
                           type="button"
-                          className="doc-btn-sm"
+                          className="doc-icon-btn"
                           onClick={(e) => {
                             e.stopPropagation();
                             navigate(`/documents/templates/${t.document_template_id}`);
                           }}
-                          title="View"
+                          data-tooltip="View"
                         >
                           <Eye size={14} />
-                          View
                         </button>
                         <button
                           type="button"
-                          className="doc-btn-sm"
+                          className="doc-icon-btn"
                           onClick={(e) => handleToggle(e, t)}
                           disabled={togglingId === t.document_template_id}
-                          title={t.is_active ? "Deactivate" : "Activate"}
+                          data-tooltip={t.is_active ? "Deactivate" : "Activate"}
                         >
                           <Power size={14} />
-                          {togglingId === t.document_template_id ? "…" : t.is_active ? "Deactivate" : "Activate"}
                         </button>
                         <button
                           type="button"
-                          className="doc-btn-sm"
+                          className="doc-icon-btn"
                           onClick={(e) => handleDownload(e, t)}
                           disabled={downloadingId === t.document_template_id}
-                          title="Download as DOCX"
+                          data-tooltip="Download as DOCX"
                         >
                           <Download size={14} />
-                          {downloadingId === t.document_template_id ? "…" : "Download"}
                         </button>
+                        {canHardDelete && (
+                          <button
+                            type="button"
+                            className="doc-icon-btn danger"
+                            onClick={(e) => handleHardDelete(e, t)}
+                            disabled={deletingId === t.document_template_id}
+                            data-tooltip="Hard delete"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

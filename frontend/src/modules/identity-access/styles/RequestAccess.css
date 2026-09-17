@@ -8,7 +8,7 @@
 .reqa-eyebrow {
   font-size: 12px;
   font-weight: 700;
-  color: #8a93a6;
+  color: #161a26;
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
@@ -32,7 +32,8 @@
 }
 .reqa-head p {
   margin: 0;
-  color: #6b7280;
+  color: #161a26;
+  font-style: italic;
   font-size: 13.5px;
 }
 
@@ -106,7 +107,8 @@
   min-width: 26px;
   border-radius: 50%;
   background: #eef1f6;
-  color: #9aa5b8;
+  color: #161a26;
+  font-style: italic;
   transition: all 0.15s ease;
 }
 .reqa-step-dot.active {
@@ -121,7 +123,8 @@
 .reqa-step-label {
   font-size: 11.5px;
   font-weight: 600;
-  color: #9aa5b8;
+  color: #161a26;
+  font-style: italic;
   margin-left: 7px;
   white-space: nowrap;
 }
@@ -146,7 +149,8 @@
   display: block;
   font-size: 12.5px;
   font-weight: 600;
-  color: #5f6b7a;
+  color: #161a26;
+  font-style: italic;
   margin: 14px 0 5px;
 }
 .reqa-body label:first-child {
@@ -218,7 +222,7 @@
   border-radius: 9px;
   padding: 9px 11px;
   margin-bottom: 10px;
-  color: #8a93a6;
+  color: #161a26;
 }
 .reqa-doc-search input {
   border: none;
@@ -235,7 +239,8 @@
 }
 .reqa-doc-empty {
   font-size: 13px;
-  color: #8a93a6;
+  color: #161a26;
+  font-style: italic;
   padding: 12px 4px;
   margin: 0;
 }
@@ -272,7 +277,18 @@
 }
 .reqa-doc-meta {
   font-size: 11.5px;
-  color: #8a93a6;
+  color: #161a26;
+  font-style: italic;
+}
+
+.reqa-already-has-access {
+  font-size: 12px;
+  font-style: italic;
+  color: #b45309;
+  background: #ffedd5;
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin: 6px 0 0;
 }
 
 .reqa-cat-grid {
@@ -386,7 +402,8 @@
 .reqa-review-label {
   font-size: 11px;
   font-weight: 700;
-  color: #9aa5b8;
+  color: #161a26;
+  font-style: italic;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -396,8 +413,8 @@
   line-height: 1.5;
 }
 .reqa-review-value em {
-  font-style: normal;
-  color: #6b7280;
+  font-style: italic;
+  color: #161a26;
 }
 
 .reqa-done {
@@ -426,7 +443,8 @@
 }
 .reqa-done-sub {
   font-size: 13.5px;
-  color: #6b7280;
+  color: #161a26;
+  font-style: italic;
   margin: 0 0 14px;
   max-width: 280px;
 }

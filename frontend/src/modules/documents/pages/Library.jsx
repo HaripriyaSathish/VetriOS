@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   Search, Upload, Sparkles, FileText, X, Eye, Download, Archive,
-  FolderOpen, CheckCircle2, Clock, Lock,
+  FolderOpen, CheckCircle2, Clock, Lock, ShieldAlert,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import {
@@ -14,7 +14,7 @@ import "../styles/Documents.css";
 // Fixed categorical order (same dataviz-validated set used across the
 // other dashboards) — never cycled, never reassigned per data.
 const TYPE_COLORS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4"];
-const OTHER_COLOR = "#9a9993";
+const OTHER_COLOR = "#161a26";
 const UPLOAD_COLOR = "#2a78d6";
 
 function formatDay(iso) {
@@ -140,7 +140,7 @@ function LibraryDashboard({ stats }) {
               <CartesianGrid vertical={false} stroke="#eef0f3" />
               <XAxis
                 dataKey="date" tickFormatter={formatDay} axisLine={{ stroke: "#c3c2b7" }} tickLine={false}
-                tick={{ fontSize: 10, fill: "#8a93a6", fontFamily: "Manrope, sans-serif" }}
+                tick={{ fontSize: 10, fill: "#161a26", fontFamily: "Manrope, sans-serif" }}
                 interval="preserveStartEnd"
               />
               <Tooltip
@@ -358,7 +358,7 @@ function Library() {
       <div className="doc-panel">
         <div className="doc-filter-bar">
           <div style={{ position: "relative", flex: 1, minWidth: 180 }}>
-            <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#8a93a6" }} />
+            <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#161a26" }} />
             <input
               type="text"
               placeholder="Search title…"
@@ -416,7 +416,7 @@ function Library() {
                   <th>Status</th>
                   <th>Owner</th>
                   <th>Last Updated</th>
-                  <th></th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -425,7 +425,7 @@ function Library() {
                     <td><input type="checkbox" checked={selected.has(d.document_id)} onChange={() => toggleOne(d.document_id)} /></td>
                     <td>
                       <div className="doc-table-title">
-                        <FileText size={15} color="#8a93a6" />
+                        <FileText size={15} color="#161a26" />
                         {d.title}
                       </div>
                     </td>
@@ -442,8 +442,11 @@ function Library() {
                     <td>{new Date(d.updated_at).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}</td>
                     <td>
                       <div style={{ display: "flex", gap: 10 }}>
-                        <Eye size={15} color="#8a93a6" style={{ cursor: "pointer" }} onClick={() => handleView(d)} />
-                        <Download size={15} color="#8a93a6" style={{ cursor: "pointer" }} onClick={() => handleDownload(d)} />
+                        <Eye size={15} color="#2563eb" style={{ cursor: "pointer" }} onClick={() => handleView(d)} title="View" />
+                        <Download size={15} color="#16a34a" style={{ cursor: "pointer" }} onClick={() => handleDownload(d)} title="Download" />
+                        <Link to={`/documents/governance?documentId=${d.document_id}`} title="Manage Access">
+                          <ShieldAlert size={15} color="#7c3aed" style={{ cursor: "pointer" }} />
+                        </Link>
                       </div>
                     </td>
                   </tr>

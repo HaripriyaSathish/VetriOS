@@ -624,17 +624,31 @@ class PermissionRequestDecisionView(APIView):
         # makes the document show up for this user (see
         # module_06_documents.DocumentListView, which now consults this
         # table). A general request stays decision-only, same as before.
+        # If Manage Access already granted this same user an active rule
+        # on this document (independently, via the Governance page),
+        # reuse it instead of creating a duplicate — either way, record
+        # which rule this approval is tied to, so a later delete of that
+        # rule (from Governance) can flip this request to REVOKED rather
+        # than leaving it stuck showing "Approved" forever.
         if action == "approve" and req.request_type == "DOCUMENT" and req.document_id:
             try:
                 document = Document.objects.get(pk=req.document_id)
-                DocumentAccessRule.objects.create(
-                    document=document,
-                    user=req.requester,
-                    access_level=document.access_level,
-                    effective_from=timezone.localdate(),
-                    is_allowed=True,
-                    created_at=timezone.now(),
-                )
+                existing_rule = DocumentAccessRule.objects.filter(
+                    document_id=req.document_id, user_id=req.requester_id, is_allowed=True,
+                ).first()
+                if existing_rule:
+                    req.granted_rule_id = existing_rule.document_access_rule_id
+                else:
+                    rule = DocumentAccessRule.objects.create(
+                        document=document,
+                        user=req.requester,
+                        access_level=document.access_level,
+                        effective_from=timezone.localdate(),
+                        is_allowed=True,
+                        created_at=timezone.now(),
+                    )
+                    req.granted_rule_id = rule.document_access_rule_id
+                req.save(update_fields=["granted_rule_id"])
             except Document.DoesNotExist:
                 pass
 

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { ShieldAlert, Info, Plus, Trash2 } from "lucide-react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { ArrowLeft, ShieldAlert, Info, Plus, Trash2 } from "lucide-react";
 import client from "../../../api/client";
 import SearchSelect from "../components/SearchSelect";
 import "../styles/Documents.css";
@@ -11,6 +12,8 @@ const EMPTY_RETENTION = {
 };
 
 function Governance() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [documents, setDocuments] = useState([]);
   const [documentId, setDocumentId] = useState("");
 
@@ -75,6 +78,18 @@ function Governance() {
     }
   };
 
+  // Arriving from Library's "Manage Access" link — pre-select that
+  // document instead of making the user search for it again. Keyed off
+  // the actual param STRING, not the searchParams object — react-router
+  // hands back a new URLSearchParams instance on every render, so
+  // depending on the object itself re-fires this on every state update
+  // handleSelectDocument causes, looping forever.
+  const documentIdParam = searchParams.get("documentId");
+  useEffect(() => {
+    if (documentIdParam) handleSelectDocument(Number(documentIdParam));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [documentIdParam]);
+
   const handleAddRule = async (event) => {
     event.preventDefault();
     setError("");
@@ -97,6 +112,9 @@ function Governance() {
   };
 
   const handleDeleteRule = async (ruleId) => {
+    if (!window.confirm("Remove this access rule? The role/department/user will lose this access immediately.")) {
+      return;
+    }
     try {
       await client.delete(`/api/documents/library/${documentId}/access-rules/${ruleId}/`);
       setRules((prev) => prev.filter((r) => r.document_access_rule_id !== ruleId));
@@ -128,13 +146,17 @@ function Governance() {
     : users.map((u) => ({ value: u.user_id, label: u.full_name }));
 
   return (
-    <div className="doc-screen">
+    <div className="doc-screen gov-screen">
       <div className="doc-head">
         <div>
           <span className="doc-eyebrow">Document Generator</span>
           <h1>Access & Governance</h1>
           <p>Control who can see a document and how long it's retained.</p>
         </div>
+        <button type="button" className="doc-btn-sm" onClick={() => navigate("/documents")}>
+          <ArrowLeft size={14} />
+          Back to Library
+        </button>
       </div>
 
       <div className="doc-panel" style={{ marginBottom: 20 }}>
@@ -168,11 +190,11 @@ function Governance() {
               <div className="doc-icon-tile blue">
                 <ShieldAlert size={18} />
               </div>
-              <h3>Access rules</h3>
+              <h3>Who has access</h3>
             </div>
             <div className="doc-inherit-note">
               <Info size={13} />
-              Grant or deny access to a specific role, department, or user for this document.
+              Everyone currently allowed or denied access to this document.
             </div>
 
             {rules.length === 0 ? (
@@ -186,7 +208,7 @@ function Governance() {
                       <th>Subject</th>
                       <th>Access level</th>
                       <th>Allowed</th>
-                      <th></th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -204,15 +226,32 @@ function Governance() {
                             {r.is_allowed ? "Allowed" : "Denied"}
                           </span>
                         </td>
-                        <td><Trash2 size={14} color="#8a93a6" style={{ cursor: "pointer" }} onClick={() => handleDeleteRule(r.document_access_rule_id)} /></td>
+                        <td>
+                          <button
+                            type="button"
+                            className="doc-icon-btn danger"
+                            onClick={() => handleDeleteRule(r.document_access_rule_id)}
+                            data-tooltip="Revoke access"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
             )}
+          </div>
 
-            <form className="doc-form" onSubmit={handleAddRule} style={{ padding: "16px 18px", borderTop: "1px solid #eaeef4" }}>
+          <div className="doc-panel" style={{ marginBottom: 20 }}>
+            <div className="doc-panel-head" style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div className="doc-icon-tile green">
+                <Plus size={18} />
+              </div>
+              <h3>Add access rule</h3>
+            </div>
+            <form className="doc-form" onSubmit={handleAddRule} style={{ padding: "16px 18px" }}>
               <label>Scope</label>
               <select
                 value={ruleForm.scope}
@@ -269,7 +308,7 @@ function Governance() {
             {retentionForm.legal_hold && (
               <div className="doc-banner-warning">
                 <ShieldAlert size={14} />
-                Legal Hold active — deletion is overridden while this is on.
+                Protected — archiving/deletion is overridden while this is on.
               </div>
             )}
 
@@ -326,8 +365,11 @@ function Governance() {
                   />
                   <span className="doc-toggle-track" />
                 </span>
-                Legal Hold
+                Protected
               </label>
+              <p style={{ fontSize: 12, color: "#161a26", fontStyle: "italic", margin: "-8px 0 16px" }}>
+                Turn this on to stop this document from being archived or deleted, even after its retention period ends — useful when it's needed for a legal case, audit, or other reason it must be kept untouched for now.
+              </p>
 
               <label>Remarks (optional)</label>
               <textarea

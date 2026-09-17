@@ -30,6 +30,7 @@ from .views import MyTeamTasksView
 from .views import AskProjectLeadThreadView
 from .views import MyProjectTestingReportsView, MyFiledTestingReportsView
 from .views import TaskSubmissionsView
+from .views import MarkDocumentClientApprovedView
 
 urlpatterns = [
     # ---------- Projects (core) ----------
@@ -79,5 +80,6 @@ urlpatterns = [
     path("<int:project_id>/ask-lead/", AskProjectLeadThreadView.as_view()),
     path("my-testing-reports/", MyProjectTestingReportsView.as_view()),
     path("my-filed-testing-reports/", MyFiledTestingReportsView.as_view()),
+    path("documents/<int:document_id>/client-approve/", MarkDocumentClientApprovedView.as_view()),
 
 ]

@@ -867,9 +867,8 @@ class ClientContactViewSet(APIView):
             return Response({"detail": "System Administrator access only."}, status=403)
         serializer = ClientContactSerializer(data={**request.data, "client": client_id})
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        serializer.save(created_at=timezone.now(), updated_at=timezone.now())
         return Response(serializer.data, status=201)
-
 
 class ClientCommercialReferenceViewSet(APIView):
     permission_classes = [IsAuthenticated]
@@ -1357,3 +1356,74 @@ class TaskSubmissionsView(APIView):
             assignee_row.save(update_fields=["review_status"])
 
         return Response({"task_submission_id": submission.task_submission_id}, status=201)
+
+from module_06_documents.models import Document, DocumentVersion, DocumentClientApproval
+
+class ProjectDocumentsView(APIView):
+    """Documents attached to a project, with their approval chain and
+    client-approval status."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, project_id):
+        links = DocumentProject.objects.filter(project_id=project_id).select_related("document")
+        base_data = DocumentProjectSerializer(links, many=True, context={"request": request}).data
+
+        # Attach client_approval info manually — DocumentProjectSerializer
+        # doesn't know about this new ext_ table.
+        document_ids = [link.document_id for link in links]
+        approvals = {
+            a.document_id: a
+            for a in DocumentClientApproval.objects.filter(
+                document_id__in=document_ids
+            ).select_related("approved_by__person")
+        }
+
+        for row, link in zip(base_data, links):
+            approval = approvals.get(link.document_id)
+            row["document_id"] = link.document_id
+            if approval:
+                row["client_approved"] = True
+                row["client_approved_by"] = (
+                    str(approval.approved_by.person) if approval.approved_by_id else None
+                )
+                row["client_approved_at"] = approval.approved_at
+            else:
+                row["client_approved"] = False
+                row["client_approved_by"] = None
+                row["client_approved_at"] = None
+
+        return Response(base_data)
+
+    def post(self, request, project_id):
+        """Attach an already-uploaded document to this project (upload
+        itself goes through the dedicated ProjectDocumentUploadView)."""
+        link = DocumentProject.objects.create(
+            document_id=request.data["document_id"],
+            project_id=project_id,
+            relationship_type=request.data.get("relationship_type", "OTHER"),
+            created_at=timezone.now(),
+        )
+        return Response({"document_project_id": link.document_project_id}, status=201)
+
+
+class MarkDocumentClientApprovedView(APIView):
+    """PM clicks this after showing a design/document to the client in
+    a meeting and getting their approval. Separate from DocumentApproval
+    (internal team sign-off)."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, document_id):
+        try:
+            document = Document.objects.get(document_id=document_id)
+        except Document.DoesNotExist:
+            return Response({"detail": "Document not found."}, status=404)
+
+        link = DocumentProject.objects.filter(document=document).select_related("project").first()
+        if not link or not can_manage_project(request.user, link.project):
+            return Response({"detail": "Only the Project Manager can mark client approval."}, status=403)
+
+        approval, _ = DocumentClientApproval.objects.get_or_create(
+            document=document,
+            defaults={"approved_by": request.user, "notes": request.data.get("notes", "")},
+        )
+        return Response({"detail": "Marked as approved by client."}, status=201)    

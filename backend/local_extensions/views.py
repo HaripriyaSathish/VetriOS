@@ -26,6 +26,7 @@ from django.http import HttpResponseRedirect
 from .models import ClassRecording, RecordingView, AbsenceNotification
 from module_03_training.models import Enrollment, StudentAttendance
 from .models import Notification
+from local_extensions.notification_utils import notify
 
 LOGO_PATH = os.path.join(os.path.dirname(__file__), "assets", "logo.jpg")
 
@@ -93,8 +94,13 @@ class PublicEnquiryCreateView(APIView):
         if dob > date.today():
             return Response({"detail": "Date of birth can't be in the future."}, status=400)
 
+        try:
+            course = Course.objects.get(course_id=request.data["course_id"])
+        except Course.DoesNotExist:
+            return Response({"detail": "Course not found."}, status=404)
+
         enquiry = Enquiry.objects.create(
-            course_id=request.data["course_id"],
+            course=course,
             name=name,
             date_of_birth=dob,
             whatsapp_number=whatsapp_number,
@@ -106,6 +112,24 @@ class PublicEnquiryCreateView(APIView):
             status="new",
             created_at=timezone.now(),
         )
+
+        # Notify every active Business Team member of the new enquiry.
+        business_team_users = [
+            u for u in UserAccount.objects.filter(is_active=True)
+            if "Business Team" in u.active_role_names()
+        ]
+        for recipient in business_team_users:
+            Notification.objects.create(
+                recipient=recipient,
+                module="TRAINING",
+                notification_type="NEW_ENQUIRY",
+                title="New course enquiry",
+                message=f"{name} enquired about {course.course_name}",
+                entity_type="enquiry",
+                entity_id=enquiry.enquiry_id,
+                link="/training/enquiries",
+            )
+
         return Response({"detail": "Thanks! We'll be in touch soon.", "enquiry_id": enquiry.enquiry_id}, status=201)
 
 

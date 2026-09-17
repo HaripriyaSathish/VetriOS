@@ -26,7 +26,8 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
 from local_extensions.ai_service import ask_groq
-from module_01_identity_access.models import Person
+from local_extensions.notification_utils import notify
+from module_01_identity_access.models import PermissionRequest, Person, UserAccount, UserRole
 from module_02_hr.models import Employee, PersonDepartmentHistory
 from .models import (
     AccessLevel,
@@ -1503,12 +1504,22 @@ class DocumentSearchForAccessRequestView(APIView):
         if search:
             qs = qs.filter(document_title__icontains=search)
         qs = qs[:20]
+
+        today = timezone.localdate()
+        already_allowed_ids = set(
+            DocumentAccessRule.objects.filter(
+                user=request.user, is_allowed=True, effective_from__lte=today,
+            ).filter(Q(effective_to__isnull=True) | Q(effective_to__gte=today))
+            .values_list("document_id", flat=True)
+        )
+
         return Response([
             {
                 "document_id": d.document_id,
                 "document_title": d.document_title,
                 "confidentiality_level_name": d.confidentiality_level.level_name if d.confidentiality_level_id else None,
                 "owner_name": str(d.owner_user.person) if d.owner_user_id else None,
+                "already_has_access": d.document_id in already_allowed_ids,
             }
             for d in qs
         ])
@@ -1969,6 +1980,57 @@ class DocumentTemplateDownloadView(APIView):
         return response
 
 
+class DocumentTemplateHardDeleteView(APIView):
+    """DELETE — permanently remove a template row. System
+    Administrator/HR Administrator only — see DocumentTemplateListView.
+    AiDocumentGeneration.document_template is DO_NOTHING (no DB
+    cascade), so any log rows pointing at this template are detached
+    first, in the same transaction, before the row itself is removed."""
+    permission_classes = [CanCreateDocuments, IsSystemAdminOrHR]
+
+    def delete(self, request, template_id):
+        try:
+            template = DocumentTemplate.objects.get(pk=template_id)
+        except DocumentTemplate.DoesNotExist:
+            return Response({"detail": "Template not found."}, status=404)
+
+        with transaction.atomic():
+            AiDocumentGeneration.objects.filter(document_template_id=template_id).update(document_template=None)
+            template.delete()
+        return Response(status=204)
+
+
+def _access_rule_recipients(rule):
+    """Who a grant/revoke on this rule should notify — resolves the
+    rule's single scope (exactly one of role/department/user is set,
+    DB-enforced) down to actual UserAccount rows."""
+    if rule.user_id:
+        return UserAccount.objects.filter(pk=rule.user_id)
+    if rule.role_id:
+        user_ids = UserRole.objects.filter(role_id=rule.role_id, is_active=True).values_list("user_id", flat=True)
+        return UserAccount.objects.filter(pk__in=user_ids)
+    if rule.department_id:
+        person_ids = PersonDepartmentHistory.objects.filter(
+            department_id=rule.department_id, is_current=True,
+        ).values_list("person_id", flat=True)
+        return UserAccount.objects.filter(person_id__in=person_ids)
+    return UserAccount.objects.none()
+
+
+def _notify_access_rule_change(rule, document, verb):
+    for recipient in _access_rule_recipients(rule):
+        notify(
+            recipient=recipient,
+            module="DOCUMENTS",
+            notification_type=f"ACCESS_{verb.upper()}",
+            title=f'Your access to "{document.document_title}" was {verb}',
+            message=f"Access level: {rule.access_level.access_name}." if verb == "granted" else "",
+            link="/documents",
+            entity_type="document",
+            entity_id=document.document_id,
+        )
+
+
 class DocumentAccessRuleListCreateView(APIView):
     """Governance (per-document): GET a document's access rules, POST a new one."""
     permission_classes = [CanViewDocuments]
@@ -1983,26 +2045,41 @@ class DocumentAccessRuleListCreateView(APIView):
         if not request.user.has_permission("DOCUMENT_UPDATE"):
             return Response({"detail": "DOCUMENT_UPDATE permission required."}, status=403)
         try:
-            Document.objects.get(pk=document_id)
+            document = Document.objects.get(pk=document_id)
         except Document.DoesNotExist:
             return Response({"detail": "Document not found."}, status=404)
 
         serializer = DocumentAccessRuleSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         rule = serializer.save(document_id=document_id, created_at=timezone.now())
+        if rule.is_allowed:
+            _notify_access_rule_change(rule, document, "granted")
         return Response(DocumentAccessRuleSerializer(rule).data, status=201)
 
 
 class DocumentAccessRuleDeleteView(APIView):
-    """DELETE one access rule."""
+    """DELETE one access rule. If this rule was granted by an approved
+    Request Access ticket (see PermissionRequestDecideView), flip that
+    ticket to REVOKED first — otherwise its history would keep showing
+    "Approved" even though the access was just pulled here. Also
+    notifies whoever the rule covered (user/role/department) that
+    their access to this document was just pulled."""
     permission_classes = [CanCreateDocuments]
 
     def delete(self, request, document_id, rule_id):
-        deleted, _ = DocumentAccessRule.objects.filter(
-            pk=rule_id, document_id=document_id,
-        ).delete()
-        if not deleted:
+        PermissionRequest.objects.filter(
+            granted_rule_id=rule_id, status="APPROVED",
+        ).update(status="REVOKED", decided_at=timezone.now())
+
+        try:
+            rule = DocumentAccessRule.objects.select_related("document").get(pk=rule_id, document_id=document_id)
+        except DocumentAccessRule.DoesNotExist:
             return Response({"detail": "Rule not found."}, status=404)
+
+        document = rule.document
+        if rule.is_allowed:
+            _notify_access_rule_change(rule, document, "revoked")
+        rule.delete()
         return Response(status=204)
 
 

@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { useNavigate, useOutletContext } from "react-router-dom";
-import { Paperclip, Sparkles, FileSignature, X } from "lucide-react";
+import { Paperclip, Sparkles, FileSignature, X, XCircle } from "lucide-react";
 import client from "../../../api/client";
 import "../styles/Documents.css";
 
@@ -46,6 +46,7 @@ function AIGenerator() {
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState("");
   const [draftText, setDraftText] = useState("");
+  const abortControllerRef = useRef(null);
 
   const chooseType = (type) => {
     if (type.route) {
@@ -73,19 +74,36 @@ function AIGenerator() {
     setError("");
     setGenerating(true);
     setDraftText("");
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
     try {
       const body = new FormData();
       body.append("description", description);
       if (attachedFile) body.append("file", attachedFile);
       const { data } = await client.post("/api/documents/generate/quick/", body, {
         headers: { "Content-Type": "multipart/form-data" },
+        signal: controller.signal,
       });
       setDraftText(data.draft_text);
     } catch (err) {
-      setError(err.response?.data?.detail || "Generation failed.");
+      if (err.code !== "ERR_CANCELED") {
+        setError(err.response?.data?.detail || "Generation failed.");
+      }
     } finally {
+      abortControllerRef.current = null;
       setGenerating(false);
     }
+  };
+
+  const handleCancel = () => {
+    if (generating) {
+      abortControllerRef.current?.abort();
+      return;
+    }
+    setDescription("");
+    setAttachedFile(null);
+    setDraftText("");
+    setError("");
   };
 
   return (
@@ -155,6 +173,15 @@ function AIGenerator() {
           />
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             <span className="doc-prompt-count">{description.length}/{MAX_LEN}</span>
+            <button
+              type="button"
+              className="doc-btn-sm"
+              onClick={handleCancel}
+              disabled={!generating && !description && !attachedFile && !draftText}
+            >
+              <XCircle size={14} />
+              Cancel
+            </button>
             <button type="button" className="doc-btn-accent" onClick={handleGenerate} disabled={generating}>
               <Sparkles size={15} />
               {generating ? "Generating…" : "Generate"}

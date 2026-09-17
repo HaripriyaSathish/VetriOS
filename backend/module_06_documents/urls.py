@@ -15,6 +15,7 @@ from .views import (
     DocumentTemplateCreateView,
     DocumentTemplateDetailView,
     DocumentTemplateDownloadView,
+    DocumentTemplateHardDeleteView,
     DocumentTemplateListView,
     DocumentTemplateManageListView,
     DocumentTemplateToggleView,
@@ -61,6 +62,7 @@ urlpatterns = [
     path("templates/preview/", TemplatePreviewView.as_view()),
     path("templates/<int:template_id>/toggle/", DocumentTemplateToggleView.as_view()),
     path("templates/<int:template_id>/download/", DocumentTemplateDownloadView.as_view()),
+    path("templates/<int:template_id>/hard-delete/", DocumentTemplateHardDeleteView.as_view()),
     path("templates/<int:template_id>/", DocumentTemplateDetailView.as_view()),
 
     # Governance (per-document)

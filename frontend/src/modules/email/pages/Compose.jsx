@@ -99,6 +99,9 @@ function Compose() {
       setError("At least one recipient, plus subject and body, are required.");
       return;
     }
+    if (recipients.length > 1 && !window.confirm(`Send this email to ${recipients.length} recipients? This can't be undone.`)) {
+      return;
+    }
     setError("");
     setSentMessage("");
     setSending(true);

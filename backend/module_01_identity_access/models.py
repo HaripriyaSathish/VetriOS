@@ -250,7 +250,7 @@ class PermissionRequest(models.Model):
     )
     permission_requested = models.TextField()
     reason = models.TextField()
-    status = models.CharField(max_length=20, default='PENDING')  # PENDING | APPROVED | REJECTED
+    status = models.CharField(max_length=20, default='PENDING')  # PENDING | APPROVED | REJECTED | REVOKED
     # "GENERAL" (free-text, decision-only — matches the original design)
     # or "DOCUMENT" (a specific Document from the Library was picked;
     # approving one of these creates a real module_06_documents
@@ -260,6 +260,12 @@ class PermissionRequest(models.Model):
     # privilege there, same reasoning as AiEmail.ai_query_id elsewhere.
     request_type = models.CharField(max_length=20, default='GENERAL')
     document_id = models.BigIntegerField(blank=True, null=True)
+    # The DocumentAccessRule row this approval granted (or reused, if a
+    # matching one already existed) — plain int, not a real FK, same
+    # reasoning as document_id. Lets Manage Access's rule-delete flow
+    # find and flip this request to REVOKED instead of leaving it
+    # stuck showing "Approved" after access was actually pulled.
+    granted_rule_id = models.BigIntegerField(blank=True, null=True)
     decision_note = models.TextField(blank=True, null=True)
     decided_at = models.DateTimeField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)

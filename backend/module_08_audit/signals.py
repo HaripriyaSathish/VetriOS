@@ -22,6 +22,7 @@ AUDITED_MODELS = [
     ("module_04_interns", "Intern"),
     ("module_04_interns", "InternshipRecommendation"),
     ("module_06_documents", "Document"),
+    ("module_06_documents", "DocumentClientApproval"),
     ("local_extensions", "StudentFeePayment"),
     ("local_extensions", "StudentFeeInstallment"),
 ]

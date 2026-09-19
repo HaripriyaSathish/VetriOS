@@ -42,7 +42,7 @@ from .models import (
     DocumentType,
     DocumentVersion,
 )
-from .permissions import CanCreateDocuments, CanViewDocuments, IsSystemAdminOrHR
+from .permissions import CanCreateDocuments, CanManageDocumentAccess, CanViewDocuments, IsSystemAdminOrHR
 from .serializers import (
     DocumentAccessRuleSerializer,
     DocumentListSerializer,
@@ -2042,8 +2042,8 @@ class DocumentAccessRuleListCreateView(APIView):
         return Response(DocumentAccessRuleSerializer(rules, many=True).data)
 
     def post(self, request, document_id):
-        if not request.user.has_permission("DOCUMENT_UPDATE"):
-            return Response({"detail": "DOCUMENT_UPDATE permission required."}, status=403)
+        if not CanManageDocumentAccess().has_permission(request, self):
+            return Response({"detail": CanManageDocumentAccess.message}, status=403)
         try:
             document = Document.objects.get(pk=document_id)
         except Document.DoesNotExist:
@@ -2064,7 +2064,7 @@ class DocumentAccessRuleDeleteView(APIView):
     "Approved" even though the access was just pulled here. Also
     notifies whoever the rule covered (user/role/department) that
     their access to this document was just pulled."""
-    permission_classes = [CanCreateDocuments]
+    permission_classes = [CanManageDocumentAccess]
 
     def delete(self, request, document_id, rule_id):
         PermissionRequest.objects.filter(
@@ -2094,8 +2094,8 @@ class DocumentRetentionView(APIView):
         return Response(DocumentRetentionSerializer(retention).data)
 
     def put(self, request, document_id):
-        if not request.user.has_permission("DOCUMENT_UPDATE"):
-            return Response({"detail": "DOCUMENT_UPDATE permission required."}, status=403)
+        if not CanManageDocumentAccess().has_permission(request, self):
+            return Response({"detail": CanManageDocumentAccess.message}, status=403)
         try:
             Document.objects.get(pk=document_id)
         except Document.DoesNotExist:

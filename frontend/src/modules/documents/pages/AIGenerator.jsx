@@ -15,14 +15,14 @@ const MAX_LEN = 500;
 const DOCUMENT_TYPES = [
   {
     label: "Course Integrated Internship Offer Letter",
-    description: "students who are selected as interns, contains prefilled content",
+    description: "students who are selected as interns — pick a header/footer template, write the content, generate",
     icon: FileSignature,
     route: "/documents/ai-generator/course-integrated-internship-offer",
     adminOrHrOnly: true,
   },
   {
     label: "Intern Onboarding Offer Letter",
-    description: "students who completed their course and interview, contains prefilled content",
+    description: "students who completed their course and interview — pick a header/footer template, write the content, generate",
     icon: FileSignature,
     route: "/documents/ai-generator/intern-onboarding-offer",
     adminOrHrOnly: true,

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Plus, Search, SquarePen, Ban, RotateCcw, ExternalLink, Link2Off } from "lucide-react";
+import { Plus, Search, SquarePen, Ban, RotateCcw, ExternalLink, Link2Off, Users, CheckCircle2, Clock } from "lucide-react";
 import client from "../../../api/client";
 import { EmployeeAvatar } from "../components/EmployeeAvatar";
 import Pagination, { paginate } from "../../../components/Pagination";
@@ -177,6 +177,9 @@ function PayrollReferences() {
 
   const employeeCount = new Set(references.map((r) => r.employee_id)).size;
   const providerCount = new Set(references.map((r) => r.payroll_provider)).size;
+  const activeCount = references.filter((r) => r.status === "ACTIVE").length;
+  const expiredCount = references.filter((r) => r.status === "EXPIRED").length;
+  const inactiveCount = references.filter((r) => r.status === "INACTIVE").length;
 
   return (
     <div className="hr-screen">
@@ -194,6 +197,37 @@ function PayrollReferences() {
       </div>
 
       {error && <p className="hr-error">{error}</p>}
+
+      <div className="hr-kpi-row">
+        <div className="hr-kpi-card">
+          <div className="hr-kpi-top">
+            <span className="hr-kpi-label">Total References</span>
+            <span className="hr-kpi-icon blue"><Users size={15} /></span>
+          </div>
+          <div className="hr-kpi-value">{references.length}</div>
+        </div>
+        <div className="hr-kpi-card">
+          <div className="hr-kpi-top">
+            <span className="hr-kpi-label">Active</span>
+            <span className="hr-kpi-icon green"><CheckCircle2 size={15} /></span>
+          </div>
+          <div className="hr-kpi-value">{activeCount}</div>
+        </div>
+        <div className="hr-kpi-card">
+          <div className="hr-kpi-top">
+            <span className="hr-kpi-label">Expired</span>
+            <span className="hr-kpi-icon amber"><Clock size={15} /></span>
+          </div>
+          <div className="hr-kpi-value">{expiredCount}</div>
+        </div>
+        <div className="hr-kpi-card">
+          <div className="hr-kpi-top">
+            <span className="hr-kpi-label">Inactive</span>
+            <span className="hr-kpi-icon red"><Ban size={15} /></span>
+          </div>
+          <div className="hr-kpi-value">{inactiveCount}</div>
+        </div>
+      </div>
 
       <div className="hr-panel">
         <div className="hr-toolbar">

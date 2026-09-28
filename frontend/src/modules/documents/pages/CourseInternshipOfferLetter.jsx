@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Eye, Download, FolderArchive, UploadCloud, Loader2, RefreshCw, Search } from "lucide-react";
+import { ArrowLeft, Eye, Download, FolderArchive, UploadCloud, Loader2, RefreshCw, Search, Check } from "lucide-react";
 import JSZip from "jszip";
 import client from "../../../api/client";
 import RichTextEditor from "../components/RichTextEditor";
@@ -24,6 +24,10 @@ function offerLetterFilename(fullName) {
   const slug = (fullName || "recipient").toLowerCase().replace(/[^a-z0-9]+/g, "");
   return `${slug}_integrated_internship_letter.pdf`;
 }
+
+// The DA-seeded template built specifically for this card — auto-selected
+// on load so Step 4 starts pre-filled instead of forcing a choice every visit.
+const DEFAULT_TEMPLATE_CODE = "COURSE_INTEGRATED_INTERNSHIP_OFFERLETTER";
 
 // Dedicated page for the "Course Integrated Internship Offer Letter" card
 // on the AI Document Generator. A progressive step wizard — interns are
@@ -80,17 +84,20 @@ function CourseInternshipOfferLetter() {
     client.get("/api/documents/interns/").then(({ data }) => setInterns(data)).catch(() => {});
   }, []);
 
-  // The letterhead design (logo + wave-graphic images, a single
-  // {{content}} anchor for the Content step's text) is already sitting
-  // in the template library — auto-load it so Step 4 starts pre-filled
-  // instead of forcing a choice on every visit. The full active list is
-  // kept too, so Step 4 can offer every template through one searchable
-  // combo box (name + code shown separately — see SearchSelect's `code`).
-  // No auto-selected default — the admin picks one explicitly every time.
+  // The full active template list is kept so Step 4 can offer every
+  // template through one searchable combo box (name + code shown
+  // separately — see SearchSelect's `code`). The one built for this
+  // card (its template_code is fixed/DA-seeded) is auto-selected on
+  // load so Step 4 starts pre-filled instead of forcing a choice on
+  // every visit — the admin can still swap it for a different one.
   useEffect(() => {
     client
       .get("/api/documents/templates/")
-      .then(({ data }) => setTemplateOptions(data))
+      .then(({ data }) => {
+        setTemplateOptions(data);
+        const defaultTemplate = data.find((t) => t.template_code === DEFAULT_TEMPLATE_CODE);
+        if (defaultTemplate) setTemplate(defaultTemplate);
+      })
       .catch(() => {});
   }, []);
 
@@ -444,6 +451,12 @@ function CourseInternshipOfferLetter() {
             </span>
           </div>
           {uploadError && <div className="doc-error">{uploadError}</div>}
+          {!customTemplateName && template?.template_code === DEFAULT_TEMPLATE_CODE && (
+            <p className="doc-default-template-note" style={{ marginTop: 6 }}>
+              <Check size={13} strokeWidth={3} />
+              Default template for this card is chosen.
+            </p>
+          )}
         </div>
       )}
 

@@ -42,7 +42,7 @@ from .models import (
     DocumentType,
     DocumentVersion,
 )
-from .permissions import CanCreateDocuments, CanViewDocuments, IsSystemAdminOrHR
+from .permissions import CanCreateDocuments, CanManageDocumentAccess, CanViewDocuments, IsSystemAdminOrHR
 from .serializers import (
     DocumentAccessRuleSerializer,
     DocumentListSerializer,
@@ -560,6 +560,32 @@ def _merge_canvas_pdf(template, intern, field_values):
     return pdf_bytes, None
 
 
+def _merge_placeholder_runs(paragraphs):
+    """Merges any run sequence that together spells out a complete
+    "{{...}}" tag into the first run of that sequence, in place. Needed
+    because apply_replacements() looks for the whole "{{key}}" string
+    inside a single run's text — if Word split the tag across runs
+    (e.g. '{{' + 'recipient_name' + '}}'), that match never fires and
+    the placeholder is left in the output untouched."""
+    for paragraph in paragraphs:
+        runs = paragraph.runs
+        i = 0
+        while i < len(runs):
+            text = runs[i].text
+            open_idx = text.find("{{")
+            if open_idx != -1 and "}}" not in text[open_idx:]:
+                combined = text
+                j = i + 1
+                while j < len(runs) and "}}" not in combined[combined.find("{{"):]:
+                    combined += runs[j].text
+                    runs[j].text = ""
+                    j += 1
+                runs[i].text = combined
+                i = j
+            else:
+                i += 1
+
+
 def _merge_intern_offer_pdf(template, intern, field_values):
     """Design-preserving merge for an Intern (module_04_interns, read-only
     from here — that module is Haripriya's). Branches on the template's
@@ -598,6 +624,14 @@ def _merge_intern_offer_pdf(template, intern, field_values):
         p for table in doc.tables for row in table.rows for cell in row.cells for p in cell.paragraphs
     ]
     all_paragraphs = list(doc.paragraphs) + table_paragraphs
+
+    # Word (and the analyze-upload AI edit pass) commonly fragments a
+    # single "{{placeholder}}" into several runs — e.g. '{{' / 'name' /
+    # '}}' — spell-check and revision markers do this even when nothing
+    # about the visible text changes. apply_replacements() below matches
+    # per-run, so a split placeholder was silently never replaced and
+    # rendered out literally. Coalescing those runs first fixes it.
+    _merge_placeholder_runs(all_paragraphs)
 
     body_text = "\n".join(p.text for p in doc.paragraphs)
     body_placeholders = sorted(set(PLACEHOLDER_RE.findall(body_text)) - {"content"})
@@ -1716,6 +1750,18 @@ def analyze_docx_upload(file_obj):
         if m:
             templated_lines[int(m.group(1))] = m.group(2)
 
+    # A line that's ALREADY nothing but a single {{placeholder}} tag (e.g.
+    # a design-only template's own hand-written {{content}} marker) is
+    # deliberate, not "variable text to templatize" — Groq doesn't
+    # reliably leave these alone (seen renaming a pre-written {{content}}
+    # to {{letter_body}}, silently breaking the Content-step detection
+    # downstream), so force those lines back to their original text
+    # regardless of what Groq proposed.
+    STANDALONE_PLACEHOLDER_RE = re.compile(r"^\{\{\s*[a-zA-Z0-9_]+\s*\}\}$")
+    for i, original in enumerate(original_lines, start=1):
+        if STANDALONE_PLACEHOLDER_RE.match(original.strip()):
+            templated_lines[i] = original
+
     for i, paragraph in enumerate(paragraphs, start=1):
         new_text = templated_lines.get(i, original_lines[i - 1])
         if new_text == original_lines[i - 1] or not paragraph.runs:
@@ -2042,8 +2088,8 @@ class DocumentAccessRuleListCreateView(APIView):
         return Response(DocumentAccessRuleSerializer(rules, many=True).data)
 
     def post(self, request, document_id):
-        if not request.user.has_permission("DOCUMENT_UPDATE"):
-            return Response({"detail": "DOCUMENT_UPDATE permission required."}, status=403)
+        if not CanManageDocumentAccess().has_permission(request, self):
+            return Response({"detail": CanManageDocumentAccess.message}, status=403)
         try:
             document = Document.objects.get(pk=document_id)
         except Document.DoesNotExist:
@@ -2064,7 +2110,7 @@ class DocumentAccessRuleDeleteView(APIView):
     "Approved" even though the access was just pulled here. Also
     notifies whoever the rule covered (user/role/department) that
     their access to this document was just pulled."""
-    permission_classes = [CanCreateDocuments]
+    permission_classes = [CanManageDocumentAccess]
 
     def delete(self, request, document_id, rule_id):
         PermissionRequest.objects.filter(
@@ -2094,8 +2140,8 @@ class DocumentRetentionView(APIView):
         return Response(DocumentRetentionSerializer(retention).data)
 
     def put(self, request, document_id):
-        if not request.user.has_permission("DOCUMENT_UPDATE"):
-            return Response({"detail": "DOCUMENT_UPDATE permission required."}, status=403)
+        if not CanManageDocumentAccess().has_permission(request, self):
+            return Response({"detail": CanManageDocumentAccess.message}, status=403)
         try:
             Document.objects.get(pk=document_id)
         except Document.DoesNotExist:

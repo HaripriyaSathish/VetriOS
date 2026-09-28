@@ -36,3 +36,20 @@ class IsSystemAdminOrHR(BasePermission):
             return False
         roles = user.active_role_names()
         return "System Administrator" in roles or "HR Administrator" in roles
+
+
+# Role gate for actually GRANTING/REVOKING document access or changing
+# retention (Manage Access page) — DOCUMENT_CREATE/DOCUMENT_UPDATE alone
+# is too broad here (Employee carries both, for their own everyday
+# document use), so who can control OTHER people's access needs an
+# explicit role check instead. Viewing stays open to anyone with
+# DOCUMENT_VIEW (see CanViewDocuments) — only editing is restricted.
+class CanManageDocumentAccess(BasePermission):
+    message = "System Administrator, HR Administrator, or Business Team role required."
+
+    def has_permission(self, request, view):
+        user = request.user
+        if not (user and user.is_authenticated):
+            return False
+        roles = user.active_role_names()
+        return bool(roles & {"System Administrator", "HR Administrator", "Business Team"})

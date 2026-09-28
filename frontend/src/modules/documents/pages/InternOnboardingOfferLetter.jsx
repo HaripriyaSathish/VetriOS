@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Eye, Download, FolderArchive, UploadCloud, Loader2, RefreshCw, Search } from "lucide-react";
+import { ArrowLeft, Eye, Download, FolderArchive, UploadCloud, Loader2, RefreshCw, Search, Check } from "lucide-react";
 import JSZip from "jszip";
 import client from "../../../api/client";
 import RichTextEditor from "../components/RichTextEditor";
@@ -26,10 +26,12 @@ function offerLetterFilename(fullName) {
 }
 
 // This letter has its own separate letterhead design — not shared with
-// Course Integrated. Nothing exists under this code until the first
-// upload via Step 3's "+ Add new template" claims it (see
-// handleTemplateFileChange), after which it auto-loads here every time.
-const DEFAULT_TEMPLATE_CODE = "VIS_INTERN_ONBOARDING_OFFER";
+// Course Integrated. The DA-seeded template built for this card already
+// carries this code (see V1_Internship_Onboarding_Letter_FINAL); if it's
+// ever missing, the first upload via Step 3's "+ Add new template"
+// claims this code instead (see handleTemplateFileChange), after which
+// it auto-loads here every time.
+const DEFAULT_TEMPLATE_CODE = "INTERNSHIP_ONBOARDING_LETTER";
 
 // Dedicated page for the "Intern Onboarding Offer Letter" card on the AI
 // Document Generator — sent to interns who completed their course, cleared
@@ -85,11 +87,17 @@ function InternOnboardingOfferLetter() {
   }, []);
 
 
-  // No auto-selected default — the admin picks one explicitly every time.
+  // The template built for this card is auto-selected on load so Step 4
+  // starts pre-filled instead of forcing a choice every visit — the
+  // admin can still swap it for a different one.
   useEffect(() => {
     client
       .get("/api/documents/templates/")
-      .then(({ data }) => setTemplateOptions(data))
+      .then(({ data }) => {
+        setTemplateOptions(data);
+        const defaultTemplate = data.find((t) => t.template_code === DEFAULT_TEMPLATE_CODE);
+        if (defaultTemplate) setTemplate(defaultTemplate);
+      })
       .catch(() => {});
   }, []);
 
@@ -452,6 +460,12 @@ function InternOnboardingOfferLetter() {
             </span>
           </div>
           {uploadError && <div className="doc-error">{uploadError}</div>}
+          {!customTemplateName && template?.template_code === DEFAULT_TEMPLATE_CODE && (
+            <p className="doc-default-template-note" style={{ marginTop: 6 }}>
+              <Check size={13} strokeWidth={3} />
+              Default template for this card is chosen.
+            </p>
+          )}
         </div>
       )}
 

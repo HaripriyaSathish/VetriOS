@@ -1,4 +1,30 @@
 @import "tailwindcss";
+
+/* Vetri IT brand theme (from vetriit.com). Use these --vt-* tokens when
+   restyling pages so the whole app moves to one palette. */
+:root {
+  --vt-navy: #002673;
+  --vt-navy-900: #001a52;
+  --vt-navy-700: #0a3591;
+  --vt-orange: #e7510c;
+  --vt-orange-600: #c9450a;
+  --vt-orange-50: #fff1ea;
+  --vt-orange-gradient: linear-gradient(90deg, #e7510c, #ff8a4c);
+  --vt-blue-50: #eef3fc;
+  --vt-tint: #f5f8fd;
+  --vt-white: #fff;
+  --vt-text: #43516b;
+  --vt-muted: #7b88a6;
+  --vt-border: #e3e9f4;
+  --vt-radius: 20px;
+  --vt-radius-sm: 14px;
+  --vt-shadow: 0 10px 30px -12px rgba(0, 38, 115, 0.18);
+  --vt-shadow-lg: 0 24px 60px -20px rgba(0, 38, 115, 0.32);
+  --vt-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --vt-font-head: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --vt-font-body: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
 :root {
   --text: #1f2430;
   --text-h: #08060d;

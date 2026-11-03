@@ -1,7 +1,24 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Eye, EyeOff } from "lucide-react";
+import {
+  ArrowRight,
+  Briefcase,
+  CircleAlert,
+  Eye,
+  EyeOff,
+  FileText,
+  FolderKanban,
+  GraduationCap,
+  Handshake,
+  LoaderCircle,
+  Lock,
+  Mail,
+  ShieldCheck,
+  User,
+  Users,
+} from "lucide-react";
 import client from "../../../api/client";
+import LoginIllustration from "../components/LoginIllustration";
 import "../styles/Login.css";
 
 // Maps a role name to the workspace it unlocks. System Administrator is
@@ -22,6 +39,39 @@ const ROLE_WORKSPACE_MAP = {
   "HR Administrator": { key: "hr", label: "HR Management", path: "/hr" },
   "Project Manager": { key: "project", label: "Project Management", path: "/project/dashboard" },
 };
+
+// Module icons orbiting the VetriOS mark on the brand panel — inner ring
+// spins one way, outer ring the other. `tone` picks the chip gradient.
+const INNER_ORBIT = [
+  { Icon: GraduationCap, label: "Training", tone: "orange" },
+  { Icon: Briefcase, label: "Internship", tone: "blue" },
+  { Icon: Users, label: "HR", tone: "teal" },
+  { Icon: FolderKanban, label: "Projects", tone: "violet" },
+];
+const OUTER_ORBIT = [
+  { Icon: Handshake, label: "Clients", tone: "pink" },
+  { Icon: FileText, label: "Documents", tone: "sunset" },
+  { Icon: Mail, label: "Communication", tone: "blue" },
+  { Icon: ShieldCheck, label: "Identity & Access", tone: "orange" },
+];
+
+function OrbitRing({ items, className }) {
+  return (
+    <div className={`login-orbit-ring ${className}`}>
+      {items.map(({ Icon, label, tone }, index) => (
+        <span
+          key={label}
+          className="login-orbit-item"
+          style={{ "--angle": `${(360 / items.length) * index}deg` }}
+        >
+          <span className={`login-orbit-chip tone-${tone}`} title={label}>
+            <Icon size={20} strokeWidth={2.2} />
+          </span>
+        </span>
+      ))}
+    </div>
+  );
+}
 
 // Sign-in form: POSTs to /api/identity/login/, stores the returned JWT
 // pair, then sends the user on to the right landing page for their role.
@@ -145,73 +195,112 @@ function Login() {
   return (
     <div className="login-screen">
       <div className="login-panel">
+        <span className="login-blob blob-a" aria-hidden="true" />
+        <span className="login-blob blob-b" aria-hidden="true" />
+        <span className="login-grid" aria-hidden="true" />
+
+        <div className="login-orbit" aria-hidden="true">
+          <span className="login-orbit-track track-inner" />
+          <span className="login-orbit-track track-outer" />
+          <OrbitRing items={INNER_ORBIT} className="ring-inner" />
+          <OrbitRing items={OUTER_ORBIT} className="ring-outer" />
+          <div className="login-orbit-core">
+            <span className="login-core-pulse" />
+            <span className="login-core-pulse delay" />
+            <LoginIllustration />
+          </div>
+        </div>
+
         <div className="login-panel-content">
-          <span className="login-mark">V</span>
-          <h1>VetriOS</h1>
+          <span className="login-eyebrow">
+            <span className="login-eyebrow-dot" />
+            Vetri IT Systems · Centralised Hub
+          </span>
+          <h1>
+            One hub for <span>every team.</span>
+          </h1>
           <p>
-            One workspace for documents, communication, HR, and every other
-            module your organization runs on.
+            Training, internships, HR, projects, clients, documents and
+            communication — all running on one shared VetriOS workspace.
           </p>
         </div>
       </div>
 
       <div className="login-form-side">
         <form className="login-card" onSubmit={handleSubmit}>
+          <div className="login-mobile-brand">
+            <span className="login-core-mark small">V</span>
+            <span>VetriOS</span>
+          </div>
+
           <div className="login-card-header">
-            <h2>Sign in</h2>
-            <p>Enter your credentials to continue</p>
+            <h2>Welcome back</h2>
+            <p>Sign in to your VetriOS workspace</p>
           </div>
 
           <label htmlFor="username">Username</label>
-          <input
-            id="username"
-            type="text"
-            value={username}
-            onChange={(event) => setUsername(event.target.value)}
-            autoComplete="username"
-            autoFocus
-            required
-          />
+          <div className="login-field">
+            <User className="login-field-icon" size={18} />
+            <input
+              id="username"
+              type="text"
+              value={username}
+              onChange={(event) => setUsername(event.target.value)}
+              placeholder="Enter your username"
+              autoComplete="username"
+              autoFocus
+              required
+            />
+          </div>
 
           <label htmlFor="password">Password</label>
-          <div style={{ position: "relative" }}>
+          <div className="login-field">
+            <Lock className="login-field-icon" size={18} />
             <input
               id="password"
               type={showPassword ? "text" : "password"}
               value={password}
               onChange={(event) => setPassword(event.target.value)}
+              placeholder="Enter your password"
               autoComplete="current-password"
               required
-              style={{ width: "100%", boxSizing: "border-box", paddingRight: 42 }}
             />
-            {/* Inline styles override the .login-card button rule meant for Sign in */}
             <button
               type="button"
+              className="login-eye"
               onClick={() => setShowPassword((prev) => !prev)}
               aria-label={showPassword ? "Hide password" : "Show password"}
               title={showPassword ? "Hide password" : "Show password"}
-              style={{
-                position: "absolute",
-                right: 8,
-                top: "calc(50% + 3px)",
-                transform: "translateY(-50%)",
-                margin: 0,
-                padding: 4,
-                background: "transparent",
-                color: "#5b6678",
-                display: "flex",
-                alignItems: "center",
-              }}
             >
               {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
           </div>
 
-          {error && <p className="login-error">{error}</p>}
+          {error && (
+            <p className="login-error" role="alert">
+              <CircleAlert size={16} />
+              {error}
+            </p>
+          )}
 
-          <button type="submit" disabled={submitting}>
-            {submitting ? "Signing in…" : "Sign in"}
+          <button type="submit" className="login-submit" disabled={submitting}>
+            {submitting ? (
+              <>
+                <LoaderCircle className="login-spin" size={18} />
+                Signing in…
+              </>
+            ) : (
+              <>
+                Sign in
+                <ArrowRight className="login-submit-arrow" size={18} />
+              </>
+            )}
           </button>
+
+          <p className="login-footnote">
+            <ShieldCheck size={14} />
+            Secure sign-in · Vetri IT Systems
+          </p>
         </form>
       </div>
     </div>

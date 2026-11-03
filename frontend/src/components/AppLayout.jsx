@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { Outlet, useNavigate } from "react-router-dom";
-import { ChevronDown, User, Settings } from "lucide-react";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { ChevronDown, User, Settings, LogOut } from "lucide-react";
 import Sidebar from "./Sidebar";
 import "../components-styles/AppLayout.css";
+import "../modules/student/styles/StudentTheme.css";
 import NotificationBell from "./NotificationBell";
 import AIAssistantWidget from "./AIAssistantWidget";
 import client from "../api/client";
@@ -28,6 +29,7 @@ function displayRoles(roles) {
 
 function AppLayout() {
   const navigate = useNavigate();
+  const location = useLocation();
   const user = JSON.parse(localStorage.getItem("user") || "null");
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
@@ -110,12 +112,13 @@ function AppLayout() {
             </div>
 
             <button className="app-logout" onClick={handleLogout}>
+              <LogOut size={15} />
               Log out
             </button>
           </div>
         </header>
 
-        <div className="app-content">
+        <div className={"app-content" + (location.pathname.startsWith("/student") ? " student-theme" : "")}>
           <Outlet context={{ user }} />
         </div>
       </div>

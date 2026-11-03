@@ -2,13 +2,16 @@
   box-sizing: border-box;
   width: 250px;
   flex: none;
-  background: #163c52;
+  /* Navy gradient with the two-tone wave from the Figma design at the bottom */
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 250 160'%3E%3Cpath d='M0 60 C60 20 120 100 250 40 L250 160 L0 160Z' fill='%230a3591' fill-opacity='.55'/%3E%3Cpath d='M0 100 C80 60 150 140 250 90 L250 160 L0 160Z' fill='%23001a52' fill-opacity='.7'/%3E%3C/svg%3E") bottom / 100% auto no-repeat,
+    linear-gradient(180deg, var(--vt-navy-700) 0%, var(--vt-navy) 55%, var(--vt-navy-900) 100%);
   color: #dce7ee;
   padding: 18px 12px;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  font-family: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--vt-font-body);
   position: sticky;
   top: 0;
   align-self: flex-start;
@@ -35,20 +38,35 @@
   justify-content: center;
   width: 30px;
   height: 30px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 9px;
+  background: var(--vt-orange-gradient);
+  box-shadow: 0 6px 14px -6px rgba(231, 81, 12, 0.8);
   color: #fff;
-  font-weight: 700;
-  font-family: "Sora", sans-serif;
-  font-size: 13px;
+  font-weight: 800;
+  font-family: var(--vt-font-head);
+  font-size: 14px;
 }
 
 .sidebar-brand-name {
   color: #fff;
-  font-family: "Sora", sans-serif;
-  font-weight: 700;
-  font-size: 15px;
+  font-family: var(--vt-font-head);
+  font-weight: 800;
+  font-size: 19px;
+  letter-spacing: 0.02em;
+}
+
+.sidebar-logo {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 50%;
+  background: #fff;
+  object-fit: contain;
+  box-shadow: 0 6px 14px -6px rgba(0, 0, 0, 0.5);
+}
+
+.sidebar-brand-accent {
+  color: var(--vt-orange);
 }
 
 .nav-group-label {
@@ -65,16 +83,18 @@
   align-items: center;
   gap: 10px;
   padding: 9px 12px;
-  border-radius: 7px;
+  border-radius: 12px;
   font-size: 15px;
   font-weight: 500;
   cursor: pointer;
   color: #ffffff;
   text-decoration: none;
+  transition: background 0.2s ease, transform 0.25s var(--vt-ease), box-shadow 0.25s ease;
 }
 
 .sidebar .nav-item:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.08);
+  transform: translateX(3px);
 }
 
 .sidebar .nav-count-badge {
@@ -94,9 +114,44 @@
 }
 
 .sidebar .nav-item.active {
-  background: #235777;
+  background: var(--vt-orange-gradient);
   color: #fff;
   font-weight: 600;
+  box-shadow: 0 10px 20px -10px rgba(231, 81, 12, 0.9);
+}
+
+/* Figma image icons (or their lucide fallback) — bounce on hover/active */
+.nav-icon.nav-icon-img {
+  width: 26px;
+  height: 26px;
+}
+
+.nav-icon-img img,
+.nav-icon-img svg {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+  filter: drop-shadow(0 3px 4px rgba(0, 10, 40, 0.35));
+}
+
+.sidebar .nav-item:hover .nav-icon-img,
+.sidebar .nav-item.active .nav-icon-img {
+  animation: nav-icon-bounce 0.6s var(--vt-ease);
+}
+
+@keyframes nav-icon-bounce {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.22) rotate(-8deg); }
+  70% { transform: scale(0.95) rotate(4deg); }
+  100% { transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar .nav-item,
+  .sidebar .nav-icon-img {
+    animation: none !important;
+    transition: none !important;
+  }
 }
 
 .nav-icon {
@@ -165,7 +220,7 @@
 
 .sidebar .nav-subitem.active,
 .sidebar .nav-sub-item.active {
-  background: #235777;
+  background: var(--vt-orange-gradient);
   color: #fff;
   font-weight: 600;
 }

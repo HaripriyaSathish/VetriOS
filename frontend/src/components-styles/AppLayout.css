@@ -2,7 +2,7 @@
   min-height: 100vh;
   width: 100%;
   display: flex;
-  background: #f5f7fa;
+  background: var(--vt-tint);
 }
 
 .app-main {
@@ -23,7 +23,7 @@
   padding: 14px 28px;
   background: #fff;
   border-bottom: 1px solid #e2e6ed;
-  font-family: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--vt-font-body);
 }
 
 .app-topbar-empcode {
@@ -78,7 +78,7 @@
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: #2563eb;
+  background: linear-gradient(135deg, var(--vt-navy-700), #2689ef);
   color: #fff;
   display: inline-flex;
   align-items: center;
@@ -154,21 +154,35 @@
 }
 
 .app-logout {
-  border: 1px solid #c2cad8;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1.5px solid var(--vt-orange);
   background: #fff;
-  color: #3a4152;
+  color: var(--vt-navy);
+  font-family: inherit;
   font-size: 13px;
   font-weight: 600;
   padding: 8px 16px;
-  border-radius: 8px;
+  border-radius: 10px;
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.25s var(--vt-ease);
+}
+
+.app-logout svg {
+  color: var(--vt-orange);
+  transition: transform 0.25s var(--vt-ease), color 0.2s ease;
 }
 
 .app-logout:hover {
-  background: #fbe7e5;
-  border-color: #e3a8a3;
-  color: #96271f;
+  background: var(--vt-orange-gradient);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.app-logout:hover svg {
+  color: #fff;
+  transform: translateX(3px);
 }
 
 .app-content {

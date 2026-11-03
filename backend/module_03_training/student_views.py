@@ -9,6 +9,20 @@ from local_extensions.models import Task, StudentTask, Message
 from .student_permissions import IsStudent, get_student_enrollment
 
 
+def course_completion_percent(batch):
+    """How far today is through the batch's run, from existing columns
+    only: start_date -> end_date, or the course's duration_days when the
+    batch has no end date yet. None when neither is known."""
+    if batch.end_date:
+        course_days = (batch.end_date - batch.start_date).days
+    else:
+        course_days = batch.course.duration_days
+    if not course_days or course_days <= 0:
+        return None
+    elapsed = (date.today() - batch.start_date).days
+    return max(0, min(100, round(elapsed / course_days * 100)))
+
+
 class StudentDashboardView(APIView):
     permission_classes = [IsAuthenticated, IsStudent]
 
@@ -41,11 +55,14 @@ class StudentDashboardView(APIView):
 
         unread_messages = Message.objects.filter(recipient=request.user, is_read=False).count()
 
+        course_completion_pct = course_completion_percent(batch)
+
         return Response({
             "batch_name": batch.batch_name,
             "course_name": batch.course.course_name,
             "trainer_name": trainer_name,
             "attendance_percent": attendance_pct,
+            "course_completion_percent": course_completion_pct,
             "pending_tasks_count": pending_count,
             "overdue_tasks_count": overdue_count,
             "unread_messages": unread_messages,
@@ -61,10 +78,15 @@ class StudentAttendanceListView(APIView):
             return Response({"detail": "Not enrolled in any active batch."}, status=404)
 
         records = StudentAttendance.objects.filter(enrollment=enrollment).order_by("-attendance_date")
+        course_name = enrollment.batch.course.course_name
         return Response([
             {
                 "attendance_date": r.attendance_date,
                 "attendance_status": r.attendance_status,
+                # Existing columns, read-only — trainers record these.
+                "check_in_time": r.check_in_time,
+                "check_out_time": r.check_out_time,
+                "course_name": course_name,
             }
             for r in records
         ])

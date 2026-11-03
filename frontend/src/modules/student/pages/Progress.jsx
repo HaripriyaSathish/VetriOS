@@ -1,73 +1,105 @@
 import { useEffect, useState } from "react";
+import { BookOpen, ClipboardCheck, Timer, Check, CircleDot, Circle, ChevronRight } from "lucide-react";
 import client from "../../../api/client";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
+import ScoreRing from "../components/ScoreRing";
+import "../styles/StudentDashboard.css";
+import "../styles/StudentPages.css";
+import "../styles/Progress.css";
 
-const COLORS = { PRESENT: "#0a3591", ABSENT: "#e7510c" };
+function formatDuration(minutes) {
+  if (!minutes) return "0h 0m";
+  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+}
+
+function ModuleState({ percent }) {
+  if (percent >= 100) return <span className="pg-state done"><Check size={13} strokeWidth={3} /></span>;
+  if (percent > 0) return <span className="pg-state doing"><CircleDot size={13} strokeWidth={2.6} /></span>;
+  return <span className="pg-state todo"><Circle size={12} strokeWidth={2.6} /></span>;
+}
 
 function Progress() {
-  const [assignments, setAssignments] = useState([]);
-  const [attendance, setAttendance] = useState([]);
-  const [loaded, setLoaded] = useState(false);
+  const [data, setData] = useState(null);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    Promise.all([
-      client.get("/api/student/assignments/"),
-      client.get("/api/student/attendance/"),
-    ]).then(([a, att]) => { setAssignments(a.data); setAttendance(att.data); }).finally(() => setLoaded(true));
+    client.get("/api/student/progress/")
+      .then(({ data }) => setData(data))
+      .catch((err) => setError(err.response?.data?.detail || "Couldn't load your progress."));
   }, []);
 
-  if (!loaded) return <p className="p-6 text-gray-400">Loading…</p>;
+  if (error) return <p className="sd-loading">{error}</p>;
+  if (!data) return <p className="sd-loading">Loading…</p>;
 
-  const scoreData = assignments
-    .filter((a) => a.score != null)
-    .sort((a, b) => new Date(a.submission_date) - new Date(b.submission_date))
-    .map((a) => ({ label: a.title.length > 12 ? a.title.slice(0, 12) + "…" : a.title, score: a.score }));
-
-  const present = attendance.filter((r) => r.attendance_status === "PRESENT").length;
-  const absent = attendance.filter((r) => r.attendance_status === "ABSENT").length;
-  const pieData = [
-    { name: "Present", value: present, key: "PRESENT" },
-    { name: "Absent", value: absent, key: "ABSENT" },
-  ].filter((d) => d.value > 0);
+  const facts = [
+    {
+      Icon: BookOpen, label: "Completed Lessons", hint: "Recorded and live sessions",
+      value: data.lessons_completed, total: data.lessons_total,
+    },
+    {
+      Icon: ClipboardCheck, label: "Completed Assessments", hint: "Quizzes & practical exams",
+      value: data.assessments_completed, total: data.assessments_total,
+    },
+    {
+      Icon: Timer, label: "Total Time Spent", hint: "Learning duration logged",
+      value: formatDuration(data.time_spent_minutes),
+    },
+  ];
 
   return (
-    <div className="p-6 max-w-4xl mx-auto flex flex-col gap-6">
-      <h1 className="text-2xl font-bold text-gray-900">My Progress</h1>
+    <div className="sd-page pg-page">
+      <div className="sp-head">
+        <div>
+          <h1 className="sp-title">My Progress</h1>
+          <p className="sp-sub">Track your learning journey and achievements.</p>
+        </div>
+        <span className="sp-chip">{data.course_name}</span>
+      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        <div className="bg-white border border-gray-200 rounded-xl p-5">
-          <p className="font-semibold text-gray-900 mb-3">Score Trend</p>
-          {scoreData.length === 0 ? (
-            <p className="text-sm text-gray-400">No graded tasks yet.</p>
-          ) : (
-            <ResponsiveContainer width="100%" height={220}>
-              <LineChart data={scoreData} margin={{ top: 8, right: 16, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e3e9f4" />
-                <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#7b88a6" }} axisLine={false} tickLine={false} />
-                <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: "#7b88a6" }} axisLine={false} tickLine={false} />
-                <Tooltip formatter={(v) => [`${v} / 100`, "Score"]} />
-                <Line type="monotone" dataKey="score" stroke="#e7510c" strokeWidth={3} dot={{ r: 5, fill: "#0a3591", strokeWidth: 0 }} activeDot={{ r: 7 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          )}
+      <div className="pg-top">
+        <div className="sp-card pg-ring-card" style={{ "--delay": "0.08s" }}>
+          <ScoreRing percent={data.course_progress_percent} size={140} stroke={22} color="#0a3591" track="#e3e9f4" />
+          <p className="pg-ring-label">Course Progress</p>
         </div>
 
-        <div className="bg-white border border-gray-200 rounded-xl p-5">
-          <p className="font-semibold text-gray-900 mb-3">Attendance Breakdown</p>
-          {pieData.length === 0 ? (
-            <p className="text-sm text-gray-400">No attendance data yet.</p>
-          ) : (
-            <ResponsiveContainer width="100%" height={220}>
-              <PieChart>
-                <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={50} outerRadius={80} paddingAngle={3}>
-                  {pieData.map((d) => <Cell key={d.key} fill={COLORS[d.key]} />)}
-                </Pie>
-                <Tooltip />
-                <Legend verticalAlign="bottom" height={28} />
-              </PieChart>
-            </ResponsiveContainer>
-          )}
+        <div className="sp-card pg-facts" style={{ "--delay": "0.14s" }}>
+          {facts.map(({ Icon, label, hint, value, total }, i) => (
+            <div key={label} className="pg-fact" style={{ "--i": i }}>
+              <span className="pg-fact-icon"><Icon size={15} /></span>
+              <div className="pg-fact-text">
+                <p className="pg-fact-label">{label}</p>
+                <p className="pg-fact-hint">{hint}</p>
+              </div>
+              <p className="pg-fact-value">
+                {value}
+                {total != null && <span> / {total}</span>}
+              </p>
+            </div>
+          ))}
         </div>
+      </div>
+
+      <div className="sp-card" style={{ "--delay": "0.2s" }}>
+        <p className="sp-card-title">Course Modules</p>
+        {data.modules.length === 0 ? (
+          <p className="sd-empty">No modules have been set up for this course yet.</p>
+        ) : (
+          <div className="pg-modules">
+            {data.modules.map((m, i) => (
+              <div key={m.module_id} className="pg-module" style={{ "--i": i }}>
+                <ModuleState percent={m.progress_percent} />
+                <p className="pg-module-name" title={m.module_name}>{m.module_name}</p>
+                <div className="sp-bar pg-module-bar">
+                  <span style={{ width: `${m.progress_percent}%`, "--i": i }} />
+                </div>
+                <p className="pg-module-pct">{m.progress_percent}%</p>
+                <span className="pg-module-tasks" title="Tasks submitted in this module">
+                  {m.tasks_submitted}/{m.tasks_total}
+                </span>
+                <ChevronRight size={15} className="pg-chevron" />
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

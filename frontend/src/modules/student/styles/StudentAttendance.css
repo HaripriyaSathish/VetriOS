@@ -1,0 +1,200 @@
+/* My Attendance — after the VETRI OS Figma attendance screen. Shares the
+   banner / panel / range-picker styles in StudentDashboard.css. */
+
+.sa-hero-title { font-size: 28px; }
+
+/* ---------- Overall attendance + illustration row ---------- */
+.sa-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: 18px;
+}
+
+.sa-overall {
+  padding: 20px 24px;
+  background: var(--vt-white);
+  border: 1px solid var(--vt-border);
+  border-radius: var(--vt-radius);
+  box-shadow: var(--vt-shadow);
+  animation: sd-rise 0.6s var(--vt-ease) 0.1s both;
+  transition: transform 0.3s var(--vt-ease), box-shadow 0.3s ease;
+}
+
+.sa-overall:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--vt-shadow-lg);
+}
+
+.sa-card-title {
+  margin: 0 0 12px;
+  font-family: var(--vt-font-head);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--vt-navy);
+}
+
+.sa-overall-body {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  flex-wrap: wrap;
+}
+
+.sa-ring-track { stroke: var(--vt-blue-50); }
+.sa-ring-value {
+  stroke: #2689ef;
+  transition: stroke-dashoffset 1.2s var(--vt-ease);
+}
+.sa-ring-text {
+  font-family: var(--vt-font-head);
+  font-size: 24px;
+  font-weight: 800;
+  fill: var(--vt-navy);
+}
+
+.sa-stats {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 170px;
+}
+
+.sa-stats li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13.5px;
+  color: var(--vt-text);
+}
+
+.sa-stats b {
+  margin-left: auto;
+  padding-left: 20px;
+  font-family: var(--vt-font-head);
+  font-size: 15px;
+  color: var(--vt-navy);
+}
+
+.sa-dot {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #fff;
+}
+
+.sa-dot-present { background: #16a34a; }
+.sa-dot-absent { background: #e0351c; }
+.sa-dot-late { background: var(--vt-orange); }
+.sa-dot-total {
+  border-radius: 6px;
+  background: var(--vt-blue-50);
+  color: var(--vt-navy-700);
+}
+
+/* Illustration panel (where the design's Check In card sits — trainees
+   don't mark their own attendance, so this is decorative only). */
+.sa-art-panel {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 150px;
+  padding: 12px;
+  border-radius: var(--vt-radius);
+  background: linear-gradient(135deg, var(--vt-blue-50), #f7f9fe);
+  border: 1px solid var(--vt-border);
+  overflow: hidden;
+  animation: sd-rise 0.6s var(--vt-ease) 0.18s both;
+}
+
+.sa-art-dots {
+  position: absolute;
+  top: 14px;
+  right: 18px;
+  width: 44px;
+  height: 14px;
+  background-image: radial-gradient(#9fb4d9 1.4px, transparent 1.4px);
+  background-size: 9px 7px;
+}
+
+.sa-art-panel .calendar-illustration {
+  width: 230px;
+  max-width: 100%;
+}
+
+/* ---------- Attendance history table ---------- */
+.sa-table-wrap {
+  overflow-x: auto;
+}
+
+.sa-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+.sa-table thead th {
+  padding: 14px 16px;
+  background: var(--vt-tint);
+  text-align: left;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--vt-navy);
+  white-space: nowrap;
+}
+
+.sa-table thead th:first-child { border-radius: 12px 0 0 12px; padding-left: 28px; }
+.sa-table thead th:last-child { border-radius: 0 12px 12px 0; }
+
+.sa-table tbody td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--vt-border);
+  color: var(--vt-text);
+  vertical-align: middle;
+}
+
+.sa-table tbody tr {
+  animation: sd-rise 0.45s var(--vt-ease) both;
+  animation-delay: calc(0.25s + var(--row, 0) * 0.05s);
+  transition: background 0.2s ease;
+}
+
+.sa-table tbody tr:hover { background: var(--vt-tint); }
+.sa-table tbody tr:last-child td { border-bottom: none; }
+
+.sa-table td.sa-date {
+  padding-left: 28px;
+  font-weight: 700;
+  color: var(--vt-navy);
+  max-width: 90px;
+}
+
+.sa-table td.sa-course {
+  font-weight: 600;
+  color: var(--vt-navy);
+}
+
+.sa-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.sa-pill-present { background: #e9f8ef; border-color: #b7e4c7; color: #16a34a; }
+.sa-pill-absent { background: #fdecec; border-color: #f7c9c5; color: #d92d20; }
+.sa-pill-late { background: var(--vt-orange-50); border-color: #ffd2b8; color: var(--vt-orange-600); }
+@media (max-width: 900px) {
+  .sa-top { grid-template-columns: 1fr; }
+}

@@ -215,8 +215,100 @@
 .sd-card:hover .sd-card-blob { transform: scale(1.6); }
 
 .sd-card-ring {
+  flex-direction: row;
   align-items: center;
   justify-content: center;
+  gap: 14px;
+}
+
+.sd-card-ring .sd-ring {
+  width: 92px;
+  height: 92px;
+  flex: none;
+}
+
+.sd-ring-label {
+  margin: 0;
+  font-family: var(--vt-font-head);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--vt-navy);
+}
+
+.sd-hero-sub {
+  margin: 10px 0 0;
+  max-width: 440px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.sd-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.sd-panel-head .sd-panel-title { margin: 0; }
+
+.sd-panel-chip {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--vt-orange-50);
+  color: var(--vt-orange-600);
+  font-family: var(--vt-font-body);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* "Last 10 Days" picker, pill-shaped like the design */
+.sd-range {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  border: 1px solid var(--vt-border);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--vt-navy-700);
+  box-shadow: 0 4px 10px -6px rgba(0, 38, 115, 0.3);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.sd-range:hover,
+.sd-range:focus-within {
+  border-color: var(--vt-navy-700);
+  box-shadow: 0 0 0 3px rgba(10, 53, 145, 0.1);
+}
+
+.sd-panel .sd-range select {
+  appearance: none;
+  border: none;
+  background: transparent;
+  padding: 7px 14px 7px 0;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--vt-navy);
+  cursor: pointer;
+  outline: none;
+}
+
+.sd-range::after {
+  content: "";
+  position: absolute;
+  right: 12px;
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid var(--vt-navy);
+  border-bottom: 1.5px solid var(--vt-navy);
+  transform: translateY(-2px) rotate(45deg);
+  pointer-events: none;
 }
 
 .sd-card-icon {
@@ -371,4 +463,74 @@
     animation: none !important;
     transition: none !important;
   }
+}
+
+/* ---------- Calendar illustration motion ---------- */
+.calendar-illustration .ci-calendar {
+  animation: sd-float 4.5s ease-in-out infinite;
+}
+
+.calendar-illustration .ci-tick {
+  stroke-dasharray: 20;
+  stroke-dashoffset: 20;
+  animation: ci-draw 0.5s ease forwards;
+}
+
+.calendar-illustration .ci-hand {
+  transform-box: view-box;
+  transform-origin: 160px 124px;
+  animation: ci-spin 6s linear infinite;
+}
+
+.calendar-illustration .ci-leaves {
+  transform-box: view-box;
+  transform-origin: 170px 124px;
+  animation: ci-sway 3.2s ease-in-out infinite alternate;
+}
+
+.calendar-illustration .ci-blob {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ci-pulse 4s ease-in-out infinite;
+}
+
+.calendar-illustration .ci-text {
+  font-family: "Segoe Script", "Brush Script MT", var(--vt-font-head), cursive;
+  font-size: 19px;
+  font-weight: 800;
+  fill: var(--vt-navy);
+}
+
+.calendar-illustration .ci-text-2 { fill: var(--vt-orange); }
+
+@keyframes ci-draw { to { stroke-dashoffset: 0; } }
+@keyframes ci-spin { to { transform: rotate(360deg); } }
+@keyframes ci-sway {
+  from { transform: rotate(-4deg); }
+  to { transform: rotate(4deg); }
+}
+@keyframes ci-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
+
+
+/* Chart + "Show up, Learn, Grow" illustration side by side (Figma) */
+.sd-chart-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 240px;
+  align-items: center;
+  gap: 18px;
+}
+
+.sd-chart { min-width: 0; }
+
+.sd-chart-art .calendar-illustration {
+  width: 100%;
+  max-width: 240px;
+}
+
+@media (max-width: 900px) {
+  .sd-chart-row { grid-template-columns: 1fr; }
+  .sd-chart-art { display: none; }
 }

@@ -16,11 +16,13 @@ class StudentRecordingListView(APIView):
 
         views = RecordingView.objects.filter(enrollment=enrollment).select_related("recording").order_by("-recording__date")
         base_url = request.build_absolute_uri("/").rstrip("/")
+        course_name = enrollment.batch.course.course_name
 
         return Response([
             {
                 "recording_id": v.recording.recording_id,
                 "title": v.recording.title,
+                "course_name": course_name,
                 "date": v.recording.date,
                 "notes": v.recording.notes,
                 "watched": v.clicked,

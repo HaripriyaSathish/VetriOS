@@ -1,5 +1,6 @@
 import TrainerDashboard from "./TrainingDashboard";
 import TrainingManagement from "./TrainingManagement";
+import BusinessDashboard from "./BusinessDashboard";
 
 // The sidebar's single "Training" link lands everyone on /training, but
 // what should actually render depends entirely on who's logged in:
@@ -17,6 +18,11 @@ function TrainingRouter() {
   // Someone holding both an Employee role and an admin-type role (a
   // trainer who's also a Manager, say) sees the fuller management view —
   // it's a superset of what the trainer dashboard shows.
+  // Business Team gets their operations dashboard; the all-batches /
+  // all-trainers tables stay one click away at /training/management.
+  if (roles.includes("Business Team") && !roles.includes("System Administrator")) {
+    return <BusinessDashboard />;
+  }
   if (isManagementUser) return <TrainingManagement />;
   if (isTrainer) return <TrainerDashboard />;
 

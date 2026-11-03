@@ -1,0 +1,111 @@
+/* Assign Reporting Manager — Business Team Figma. */
+
+.am-inline { width: 26px; height: 26px; border-radius: 8px; margin-right: 6px; vertical-align: middle; }
+
+.bp-stat-label:has(.am-inline) { display: flex; align-items: center; }
+
+.am-small {
+  font-family: var(--vt-font-body);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--vt-muted);
+}
+
+.am-glow { position: relative; overflow: hidden; isolation: isolate; }
+
+.am-glow::after {
+  content: "";
+  position: absolute;
+  right: -30px;
+  bottom: -30px;
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  background: var(--vt-orange-50);
+  z-index: -1;
+  animation: am-breathe 4s ease-in-out infinite;
+}
+
+.am-name { text-decoration: none; display: inline-block; }
+.am-name:hover { color: var(--vt-orange); }
+
+.am-batch { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--vt-navy); }
+.am-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--vt-navy-700); }
+
+.am-project {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border-radius: 8px;
+  background: var(--vt-tint);
+  border: 1px solid var(--vt-border);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--vt-navy);
+}
+
+.am-select select { min-width: 190px; }
+
+.am-note { display: inline-flex; align-items: center; gap: 6px; }
+
+.am-capacity-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.am-capacity-head h3 {
+  margin: 0;
+  font-family: var(--vt-font-head);
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--vt-navy);
+}
+
+.am-capacity {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.am-mentor {
+  padding: 16px 18px;
+  border-radius: var(--vt-radius-sm);
+  background: var(--vt-white);
+  border: 1px solid var(--vt-border);
+  box-shadow: var(--vt-shadow);
+  animation: bp-rise 0.5s var(--vt-ease) both;
+  animation-delay: calc(0.3s + var(--i, 0) * 0.06s);
+  transition: transform 0.3s var(--vt-ease), box-shadow 0.3s ease;
+}
+
+.am-mentor:hover { transform: translateY(-3px); box-shadow: var(--vt-shadow-lg); }
+
+.am-mentor-top { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.am-mentor-top > div { flex: 1; min-width: 0; }
+
+.am-load {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  font-size: 11.5px;
+  color: var(--vt-muted);
+}
+
+.am-load b { color: var(--vt-navy); }
+
+.am-names {
+  margin: 10px 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11.5px;
+  color: var(--vt-muted);
+}
+
+@keyframes am-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.25); }
+}

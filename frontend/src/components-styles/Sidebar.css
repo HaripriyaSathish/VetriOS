@@ -252,3 +252,75 @@
 }
 
 .sidebar-art .login-cartoon .lc-bubble { display: none; }
+
+/* Brand name + "Learn · Grow · Succeed" tagline (Business Team Figma) */
+.sidebar-brand-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.sidebar-tagline {
+  margin-top: 1px;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* Business Team sidebar: three students around a laptop */
+.sidebar-art.team .team-cartoon { width: 200px; height: auto; }
+
+.team-cartoon .ti-person { animation: ti-bob 3.6s ease-in-out infinite; }
+.team-cartoon .ti-middle { animation-delay: 0.3s; }
+
+.team-cartoon .ti-eyes {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ti-blink 4.2s infinite;
+}
+
+.team-cartoon .ti-wave {
+  transform-box: view-box;
+  transform-origin: 76px 120px;
+  animation: ti-wave 1.6s ease-in-out infinite;
+}
+
+.team-cartoon .ti-screen { animation: ti-glow 2.4s ease-in-out infinite alternate; }
+
+.team-cartoon .ti-spark {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ti-twinkle 2.2s ease-in-out infinite;
+}
+
+.team-cartoon .ti-spark.s2 { animation-delay: 1.1s; }
+
+@keyframes ti-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+@keyframes ti-blink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  95% { transform: scaleY(0.1); }
+}
+
+@keyframes ti-wave {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(16deg); }
+}
+
+@keyframes ti-glow {
+  from { fill: #2689ef; }
+  to { fill: #5aa6ff; }
+}
+
+@keyframes ti-twinkle {
+  0%, 100% { transform: scale(0.6) rotate(0deg); opacity: 0.5; }
+  50% { transform: scale(1.15) rotate(45deg); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .team-cartoon * { animation: none !important; }
+}

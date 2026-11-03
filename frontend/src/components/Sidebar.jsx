@@ -33,10 +33,21 @@ import {
   Mail,
   Send,
   CheckCircle2,
+  LayoutGrid,
+  BadgeQuestionMark,
+  WalletCards,
+  BadgeCheck,
+  SquareCheckBig,
+  UserCog,
+  CirclePlus,
+  MailCheck,
+  Mails,
+  RotateCcwClock,
 } from "lucide-react";
 import { NAV_ITEMS, hasAccess } from "../config/nav";
 import { figmaImage } from "../assets/figmaImages";
 import LoginIllustration from "../modules/identity-access/components/LoginIllustration";
+import TeamIllustration from "./TeamIllustration";
 import {
   ShieldIcon, GraduateIcon, CalendarIcon, ChatIcon, ClipboardIcon,
   ProgressIcon, NotebookIcon, VideoIcon, ReportIcon,
@@ -152,6 +163,11 @@ function Sidebar() {
   const isTraineeView =
     !isSystemAdministrator && !isIntern && activeWorkspace === "student" && hasAccess(studentRequirement, user);
 
+  // Business Team (Training workspace) gets the flat menu from the
+  // Business Team Figma instead of the collapsible groups below.
+  const isBusinessView =
+    !isSystemAdministrator && activeWorkspace === "training" && (user?.roles || []).includes("Business Team");
+
   const isOnSysAdminPage = SYSADMIN_PATHS.some((path) => location.pathname.startsWith(path));
   const [sysAdminOpen, setSysAdminOpen] = useState(isOnSysAdminPage);
 
@@ -207,15 +223,93 @@ function Sidebar() {
         ) : (
           <span className="sidebar-mark">V</span>
         )}
-        <span className="sidebar-brand-name">
-          Vetri-<span className="sidebar-brand-accent">AI-OS</span>
+        <span className="sidebar-brand-text">
+          <span className="sidebar-brand-name">
+            Vetri-<span className="sidebar-brand-accent">AI-OS</span>
+          </span>
+          <span className="sidebar-tagline">Learn · Grow · Succeed</span>
         </span>
       </div>
+
+      {isBusinessView && (
+        <>
+          <NavLink to="/training" end className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+            <span className="nav-icon"><LayoutGrid size={17} /></span> Dashboard
+          </NavLink>
+          <NavLink to="/training/students" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+            <span className="nav-icon"><Users size={17} /></span> All Students
+          </NavLink>
+          <NavLink to="/training/enquiries" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+            <span className="nav-icon"><BadgeQuestionMark size={17} /></span> Enquiries
+          </NavLink>
+          <NavLink to="/training/fee-conversion" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+            <span className="nav-icon"><WalletCards size={17} /></span> Fee &amp; Conversion
+          </NavLink>
+          <NavLink to="/training/internship-approvals" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+            <span className="nav-icon"><BadgeCheck size={17} /></span> Internship Approvals
+          </NavLink>
+          <NavLink to="/training/completion-extension-approvals" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+            <span className="nav-icon"><SquareCheckBig size={17} /></span> Completion &amp; Extension Approvals
+          </NavLink>
+          <NavLink to="/training/assign-reporting-manager" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+            <span className="nav-icon"><UserCog size={17} /></span> Assign Reporting Manager
+          </NavLink>
+          <NavLink to="/training/batches/new" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+            <span className="nav-icon"><CirclePlus size={17} /></span> New Batch
+          </NavLink>
+          <NavLink to="/training/welcome-emails" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+            <span className="nav-icon"><MailCheck size={17} /></span> Welcome Emails
+          </NavLink>
+
+          <button
+            type="button"
+            className={"nav-item nav-group-toggle" + (emailOpen ? " open" : "")}
+            onClick={() => setEmailOpen((prev) => !prev)}
+          >
+            <span className="nav-icon"><Mail size={17} /></span>
+            Email
+            <span className="nav-chevron"><ChevronDown size={14} /></span>
+          </button>
+          {emailOpen && (
+            <div className="nav-subgroup">
+              <NavLink to="/email" end className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
+                <span className="nav-icon"><LayoutDashboard size={14} /></span> Overview
+              </NavLink>
+              <NavLink to="/email/compose" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
+                <span className="nav-icon"><Send size={14} /></span> Compose
+              </NavLink>
+              {canSeeEmailBulk && (
+                <NavLink to="/email/batches" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
+                  <span className="nav-icon"><Mails size={14} /></span> Bulk email
+                </NavLink>
+              )}
+            </div>
+          )}
+
+          <NavLink to="/audit" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+            <span className="nav-icon"><RotateCcwClock size={17} /></span> Audit Logs
+          </NavLink>
+          {canSeeDocuments && (
+            <>
+              <NavLink to="/documents" end className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+                <span className="nav-icon"><Library size={17} /></span> Document Library
+              </NavLink>
+              <NavLink to="/documents/ai-generator" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+                <span className="nav-icon"><Sparkles size={17} /></span> Generate
+              </NavLink>
+            </>
+          )}
+          <NavLink to="/request-access" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+            <span className="nav-icon"><KeyRound size={17} /></span> Request Access
+            {pendingRequestCount > 0 && <span className="nav-count-badge">{pendingRequestCount}</span>}
+          </NavLink>
+        </>
+      )}
 
       {/* Unconditional — every role (Employee, Trainer, any admin) can
           ask a specific admin for a permission, so this sits above every
           role-gated group rather than living inside one of them. */}
-      {!isTraineeView && (
+      {!isTraineeView && !isBusinessView && (
         <NavLink
           to="/request-access"
           className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
@@ -229,7 +323,7 @@ function Sidebar() {
       {/* Audit Logs — Business Team operates it day-to-day, System
           Administrator gets the same view for oversight. Not tied to
           any workspace, so it sits standalone like Request access. */}
-      {hasAccess(auditRequirement, user) && (
+      {!isBusinessView && hasAccess(auditRequirement, user) && (
         <NavLink
           to="/audit"
           className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
@@ -241,7 +335,7 @@ function Sidebar() {
         </NavLink>
       )}
 
-      {!isSystemAdministrator && !isTraineeView && (
+      {!isSystemAdministrator && !isTraineeView && !isBusinessView && (
         <NavLink
           to="/dashboard"
           className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
@@ -253,7 +347,7 @@ function Sidebar() {
         </NavLink>
       )}
 
-      {!isSystemAdministrator && !isIntern && !!user?.employee_code && (
+      {!isSystemAdministrator && !isBusinessView && !isIntern && !!user?.employee_code && (
         <>
           <NavLink
             to="/my/attendance"
@@ -277,7 +371,7 @@ function Sidebar() {
         </>
       )}
 
-      {!isSystemAdministrator && !isIntern && !!user?.employee_code && (
+      {!isSystemAdministrator && !isBusinessView && !isIntern && !!user?.employee_code && (
         <NavLink
           to="/my/worklog"
           className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
@@ -500,7 +594,7 @@ function Sidebar() {
         </>
       )}
 
-      {canSeeDocuments && (
+      {canSeeDocuments && !isBusinessView && (
         <>
           <button
             type="button"
@@ -555,7 +649,7 @@ function Sidebar() {
         </>
       )}
 
-      {canSeeEmail && !isTraineeView && (
+      {canSeeEmail && !isTraineeView && !isBusinessView && (
         <>
           <button
             type="button"
@@ -610,7 +704,7 @@ function Sidebar() {
         </>
       )}
 
-      {inWorkspace("training") && trainingItem && hasAccess(trainingItem.requirement, user) && (
+      {!isBusinessView && inWorkspace("training") && trainingItem && hasAccess(trainingItem.requirement, user) && (
         <>
           <button
             type="button"
@@ -715,7 +809,7 @@ function Sidebar() {
         </>
       )}
 
-      {inWorkspace("training") && hasAccess(businessTeamRequirement, user) && (
+      {!isBusinessView && inWorkspace("training") && hasAccess(businessTeamRequirement, user) && (
         <>
           <button
             type="button"
@@ -980,6 +1074,11 @@ function Sidebar() {
       {isTraineeView && (
         <div className="sidebar-art" aria-hidden="true">
           <LoginIllustration />
+        </div>
+      )}
+      {isBusinessView && (
+        <div className="sidebar-art team" aria-hidden="true">
+          <TeamIllustration />
         </div>
       )}
     </aside>

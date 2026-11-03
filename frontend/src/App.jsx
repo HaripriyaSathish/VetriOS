@@ -8,6 +8,7 @@ import Permissions from "./modules/identity-access/pages/Permissions";
 import UserPermissions from "./modules/identity-access/pages/UserPermissions";
 import RequestAccess from "./modules/identity-access/pages/RequestAccess";
 import TrainingRouter from "./modules/training/pages/TrainingRouter";
+import TrainingManagement from "./modules/training/pages/TrainingManagement";
 import HRDashboard from "./modules/hr/pages/HRDashboard";
 import HROverview from "./modules/hr/pages/HROverview";
 import Attendance from "./modules/hr/pages/Attendance";
@@ -232,6 +233,11 @@ function App() {
         <Route path="/training" element={
           <PermissionGate requirement={{ type: "perm", value: "TRAINING_VIEW" }}>
             <TrainingRouter />
+          </PermissionGate>
+        } />
+        <Route path="/training/management" element={
+          <PermissionGate requirement={{ type: "perm", value: "TRAINING_VIEW" }}>
+            <TrainingManagement />
           </PermissionGate>
         } />
         <Route path="/training/enquiries" element={

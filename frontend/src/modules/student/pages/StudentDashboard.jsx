@@ -27,14 +27,20 @@ function useCountUp(target, duration = 900) {
   return typeof target === "number" ? value : target;
 }
 
-function AttendanceRing({ percent }) {
+// Attendance range options for the chart's "Last N Days" picker.
+const RANGES = [
+  { key: "10", label: "Last 10 Days", count: 10 },
+  { key: "30", label: "Last 30 Days", count: 30 },
+  { key: "all", label: "All Days", count: Infinity },
+];
+
+function ProgressRing({ percent }) {
   const size = 110, stroke = 11, radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
   const shown = useCountUp(percent);
   const offset = percent == null ? circumference : circumference - (shown / 100) * circumference;
-  const tone = percent >= 85 ? "good" : percent >= 60 ? "mid" : "low";
   return (
-    <svg width={size} height={size} className={`sd-ring sd-ring-${tone}`}>
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="sd-ring sd-ring-mid">
       <circle className="sd-ring-track" cx={size / 2} cy={size / 2} r={radius} strokeWidth={stroke} fill="none" />
       <circle className="sd-ring-value" cx={size / 2} cy={size / 2} r={radius} strokeWidth={stroke} fill="none"
         strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={offset}
@@ -61,6 +67,7 @@ function StatCard({ label, value, tone, accent, icon, delay }) {
 function Dashboard() {
   const [dash, setDash] = useState(null);
   const [attendance, setAttendance] = useState([]);
+  const [rangeKey, setRangeKey] = useState("10");
 
   useEffect(() => {
     Promise.all([
@@ -71,7 +78,8 @@ function Dashboard() {
 
   if (!dash) return <p className="sd-loading">Loading your dashboard…</p>;
 
-  const chartData = [...attendance].slice(0, 10).reverse().map((r) => ({
+  const range = RANGES.find((r) => r.key === rangeKey) || RANGES[0];
+  const chartData = [...attendance].slice(0, range.count).reverse().map((r) => ({
     date: r.attendance_date?.slice(5), value: 1, status: r.attendance_status,
   }));
 
@@ -95,6 +103,9 @@ function Dashboard() {
           <h1 className="sd-hero-title">
             You're enrolled in {dash.batch_name}, trained by {dash.trainer_name || "an unassigned trainer"}.
           </h1>
+          <p className="sd-hero-sub">
+            Keep learning, keep growing! Your Journey to success is just a step away.
+          </p>
         </div>
 
         <div className="sd-hero-art" aria-hidden="true">
@@ -112,7 +123,8 @@ function Dashboard() {
       <div className="sd-stats">
         <div className="sd-card sd-card-orange sd-card-ring" style={{ "--delay": "0.05s" }}>
           <span className="sd-card-blob" aria-hidden="true" />
-          <AttendanceRing percent={dash.attendance_percent} />
+          <ProgressRing percent={dash.course_completion_percent} />
+          <p className="sd-ring-label">Course<br />Completion</p>
         </div>
         <StatCard
           label="Pending Tasks"
@@ -141,10 +153,21 @@ function Dashboard() {
       </div>
 
       <div className="sd-panel">
-        <p className="sd-panel-title">
-          <span className="sd-panel-icon"><CalendarDays size={16} /></span>
-          Attendance — Last 10 Days
-        </p>
+        <div className="sd-panel-head">
+          <p className="sd-panel-title">
+            <span className="sd-panel-icon"><CalendarDays size={16} /></span>
+            Attendance — {range.label}
+            {dash.attendance_percent != null && (
+              <span className="sd-panel-chip">{dash.attendance_percent}% present</span>
+            )}
+          </p>
+          <label className="sd-range">
+            <CalendarDays size={14} />
+            <select value={rangeKey} onChange={(e) => setRangeKey(e.target.value)} aria-label="Attendance range">
+              {RANGES.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
+            </select>
+          </label>
+        </div>
         {chartData.length === 0 ? (
           <p className="sd-empty">No attendance data yet.</p>
         ) : (

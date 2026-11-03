@@ -1,0 +1,214 @@
+/* Student (trainee) portal theme — re-skins the Tailwind classes the
+   student pages already use into the VETRI OS Figma look (Vetri IT navy /
+   orange) with motion, without touching any page's markup or content.
+   Scoped to .student-theme, which AppLayout adds on /student routes.
+   Plain (unlayered) CSS, so it wins over Tailwind's utility layer. */
+
+.student-theme {
+  font-family: var(--vt-font-body);
+  color: var(--vt-text);
+}
+
+/* ---------- Entrance motion: each page section rises in turn ---------- */
+.student-theme > div:not(.sd-page) > * {
+  animation: st-rise 0.6s var(--vt-ease) both;
+}
+.student-theme > div:not(.sd-page) > *:nth-child(2) { animation-delay: 0.07s; }
+.student-theme > div:not(.sd-page) > *:nth-child(3) { animation-delay: 0.14s; }
+.student-theme > div:not(.sd-page) > *:nth-child(4) { animation-delay: 0.21s; }
+.student-theme > div:not(.sd-page) > *:nth-child(n + 5) { animation-delay: 0.28s; }
+
+/* List items inside a page (assignments, recordings) cascade in too */
+.student-theme .flex-col > .bg-white.border {
+  animation: st-rise 0.55s var(--vt-ease) both;
+}
+.student-theme .flex-col > .bg-white.border:nth-child(2) { animation-delay: 0.06s; }
+.student-theme .flex-col > .bg-white.border:nth-child(3) { animation-delay: 0.12s; }
+.student-theme .flex-col > .bg-white.border:nth-child(n + 4) { animation-delay: 0.18s; }
+
+/* ---------- Page titles ---------- */
+.student-theme h1.text-2xl {
+  position: relative;
+  font-family: var(--vt-font-head);
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--vt-navy);
+  padding-bottom: 10px;
+}
+
+.student-theme h1.text-2xl::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 46px;
+  height: 4px;
+  border-radius: 4px;
+  background: var(--vt-orange-gradient);
+  transform-origin: left;
+  animation: st-grow 0.7s var(--vt-ease) 0.2s both;
+}
+
+/* ---------- Cards ---------- */
+.student-theme .bg-white.border {
+  border-color: var(--vt-border);
+  border-radius: 18px;
+  box-shadow: var(--vt-shadow);
+  transition: transform 0.3s var(--vt-ease), box-shadow 0.3s ease, border-color 0.2s ease;
+}
+
+.student-theme .bg-white.border.rounded-xl:not(.overflow-y-auto):not(form):hover {
+  transform: translateY(-3px);
+  border-color: #cfdcf3;
+  box-shadow: var(--vt-shadow-lg);
+}
+
+.student-theme .border-gray-200,
+.student-theme .border-gray-100 { border-color: var(--vt-border); }
+
+/* Section headings inside cards */
+.student-theme p.font-semibold.text-gray-900 {
+  font-family: var(--vt-font-head);
+  font-weight: 700;
+}
+
+/* ---------- Text colours ---------- */
+.student-theme .text-gray-900 { color: var(--vt-navy); }
+.student-theme .text-gray-700,
+.student-theme .text-gray-600 { color: var(--vt-text); }
+.student-theme .text-gray-500,
+.student-theme .text-gray-400 { color: var(--vt-muted); }
+.student-theme .text-green-600,
+.student-theme .text-green-700,
+.student-theme .text-blue-600 { color: var(--vt-navy-700); }
+.student-theme .text-amber-600 { color: var(--vt-orange); }
+
+/* ---------- Surfaces ---------- */
+.student-theme .bg-gray-50 { background: var(--vt-tint); }
+.student-theme .bg-gray-100 { background: var(--vt-blue-50); }
+.student-theme .bg-green-50 { background: var(--vt-blue-50); }
+.student-theme .bg-red-50 { background: var(--vt-orange-50); }
+
+/* Small stat tiles (e.g. Assessments eligibility row) */
+.student-theme .rounded-lg.bg-gray-50,
+.student-theme .rounded-lg.bg-green-50,
+.student-theme .rounded-lg.bg-red-50 {
+  border-radius: var(--vt-radius-sm);
+  transition: transform 0.3s var(--vt-ease);
+}
+.student-theme .rounded-lg.bg-gray-50:hover,
+.student-theme .rounded-lg.bg-green-50:hover,
+.student-theme .rounded-lg.bg-red-50:hover { transform: translateY(-2px); }
+
+/* ---------- Tables ---------- */
+.student-theme thead.bg-gray-50 {
+  background: var(--vt-blue-50);
+  color: var(--vt-navy);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.student-theme tbody tr { transition: background 0.2s ease; }
+.student-theme tbody tr:hover { background: var(--vt-tint); }
+
+/* ---------- Status pills ---------- */
+.student-theme .bg-green-100 { background: var(--vt-blue-50); }
+.student-theme .bg-green-100.text-green-700 { color: var(--vt-navy-700); }
+.student-theme .bg-red-100 { background: var(--vt-orange-50); }
+.student-theme .bg-red-100.text-red-700 { color: var(--vt-orange-600); }
+.student-theme .bg-amber-100 { background: #fff4e5; }
+.student-theme .bg-amber-100.text-amber-700 { color: var(--vt-orange-600); }
+
+/* ---------- Buttons, active tabs, my chat bubbles ---------- */
+.student-theme .bg-green-600 {
+  background: var(--vt-orange-gradient);
+  box-shadow: 0 10px 20px -12px rgba(231, 81, 12, 0.8);
+}
+
+.student-theme .bg-purple-600 {
+  background: linear-gradient(90deg, var(--vt-navy), var(--vt-navy-700));
+  box-shadow: 0 10px 20px -12px rgba(0, 38, 115, 0.8);
+}
+
+.student-theme button.bg-green-600,
+.student-theme a.bg-green-600,
+.student-theme button.bg-purple-600 {
+  border-radius: 10px;
+  transition: transform 0.25s var(--vt-ease), box-shadow 0.25s ease, filter 0.2s ease;
+}
+
+.student-theme button.bg-green-600:hover:not(:disabled),
+.student-theme a.bg-green-600:hover,
+.student-theme button.bg-purple-600:hover:not(:disabled) {
+  transform: translateY(-2px);
+  filter: brightness(1.05);
+  box-shadow: 0 14px 24px -12px rgba(231, 81, 12, 0.9);
+}
+
+/* Unselected pill tabs */
+.student-theme button.rounded-full.bg-gray-50 {
+  background: var(--vt-blue-50);
+  color: var(--vt-navy);
+  transition: background 0.2s ease, transform 0.25s var(--vt-ease);
+}
+.student-theme button.rounded-full.bg-gray-50:hover {
+  background: #dfe8fa;
+  transform: translateY(-1px);
+}
+
+/* Chat bubbles pop in */
+.student-theme .rounded-2xl {
+  animation: st-pop 0.35s var(--vt-ease) both;
+}
+.student-theme .rounded-2xl.bg-gray-100 { color: var(--vt-navy); }
+
+/* ---------- Form fields ---------- */
+.student-theme input:not([type="file"]):not(.hidden),
+.student-theme textarea,
+.student-theme select {
+  border-color: var(--vt-border);
+  border-radius: 12px;
+  background: var(--vt-tint);
+  color: var(--vt-navy);
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.student-theme input:not([type="file"]):focus,
+.student-theme textarea:focus,
+.student-theme select:focus {
+  background: #fff;
+  border-color: var(--vt-navy-700);
+  box-shadow: 0 0 0 4px rgba(10, 53, 145, 0.12);
+}
+
+/* File drop zone */
+.student-theme .border-dashed { border-color: #c9d6ef; }
+.student-theme .hover\:border-green-500:hover { border-color: var(--vt-orange); }
+.student-theme .hover\:bg-green-50:hover { background: var(--vt-orange-50); }
+
+/* ---------- Keyframes ---------- */
+@keyframes st-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes st-grow {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+@keyframes st-pop {
+  from { opacity: 0; transform: scale(0.92) translateY(6px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .student-theme *,
+  .student-theme *::before,
+  .student-theme *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

@@ -41,11 +41,24 @@ class StudentDashboardView(APIView):
 
         unread_messages = Message.objects.filter(recipient=request.user, is_read=False).count()
 
+        # Course completion = how far today is through the batch's run,
+        # from existing columns only: start_date -> end_date, or the
+        # course's duration_days when the batch has no end date yet.
+        course_completion_pct = None
+        if batch.end_date:
+            course_days = (batch.end_date - batch.start_date).days
+        else:
+            course_days = batch.course.duration_days
+        if course_days and course_days > 0:
+            elapsed = (date.today() - batch.start_date).days
+            course_completion_pct = max(0, min(100, round(elapsed / course_days * 100)))
+
         return Response({
             "batch_name": batch.batch_name,
             "course_name": batch.course.course_name,
             "trainer_name": trainer_name,
             "attendance_percent": attendance_pct,
+            "course_completion_percent": course_completion_pct,
             "pending_tasks_count": pending_count,
             "overdue_tasks_count": overdue_count,
             "unread_messages": unread_messages,

@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { Outlet, useNavigate } from "react-router-dom";
-import { ChevronDown, User, Settings } from "lucide-react";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { ChevronDown, User, Settings, LogOut, Search } from "lucide-react";
 import Sidebar from "./Sidebar";
 import "../components-styles/AppLayout.css";
+import "../modules/student/styles/StudentTheme.css";
 import NotificationBell from "./NotificationBell";
 import AIAssistantWidget from "./AIAssistantWidget";
 import client from "../api/client";
@@ -26,12 +27,38 @@ function displayRoles(roles) {
   return roles;
 }
 
+// Pages the trainee topbar search can jump to (same list as their sidebar).
+const STUDENT_PAGES = [
+  { label: "My Dashboard", path: "/student/dashboard" },
+  { label: "My Attendance", path: "/student/attendance" },
+  { label: "Ask Trainer", path: "/student/ask-trainer" },
+  { label: "Assessments", path: "/student/assessments" },
+  { label: "Progress", path: "/student/progress" },
+  { label: "Assignments", path: "/student/assignments" },
+  { label: "Recordings", path: "/student/recordings" },
+  { label: "Reports", path: "/student/reports" },
+];
+
 function AppLayout() {
   const navigate = useNavigate();
+  const location = useLocation();
   const user = JSON.parse(localStorage.getItem("user") || "null");
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
   const [photoUrl, setPhotoUrl] = useState(null);
+  const [search, setSearch] = useState("");
+  const isStudentArea = location.pathname.startsWith("/student");
+
+  const handleSearch = (event) => {
+    event.preventDefault();
+    const query = search.trim().toLowerCase();
+    if (!query) return;
+    const match = STUDENT_PAGES.find((p) => p.label.toLowerCase().includes(query));
+    if (match) {
+      setSearch("");
+      navigate(match.path);
+    }
+  };
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -73,6 +100,23 @@ function AppLayout() {
         <header className="app-topbar">
           {user?.employee_code && <span className="app-topbar-empcode">{user.employee_code}</span>}
 
+          {isStudentArea && (
+            <form className="app-search" onSubmit={handleSearch} role="search">
+              <Search size={17} />
+              <input
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search anything..."
+                list="app-search-pages"
+                aria-label="Search pages"
+              />
+              <datalist id="app-search-pages">
+                {STUDENT_PAGES.map((p) => <option key={p.path} value={p.label} />)}
+              </datalist>
+            </form>
+          )}
+
           <div className="app-topbar-right">
             <NotificationBell />
 
@@ -110,12 +154,13 @@ function AppLayout() {
             </div>
 
             <button className="app-logout" onClick={handleLogout}>
+              <LogOut size={15} />
               Log out
             </button>
           </div>
         </header>
 
-        <div className="app-content">
+        <div className={"app-content" + (location.pathname.startsWith("/student") ? " student-theme" : "")}>
           <Outlet context={{ user }} />
         </div>
       </div>

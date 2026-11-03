@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import {
   GraduationCap, Briefcase, BookOpen, Building2, FolderKanban, ArrowRight,
 } from "lucide-react";
+import LoginIllustration from "../modules/identity-access/components/LoginIllustration";
+import "../styles/ChooseWorkspace.css";
 
 const WORKSPACE_ICON = {
   student: GraduationCap,
@@ -12,20 +14,14 @@ const WORKSPACE_ICON = {
   project: FolderKanban,
 };
 
-const WORKSPACE_GRADIENT = {
-  student: "linear-gradient(135deg, #16A34A 0%, #0A4D26 100%)",
-  intern: "linear-gradient(135deg, #0B0F2E 0%, #2D1B69 100%)",
-  training: "linear-gradient(135deg, #0051D5 0%, #003DAA 100%)",
-  hr: "linear-gradient(135deg, #D97706 0%, #92400E 100%)",
-  project: "linear-gradient(135deg, #7C3AED 0%, #4C1D95 100%)",
-};
-
-const WORKSPACE_ACCENT = {
-  student: "#16A34A",
-  intern: "#2D1B69",
-  training: "#0051D5",
-  hr: "#D97706",
-  project: "#7C3AED",
+// Chip gradient + icon motion per workspace (see ChooseWorkspace.css).
+// Only Vetri IT brand tones here — navy, orange and blue.
+const WORKSPACE_TONE = {
+  student: "sky",
+  intern: "navy",
+  training: "orange",
+  hr: "amber",
+  project: "royal",
 };
 
 const WORKSPACE_SUBTEXT = {
@@ -59,143 +55,48 @@ function ChooseWorkspace() {
   };
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "linear-gradient(135deg, #0B0F2E 0%, #1E1B4B 100%)",
-        padding: "24px",
-      }}
-    >
-      <style>{`
-        .workspace-card { transition: all 0.2s ease; cursor: pointer; }
-        .workspace-card:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(0,0,0,0.12) !important; }
-        .workspace-card:hover .workspace-arrow { opacity: 1; transform: translateX(0); }
-        .workspace-arrow { opacity: 0; transform: translateX(-4px); transition: all 0.2s ease; }
-      `}</style>
+    <div className="ws-screen">
+      <span className="ws-blob blob-a" aria-hidden="true" />
+      <span className="ws-blob blob-b" aria-hidden="true" />
+      <span className="ws-grid" aria-hidden="true" />
 
-      <div
-        style={{
-          background: "#FFFFFF",
-          border: "1px solid #E2E8F0",
-          borderRadius: "16px",
-          padding: "48px 40px",
-          width: "100%",
-          maxWidth: "460px",
-          boxShadow: "0 8px 32px rgba(0,0,0,0.35)",
-        }}
-      >
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: "20px" }}>
-          <div
-            style={{
-              background: "#0051D5",
-              width: "56px",
-              height: "56px",
-              borderRadius: "14px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11M20 10v11M8 14v3M12 14v3M16 14v3"
-                stroke="#FFFFFF"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </div>
+      <div className="ws-card">
+        <div className="ws-hero">
+          <span className="ws-hero-glow" aria-hidden="true" />
+          <LoginIllustration />
         </div>
 
-        <h1
-          style={{
-            fontFamily: "Poppins, sans-serif",
-            fontWeight: 700,
-            fontSize: "24px",
-            color: "#1E1B4B",
-            textAlign: "center",
-            marginBottom: "6px",
-          }}
-        >
-          Welcome back{username ? `, ${username}` : ""}
+        <h1 className="ws-title">
+          Welcome back{username ? <>, <span>{username}</span></> : ""}
         </h1>
-        <p
-          style={{
-            fontFamily: "Inter, sans-serif",
-            fontSize: "14px",
-            color: "#76777D",
-            textAlign: "center",
-            marginBottom: "32px",
-          }}
-        >
-          Choose which workspace you'd like to continue to
-        </p>
+        <p className="ws-subtitle">Choose which workspace you'd like to continue to</p>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-          {workspaces.map((w) => {
+        <div className="ws-list">
+          {workspaces.map((w, index) => {
             const Icon = WORKSPACE_ICON[w.key] || FolderKanban;
-            const gradient = WORKSPACE_GRADIENT[w.key] || WORKSPACE_GRADIENT.project;
-            const accent = WORKSPACE_ACCENT[w.key] || WORKSPACE_ACCENT.project;
+            const tone = WORKSPACE_TONE[w.key] || "navy";
             const subtext = WORKSPACE_SUBTEXT[w.key] || "";
 
             return (
-              <div
+              <button
                 key={w.key}
-                className="workspace-card"
+                type="button"
+                className={`ws-option ws-${w.key}`}
+                style={{ "--delay": `${0.15 + index * 0.08}s` }}
                 onClick={() => selectWorkspace(w)}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "16px",
-                  padding: "18px 20px",
-                  borderRadius: "12px",
-                  border: "1px solid #E2E8F0",
-                  boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-                }}
               >
-                <div
-                  style={{
-                    width: "46px",
-                    height: "46px",
-                    borderRadius: "12px",
-                    background: gradient,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
-                  }}
-                >
-                  <Icon size={22} color="#FFFFFF" />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <p
-                    style={{
-                      fontFamily: "Poppins, sans-serif",
-                      fontWeight: 600,
-                      fontSize: "15px",
-                      color: "#1E1B4B",
-                      margin: 0,
-                    }}
-                  >
-                    {w.label}
-                  </p>
-                  <p
-                    style={{
-                      fontFamily: "Inter, sans-serif",
-                      fontSize: "12.5px",
-                      color: "#76777D",
-                      margin: "2px 0 0",
-                    }}
-                  >
-                    {subtext}
-                  </p>
-                </div>
-                <ArrowRight size={18} color={accent} className="workspace-arrow" />
-              </div>
+                <span className={`ws-icon tone-${tone}`}>
+                  <span className="ws-icon-ring" aria-hidden="true" />
+                  <Icon size={22} strokeWidth={2.2} />
+                </span>
+                <span className="ws-text">
+                  <span className="ws-label">{w.label}</span>
+                  <span className="ws-sub">{subtext}</span>
+                </span>
+                <span className="ws-arrow">
+                  <ArrowRight size={18} />
+                </span>
+              </button>
             );
           })}
         </div>

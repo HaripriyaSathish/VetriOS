@@ -1,0 +1,286 @@
+/* Workspace (role) switcher shown after login when a user has more than
+   one workspace. Shares the Vetri IT theme + cartoon with the Login page. */
+.ws-screen {
+  position: relative;
+  min-height: 100vh;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  background: linear-gradient(150deg, var(--vt-navy-700) 0%, var(--vt-navy) 45%, var(--vt-navy-900) 100%);
+  font-family: var(--vt-font-body);
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.ws-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  z-index: -1;
+  animation: ws-drift 14s ease-in-out infinite alternate;
+}
+
+.ws-blob.blob-a {
+  width: 420px;
+  height: 420px;
+  top: -140px;
+  right: -120px;
+  background: rgba(231, 81, 12, 0.42);
+}
+
+.ws-blob.blob-b {
+  width: 460px;
+  height: 460px;
+  bottom: -180px;
+  left: -160px;
+  background: rgba(90, 166, 255, 0.32);
+  animation-delay: -7s;
+}
+
+.ws-grid {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.13) 1px, transparent 1px);
+  background-size: 26px 26px;
+  mask-image: radial-gradient(ellipse at center, #000 30%, transparent 75%);
+}
+
+.ws-card {
+  width: 100%;
+  max-width: 480px;
+  box-sizing: border-box;
+  padding: 20px 36px 36px;
+  background: var(--vt-white);
+  border: 1px solid var(--vt-border);
+  border-radius: var(--vt-radius);
+  box-shadow: var(--vt-shadow-lg), 0 30px 80px -30px rgba(0, 0, 0, 0.5);
+  animation: ws-rise 0.7s var(--vt-ease) both;
+}
+
+.ws-hero {
+  position: relative;
+  width: 170px;
+  height: 170px;
+  margin: 0 auto 4px;
+}
+
+.ws-hero-glow {
+  position: absolute;
+  inset: 18px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--vt-blue-50) 0%, var(--vt-orange-50) 60%, transparent 72%);
+}
+
+/* The cartoon's own shading is drawn for a navy backdrop — soften it here */
+.ws-hero .login-cartoon ellipse:first-of-type { fill: rgba(0, 38, 115, 0.12); }
+.ws-hero .login-cartoon .lc-bubble rect,
+.ws-hero .login-cartoon .lc-bubble path { fill: var(--vt-navy); }
+.ws-hero .login-cartoon .lc-bubble text { fill: #fff; }
+.ws-hero .login-cartoon .lc-steam { stroke: #c9d6ef; }
+.ws-hero .login-cartoon .lc-spark.s3 { fill: var(--vt-orange); }
+
+.ws-title {
+  font-family: var(--vt-font-head);
+  font-weight: 800;
+  font-size: 26px;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: var(--vt-navy);
+  text-align: center;
+  margin: 0 0 6px;
+}
+
+.ws-title span {
+  background: linear-gradient(90deg, var(--vt-orange), #ff8a4c, var(--vt-orange));
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: ws-shine 5s linear infinite;
+}
+
+.ws-subtitle {
+  font-size: 14px;
+  color: var(--vt-muted);
+  text-align: center;
+  margin: 0 0 26px;
+}
+
+.ws-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ws-option {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  padding: 16px 18px;
+  font: inherit;
+  text-align: left;
+  background: var(--vt-white);
+  border: 1.5px solid var(--vt-border);
+  border-radius: var(--vt-radius-sm);
+  box-shadow: 0 1px 3px rgba(0, 38, 115, 0.05);
+  cursor: pointer;
+  animation: ws-rise 0.6s var(--vt-ease) both;
+  animation-delay: var(--delay, 0s);
+  transition: transform 0.25s var(--vt-ease), border-color 0.2s ease, box-shadow 0.25s ease, background 0.2s ease;
+}
+
+.ws-option:hover,
+.ws-option:focus-visible {
+  transform: translateY(-3px);
+  border-color: var(--vt-orange);
+  background: linear-gradient(90deg, var(--vt-orange-50), #fff 70%);
+  box-shadow: var(--vt-shadow);
+  outline: none;
+}
+
+.ws-icon {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--vt-radius-sm);
+  color: #fff;
+  box-shadow: 0 10px 20px -10px rgba(0, 38, 115, 0.45);
+}
+
+.ws-icon-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 2px solid currentColor;
+  opacity: 0;
+}
+
+.ws-option:hover .ws-icon-ring,
+.ws-option:focus-visible .ws-icon-ring {
+  animation: ws-ring 1.2s ease-out infinite;
+}
+
+/* Brand-only chip tones (scoped so they don't clash with Login's chips) */
+.ws-icon.tone-orange { background: linear-gradient(135deg, var(--vt-orange), #ff8a4c); }
+.ws-icon.tone-amber { background: linear-gradient(135deg, var(--vt-orange-600), #fbb262); }
+.ws-icon.tone-navy { background: linear-gradient(135deg, var(--vt-navy-900), var(--vt-navy-700)); }
+.ws-icon.tone-royal { background: linear-gradient(135deg, var(--vt-navy-700), #2a8fd0); }
+.ws-icon.tone-sky { background: linear-gradient(135deg, #1d4fb8, #5aa6ff); }
+
+/* Each workspace icon has its own idle motion, faster on hover */
+.ws-icon svg { animation: ws-bob 2.8s ease-in-out infinite; }
+.ws-student .ws-icon svg { animation-name: ws-tilt; }
+.ws-intern .ws-icon svg { animation-name: ws-swing; transform-origin: 50% 10%; }
+.ws-training .ws-icon svg { animation-name: ws-flip; }
+.ws-hr .ws-icon svg { animation-name: ws-bob; }
+.ws-project .ws-icon svg { animation-name: ws-wiggle; }
+
+.ws-option:hover .ws-icon svg { animation-duration: 1s; }
+
+.ws-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.ws-label {
+  font-family: var(--vt-font-head);
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--vt-navy);
+}
+
+.ws-sub {
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--vt-muted);
+}
+
+.ws-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--vt-blue-50);
+  color: var(--vt-navy);
+  transition: background 0.2s ease, color 0.2s ease, transform 0.25s var(--vt-ease);
+}
+
+.ws-option:hover .ws-arrow,
+.ws-option:focus-visible .ws-arrow {
+  background: var(--vt-orange-gradient);
+  color: #fff;
+  transform: translateX(3px);
+}
+
+@keyframes ws-rise {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes ws-drift {
+  from { transform: translate(0, 0) scale(1); }
+  to { transform: translate(-40px, 30px) scale(1.12); }
+}
+
+@keyframes ws-shine { to { background-position: 200% center; } }
+
+@keyframes ws-ring {
+  0% { transform: scale(1); opacity: 0.6; }
+  100% { transform: scale(1.45); opacity: 0; }
+}
+
+@keyframes ws-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+@keyframes ws-tilt {
+  0%, 100% { transform: rotate(0deg); }
+  30% { transform: rotate(-12deg) translateY(-2px); }
+  60% { transform: rotate(8deg); }
+}
+
+@keyframes ws-swing {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(10deg); }
+  75% { transform: rotate(-10deg); }
+}
+
+@keyframes ws-flip {
+  0%, 60%, 100% { transform: scaleX(1); }
+  75% { transform: scaleX(-1); }
+}
+
+@keyframes ws-wiggle {
+  0%, 100% { transform: scale(1); }
+  40% { transform: scale(1.12) rotate(-6deg); }
+  70% { transform: scale(0.96) rotate(4deg); }
+}
+
+@media (max-width: 520px) {
+  .ws-card { padding: 16px 20px 26px; }
+  .ws-title { font-size: 22px; }
+  .ws-hero { width: 140px; height: 140px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ws-screen *,
+  .ws-screen *::before,
+  .ws-screen *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

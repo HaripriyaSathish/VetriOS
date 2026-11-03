@@ -1,0 +1,466 @@
+/* Student Dashboard — styled after the VETRI OS Figma (Vetri IT theme). */
+.sd-page {
+  max-width: 1120px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  font-family: var(--vt-font-body);
+  color: var(--vt-text);
+}
+
+.sd-loading {
+  padding: 24px;
+  color: var(--vt-muted);
+}
+
+/* ---------- Welcome banner ---------- */
+.sd-hero {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr minmax(220px, 340px);
+  align-items: center;
+  gap: 16px;
+  min-height: 190px;
+  padding: 26px 34px;
+  border-radius: var(--vt-radius);
+  background: linear-gradient(110deg, var(--vt-navy) 0%, var(--vt-navy-700) 45%, #2689ef 100%);
+  color: #fff;
+  overflow: hidden;
+  isolation: isolate;
+  box-shadow: var(--vt-shadow-lg);
+  animation: sd-rise 0.7s var(--vt-ease) both;
+}
+
+.sd-hero-blob {
+  position: absolute;
+  border-radius: 50%;
+  z-index: -1;
+}
+
+/* Corner shapes from the design: navy top-right, orange bottom-right */
+.sd-hero-blob.blob-a {
+  width: 120px;
+  height: 120px;
+  top: -50px;
+  right: -40px;
+  background: var(--vt-navy-700);
+  animation: sd-float 6s ease-in-out infinite;
+}
+
+.sd-hero-blob.blob-b {
+  width: 150px;
+  height: 150px;
+  bottom: -90px;
+  right: 40px;
+  background: linear-gradient(135deg, #ff8a4c, var(--vt-orange));
+  opacity: 0.9;
+  animation: sd-float 7s ease-in-out infinite reverse;
+}
+
+.sd-hero-shine {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, 0.12) 45%, transparent 60%);
+  background-size: 250% 100%;
+  animation: sd-shine 6s ease-in-out infinite;
+}
+
+.sd-hero-text {
+  max-width: 540px;
+}
+
+.sd-hero-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffb27a;
+}
+
+.sd-hero-eyebrow img,
+.sd-hero-eyebrow svg {
+  width: 18px;
+  height: 18px;
+  animation: sd-wiggle 2.4s ease-in-out infinite;
+}
+
+.sd-hero-line {
+  width: 28px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--vt-orange);
+}
+
+.sd-hero-title {
+  margin: 0;
+  font-family: var(--vt-font-head);
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  color: #fff;
+}
+
+.sd-hero-art {
+  position: relative;
+  height: 180px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  margin: -16px 0 -26px;
+}
+
+.sd-hero-art img {
+  max-height: 100%;
+  max-width: 100%;
+  object-fit: contain;
+  animation: sd-float 4.5s ease-in-out infinite;
+  filter: drop-shadow(0 18px 24px rgba(0, 10, 40, 0.35));
+}
+
+.sd-hero-art .login-cartoon {
+  width: 200px;
+  height: 200px;
+}
+
+/* Hide the cartoon's own speech bubble here — the banner has the greeting */
+.sd-hero-art .login-cartoon .lc-bubble { display: none; }
+
+/* Chart card, bulb and paper plane floating around the cartoon */
+.sd-extra {
+  position: absolute;
+  filter: drop-shadow(0 8px 12px rgba(0, 10, 40, 0.3));
+}
+
+.sd-extra-chart {
+  width: 46px;
+  left: 0;
+  top: 34px;
+  animation: sd-float 4s ease-in-out infinite;
+}
+
+.sd-extra-bulb {
+  width: 34px;
+  right: 64px;
+  top: 6px;
+  animation: sd-float 3.4s ease-in-out infinite reverse;
+}
+
+.sd-bulb-rays { animation: sd-glow 1.6s ease-in-out infinite alternate; }
+
+.sd-extra-plane {
+  width: 58px;
+  right: 4px;
+  top: 20px;
+}
+
+.sd-plane {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: sd-fly 3.2s ease-in-out infinite;
+}
+
+.sd-plane-trail { animation: sd-dash 1.2s linear infinite; }
+
+/* ---------- Stat cards ---------- */
+.sd-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.sd-card {
+  position: relative;
+  min-height: 132px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 18px 20px;
+  border-radius: var(--vt-radius-sm);
+  border: 1px solid var(--vt-border);
+  overflow: hidden;
+  isolation: isolate;
+  animation: sd-rise 0.6s var(--vt-ease) both;
+  animation-delay: var(--delay, 0s);
+  transition: transform 0.3s var(--vt-ease), box-shadow 0.3s ease;
+}
+
+.sd-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--vt-shadow);
+}
+
+.sd-card-orange { background: var(--vt-orange-50); }
+.sd-card-blue { background: var(--vt-blue-50); }
+
+/* Quarter-circle in the top-right corner, as in the design */
+.sd-card-blob {
+  position: absolute;
+  top: -26px;
+  right: -26px;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  z-index: -1;
+  transition: transform 0.4s var(--vt-ease);
+}
+
+.sd-card-orange .sd-card-blob { background: #ffd9c4; }
+.sd-card-blue .sd-card-blob { background: #cfe0fb; }
+.sd-card:hover .sd-card-blob { transform: scale(1.6); }
+
+.sd-card-ring {
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+}
+
+.sd-card-ring .sd-ring {
+  width: 92px;
+  height: 92px;
+  flex: none;
+}
+
+.sd-ring-label {
+  margin: 0;
+  font-family: var(--vt-font-head);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--vt-navy);
+}
+
+.sd-hero-sub {
+  margin: 10px 0 0;
+  max-width: 440px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.sd-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.sd-panel-head .sd-panel-title { margin: 0; }
+
+.sd-panel-chip {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--vt-orange-50);
+  color: var(--vt-orange-600);
+  font-family: var(--vt-font-body);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* "Last 10 Days" picker, pill-shaped like the design */
+.sd-range {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  border: 1px solid var(--vt-border);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--vt-navy-700);
+  box-shadow: 0 4px 10px -6px rgba(0, 38, 115, 0.3);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.sd-range:hover,
+.sd-range:focus-within {
+  border-color: var(--vt-navy-700);
+  box-shadow: 0 0 0 3px rgba(10, 53, 145, 0.1);
+}
+
+.sd-panel .sd-range select {
+  appearance: none;
+  border: none;
+  background: transparent;
+  padding: 7px 14px 7px 0;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--vt-navy);
+  cursor: pointer;
+  outline: none;
+}
+
+.sd-range::after {
+  content: "";
+  position: absolute;
+  right: 12px;
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid var(--vt-navy);
+  border-bottom: 1.5px solid var(--vt-navy);
+  transform: translateY(-2px) rotate(45deg);
+  pointer-events: none;
+}
+
+.sd-card-icon {
+  display: inline-flex;
+  margin-bottom: auto;
+  color: var(--vt-navy-700);
+  animation: sd-bob 3s ease-in-out infinite;
+}
+
+.sd-card-icon img {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+}
+
+.sd-card-value {
+  margin: 10px 0 0;
+  font-family: var(--vt-font-head);
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--vt-navy-900);
+}
+
+.sd-tone-red { color: #dc2626; }
+
+.sd-card-label {
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--vt-navy);
+}
+
+/* Attendance ring */
+.sd-ring-track { stroke: #ffe1d1; }
+.sd-ring-value { transition: stroke-dashoffset 0.2s linear; }
+.sd-ring-good .sd-ring-value { stroke: var(--vt-navy-700); }
+.sd-ring-mid .sd-ring-value { stroke: var(--vt-orange); }
+.sd-ring-low .sd-ring-value { stroke: #dc2626; }
+
+.sd-ring-text {
+  font-family: var(--vt-font-head);
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.sd-ring-good .sd-ring-text { fill: var(--vt-navy-700); }
+.sd-ring-mid .sd-ring-text { fill: var(--vt-orange); }
+.sd-ring-low .sd-ring-text { fill: #dc2626; }
+
+/* ---------- Attendance chart panel ---------- */
+.sd-panel {
+  padding: 22px 24px;
+  background: var(--vt-white);
+  border: 1px solid var(--vt-border);
+  border-radius: var(--vt-radius);
+  box-shadow: var(--vt-shadow);
+  animation: sd-rise 0.7s var(--vt-ease) both;
+  animation-delay: 0.3s;
+}
+
+.sd-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 16px;
+  font-family: var(--vt-font-head);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--vt-navy);
+}
+
+.sd-panel-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: var(--vt-blue-50);
+  color: var(--vt-navy-700);
+}
+
+.sd-empty {
+  font-size: 14px;
+  color: var(--vt-muted);
+}
+
+/* ---------- Keyframes ---------- */
+@keyframes sd-rise {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes sd-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes sd-bob {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-4px) rotate(-4deg); }
+}
+
+@keyframes sd-wiggle {
+  0%, 100% { transform: rotate(0deg) scale(1); }
+  50% { transform: rotate(14deg) scale(1.15); }
+}
+
+@keyframes sd-glow {
+  from { opacity: 0.3; }
+  to { opacity: 1; }
+}
+
+@keyframes sd-fly {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  50% { transform: translate(4px, -6px) rotate(-6deg); }
+}
+
+@keyframes sd-dash { to { stroke-dashoffset: -14; } }
+
+@keyframes sd-shine {
+  0% { background-position: 150% 0; }
+  60%, 100% { background-position: -100% 0; }
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 1024px) {
+  .sd-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 720px) {
+  .sd-hero {
+    grid-template-columns: 1fr;
+    padding: 22px;
+  }
+  .sd-hero-art {
+    height: 150px;
+    margin: 0;
+  }
+  .sd-hero-title { font-size: 20px; }
+}
+
+@media (max-width: 480px) {
+  .sd-stats { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sd-page *,
+  .sd-page *::before,
+  .sd-page *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

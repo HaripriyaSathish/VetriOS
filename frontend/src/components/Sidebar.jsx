@@ -35,7 +35,23 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { NAV_ITEMS, hasAccess } from "../config/nav";
+import { figmaImage } from "../assets/figmaImages";
+import {
+  ShieldIcon, GraduateIcon, CalendarIcon, ChatIcon, ClipboardIcon,
+  ProgressIcon, NotebookIcon, VideoIcon, ReportIcon,
+} from "./FigmaIcons";
 import "../components-styles/Sidebar.css";
+
+// Nav icon from the Figma design: the exported image when present
+// (src/assets/figma/<name>.png), otherwise our drawn look-alike.
+function NavImage({ name, fallback: Fallback }) {
+  const src = figmaImage(name);
+  return (
+    <span className="nav-icon nav-icon-img">
+      {src ? <img src={src} alt="" /> : <Fallback />}
+    </span>
+  );
+}
 
 // "/dashboard" is deliberately excluded — it's the universal post-login
 // landing page, so including it would force this group open on every
@@ -130,6 +146,11 @@ function Sidebar() {
   const activeWorkspace = localStorage.getItem("active_workspace");
   const inWorkspace = (key) => isSystemAdministrator || activeWorkspace === key;
 
+  // Trainees (Student workspace) get only their own portal links — no
+  // Request access, generic Dashboard or Email in their sidebar.
+  const isTraineeView =
+    !isSystemAdministrator && !isIntern && activeWorkspace === "student" && hasAccess(studentRequirement, user);
+
   const isOnSysAdminPage = SYSADMIN_PATHS.some((path) => location.pathname.startsWith(path));
   const [sysAdminOpen, setSysAdminOpen] = useState(isOnSysAdminPage);
 
@@ -180,23 +201,29 @@ function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">
-        <span className="sidebar-mark">V</span>
-        <span className="sidebar-brand-name">VetriOS</span>
+        {figmaImage("vetri-logo") ? (
+          <img className="sidebar-logo" src={figmaImage("vetri-logo")} alt="Vetri IT Systems" />
+        ) : (
+          <span className="sidebar-mark">V</span>
+        )}
+        <span className="sidebar-brand-name">
+          Vetri<span className="sidebar-brand-accent">OS</span>
+        </span>
       </div>
 
       {/* Unconditional — every role (Employee, Trainer, any admin) can
           ask a specific admin for a permission, so this sits above every
           role-gated group rather than living inside one of them. */}
-      <NavLink
-        to="/request-access"
-        className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
-      >
-        <span className="nav-icon">
-          <ShieldCheck size={16} />
-        </span>
-        Request access
-        {pendingRequestCount > 0 && <span className="nav-count-badge">{pendingRequestCount}</span>}
-      </NavLink>
+      {!isTraineeView && (
+        <NavLink
+          to="/request-access"
+          className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
+        >
+          <NavImage name="nav-request-access" fallback={ShieldIcon} />
+          Request access
+          {pendingRequestCount > 0 && <span className="nav-count-badge">{pendingRequestCount}</span>}
+        </NavLink>
+      )}
 
       {/* Audit Logs — Business Team operates it day-to-day, System
           Administrator gets the same view for oversight. Not tied to
@@ -213,7 +240,7 @@ function Sidebar() {
         </NavLink>
       )}
 
-      {!isSystemAdministrator && (
+      {!isSystemAdministrator && !isTraineeView && (
         <NavLink
           to="/dashboard"
           className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
@@ -527,7 +554,7 @@ function Sidebar() {
         </>
       )}
 
-      {canSeeEmail && (
+      {canSeeEmail && !isTraineeView && (
         <>
           <button
             type="button"
@@ -745,28 +772,28 @@ function Sidebar() {
       {inWorkspace("student") && hasAccess(studentRequirement, user) && !isIntern && (
         <>
           <NavLink to="/student/dashboard" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
-            <span className="nav-icon">🎒</span> My Dashboard
+            <NavImage name="nav-dashboard" fallback={GraduateIcon} /> My Dashboard
           </NavLink>
           <NavLink to="/student/attendance" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
-            <span className="nav-icon">📅</span> My Attendance
+            <NavImage name="nav-attendance" fallback={CalendarIcon} /> My Attendance
           </NavLink>
           <NavLink to="/student/ask-trainer" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
-            <span className="nav-icon">💬</span> Ask Trainer
+            <NavImage name="nav-ask-trainer" fallback={ChatIcon} /> Ask Trainer
           </NavLink>
           <NavLink to="/student/assessments" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
-            <span className="nav-icon">🎯</span> Assessments
+            <NavImage name="nav-assessments" fallback={ClipboardIcon} /> Assessments
           </NavLink>
           <NavLink to="/student/progress" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
-            <span className="nav-icon">📈</span> Progress
+            <NavImage name="nav-progress" fallback={ProgressIcon} /> Progress
           </NavLink>
           <NavLink to="/student/assignments" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
-            <span className="nav-icon">📝</span> Assignments
+            <NavImage name="nav-assignments" fallback={NotebookIcon} /> Assignments
           </NavLink>
           <NavLink to="/student/recordings" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
-            <span className="nav-icon">🎥</span> Recordings
+            <NavImage name="nav-recordings" fallback={VideoIcon} /> Recordings
           </NavLink>
           <NavLink to="/student/reports" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
-            <span className="nav-icon">📊</span> Reports
+            <NavImage name="nav-reports" fallback={ReportIcon} /> Reports
           </NavLink>
         </>
       )}

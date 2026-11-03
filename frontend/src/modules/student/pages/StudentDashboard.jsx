@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { CalendarDays } from "lucide-react";
-import { ClipboardIcon, SparkleIcon, HeroExtras, AlarmIcon, EnvelopeIcon } from "../../../components/FigmaIcons";
+import {
+  ClipboardIcon, SparkleIcon, HeroExtras, WarningIcon, EnvelopeIcon, CalendarIllustration,
+} from "../../../components/FigmaIcons";
 import client from "../../../api/client";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { figmaImage } from "../../../assets/figmaImages";
@@ -140,7 +142,7 @@ function Dashboard() {
           tone={dash.overdue_tasks_count > 0 ? "red" : "gray"}
           accent="orange"
           delay="0.19s"
-          icon={<AlarmIcon size={40} />}
+          icon={<WarningIcon size={40} />}
         />
         <StatCard
           label="Unread Messages"
@@ -168,6 +170,8 @@ function Dashboard() {
             </select>
           </label>
         </div>
+        <div className="sd-chart-row">
+        <div className="sd-chart">
         {chartData.length === 0 ? (
           <p className="sd-empty">No attendance data yet.</p>
         ) : (
@@ -197,6 +201,11 @@ function Dashboard() {
             </BarChart>
           </ResponsiveContainer>
         )}
+        </div>
+        <div className="sd-chart-art" aria-hidden="true">
+          <CalendarIllustration />
+        </div>
+        </div>
       </div>
     </div>
   );

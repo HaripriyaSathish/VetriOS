@@ -1,0 +1,56 @@
+/* Session Recordings — after the VETRI OS Figma recordings screen. */
+
+.rec-thumb {
+  position: relative;
+  width: 104px;
+  height: 64px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  overflow: hidden;
+  text-decoration: none;
+  box-shadow: 0 8px 16px -10px rgba(0, 10, 40, 0.6);
+}
+
+.rec-thumb::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.25) 50%, transparent 70%);
+  background-size: 250% 100%;
+  background-position: 150% 0;
+  transition: background-position 0.8s ease;
+}
+
+.sp-row:hover .rec-thumb::after { background-position: -100% 0; }
+
+.rec-thumb-0 { background: linear-gradient(135deg, var(--vt-navy), #2689ef); }
+.rec-thumb-1 { background: linear-gradient(135deg, #1d4fb8, #5aa6ff); }
+.rec-thumb-2 { background: linear-gradient(135deg, #c9450a, #ff8a4c); }
+.rec-thumb-3 { background: linear-gradient(135deg, #0b7a6b, #2ee6c4); }
+.rec-thumb-4 { background: linear-gradient(135deg, #e0351c, #fbb262); }
+
+.rec-play {
+  position: relative;
+  z-index: 1;
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding-left: 2px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--vt-navy);
+  transition: transform 0.3s var(--vt-ease);
+}
+
+.sp-row:hover .rec-play { transform: scale(1.15); }
+
+.rec-notes {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  color: var(--vt-text);
+}

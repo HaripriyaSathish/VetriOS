@@ -200,6 +200,63 @@ export function EnvelopeIcon(props) {
   );
 }
 
+export function WarningIcon(props) {
+  const id = useId();
+  return (
+    <Icon {...props}>
+      <defs><Grad id={id} colors={["#ff8a6b", "#e0351c"]} /></defs>
+      <path d="M16 3 C17.2 3 18 3.6 18.6 4.7 L29.4 24.6 C30.6 26.8 29.2 29 26.8 29 H5.2 C2.8 29 1.4 26.8 2.6 24.6 L13.4 4.7 C14 3.6 14.8 3 16 3 Z" fill={`url(#${id})`} />
+      <path d="M16 3 C17.2 3 18 3.6 18.6 4.7 L21 9 C17 10 12 11 8 14 L13.4 4.7 C14 3.6 14.8 3 16 3 Z" fill="#fff" opacity="0.2" />
+      <rect x="14.4" y="10" width="3.2" height="10" rx="1.6" fill="#fff" />
+      <circle cx="16" cy="24" r="1.9" fill="#fff" />
+    </Icon>
+  );
+}
+
+// Calendar-with-ticks illustration ("Show up · Learn · Grow") from the
+// Figma attendance chart panel.
+export function CalendarIllustration({ className = "" }) {
+  const id = useId();
+  return (
+    <svg className={`calendar-illustration ${className}`} viewBox="0 0 220 190" role="img" aria-label="Show up, learn, grow">
+      <defs>
+        <Grad id={`${id}n`} colors={["#2689ef", "#0a3591"]} />
+        <Grad id={`${id}o`} colors={["#ffb27a", "#e7510c"]} />
+      </defs>
+      <circle className="ci-blob" cx="60" cy="96" r="44" fill="#cfe0fb" />
+      <g className="ci-leaves">
+        <path d="M168 120 C178 84 196 70 210 66 C206 92 192 112 168 120 Z" fill={`url(#${id}o)`} />
+        <path d="M172 128 C190 108 206 104 216 106 C206 124 190 132 172 128 Z" fill="#ffb27a" />
+      </g>
+      <g className="ci-calendar">
+        <rect x="56" y="34" width="112" height="98" rx="14" fill="#fff" stroke="#dbe5f7" strokeWidth="2" />
+        <path d="M56 50 C56 41 63 34 72 34 H152 C161 34 168 41 168 50 V58 H56 Z" fill={`url(#${id}n)`} />
+        <rect x="80" y="24" width="8" height="20" rx="4" fill="#0a3591" />
+        <rect x="136" y="24" width="8" height="20" rx="4" fill="#0a3591" />
+        {[0, 1, 2].map((row) => [0, 1, 2, 3].map((col) => {
+          const x = 70 + col * 24;
+          const y = 68 + row * 20;
+          const ticked = (row * 4 + col) % 3 !== 2;
+          return ticked ? (
+            <path key={`${row}-${col}`} className="ci-tick" style={{ animationDelay: `${(row * 4 + col) * 0.12}s` }}
+              d={`M${x} ${y + 6} l4 4 l8 -9`} stroke="#e7510c" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+          ) : (
+            <rect key={`${row}-${col}`} x={x} y={y} width="12" height="10" rx="2" fill="#e3e9f4" />
+          );
+        }))}
+      </g>
+      <g className="ci-clock">
+        <circle cx="160" cy="124" r="20" fill={`url(#${id}o)`} stroke="#fff" strokeWidth="3" />
+        <circle cx="160" cy="124" r="14" fill="#fff" />
+        <path className="ci-hand" d="M160 124 V114" stroke="#0a3591" strokeWidth="2.6" strokeLinecap="round" />
+        <path d="M160 124 L167 128" stroke="#0a3591" strokeWidth="2.6" strokeLinecap="round" />
+      </g>
+      <text x="110" y="166" textAnchor="middle" className="ci-text" transform="rotate(-6 110 166)">Show up</text>
+      <text x="118" y="184" textAnchor="middle" className="ci-text ci-text-2" transform="rotate(-6 118 184)">Learn Grow</text>
+    </svg>
+  );
+}
+
 export function SparkleIcon(props) {
   const id = useId();
   return (

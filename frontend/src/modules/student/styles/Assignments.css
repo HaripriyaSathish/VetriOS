@@ -1,0 +1,150 @@
+/* Assignments — after the VETRI OS Figma assignments screen. */
+
+.asg-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.asg-category select { min-width: 120px; }
+
+.asg-chev { transition: transform 0.25s var(--vt-ease); }
+.asg-chev.open { transform: rotate(90deg); }
+
+.asg-desc {
+  margin: 14px 0 0;
+  padding: 14px 16px;
+  max-height: 260px;
+  overflow-y: auto;
+  border-radius: 12px;
+  background: var(--vt-tint);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--vt-text);
+  white-space: pre-wrap;
+  animation: sd-rise 0.35s var(--vt-ease) both;
+}
+
+/* Submit form */
+.asg-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.asg-error {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: #fdecec;
+  font-size: 13px;
+  color: #d92d20;
+}
+
+.asg-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.asg-field > span {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--vt-muted);
+}
+
+.asg-field textarea,
+.asg-field input {
+  padding: 10px 12px;
+  border: 1px solid var(--vt-border);
+  font: inherit;
+  font-size: 13.5px;
+}
+
+.asg-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 22px 16px;
+  border: 2px dashed #c9d6ef;
+  border-radius: 14px;
+  background: var(--vt-tint);
+  color: var(--vt-navy-700);
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, transform 0.25s var(--vt-ease);
+}
+
+.asg-drop:hover {
+  border-color: var(--vt-orange);
+  background: var(--vt-orange-50);
+  transform: translateY(-1px);
+}
+
+.asg-drop svg { color: var(--vt-orange); }
+.asg-drop b { font-size: 13px; color: var(--vt-navy); }
+.asg-drop small { font-size: 11.5px; color: var(--vt-muted); }
+
+.asg-files { display: flex; flex-direction: column; gap: 6px; }
+
+.asg-file {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 12px;
+  border-radius: 10px;
+  background: var(--vt-blue-50);
+  font-size: 12px;
+  color: var(--vt-navy);
+}
+
+.asg-file span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.asg-file button {
+  margin-left: 10px;
+  border: none;
+  background: none;
+  font: inherit;
+  font-weight: 700;
+  color: #d92d20;
+  cursor: pointer;
+}
+
+.asg-submit { align-self: flex-start; }
+
+/* Submitted view */
+.asg-submitted-on {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: var(--vt-navy);
+}
+
+.asg-score {
+  font-size: 13px;
+  color: var(--vt-muted);
+}
+
+.asg-score b {
+  font-family: var(--vt-font-head);
+  font-size: 22px;
+  color: var(--vt-navy);
+}
+
+.asg-links {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+  font-size: 12.5px;
+}
+
+.asg-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  word-break: break-all;
+}

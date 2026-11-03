@@ -18,7 +18,7 @@ class StudentAssignmentListView(APIView):
             return Response({"detail": "Not enrolled in any active batch."}, status=404)
 
         category = request.query_params.get("category")
-        student_tasks = StudentTask.objects.filter(enrollment=enrollment).select_related("task")
+        student_tasks = StudentTask.objects.filter(enrollment=enrollment).select_related("task", "course_module")
         if category:
             student_tasks = [st for st in student_tasks if st.task.category == category]
 
@@ -34,6 +34,8 @@ class StudentAssignmentListView(APIView):
                 "title": st.task.task_title,
                 "description": st.task.description,
                 "category": st.task.category,
+                "module_no": st.course_module.sequence_no if st.course_module else None,
+                "module_name": st.course_module.module_name if st.course_module else None,
                 "due_date": st.task.due_date,
                 "submitted": bool(st.submission_date),
                 "submission_date": st.submission_date,

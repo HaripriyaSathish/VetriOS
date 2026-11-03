@@ -30,6 +30,7 @@ class AskTrainerView(APIView):
                 "category": m.category,
                 "leave_from_date": m.leave_from_date,
                 "leave_to_date": m.leave_to_date,
+                "is_read": m.is_read,
                 "created_at": m.created_at,
             }
             for m in messages

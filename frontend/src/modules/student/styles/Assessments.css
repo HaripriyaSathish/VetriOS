@@ -1,0 +1,208 @@
+/* Assessments — after the VETRI OS Figma assessments screen. */
+
+.as-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: 18px;
+}
+
+.as-progress {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  flex-wrap: wrap;
+}
+
+.as-recent { display: flex; flex-direction: column; gap: 12px; }
+
+.as-recent-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0;
+}
+
+.sp-row-icon.small { width: 34px; height: 34px; border-radius: 9px; }
+
+.as-recent-name {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--vt-navy);
+}
+
+.as-recent-score {
+  margin: 2px 0 0;
+  font-family: var(--vt-font-head);
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--vt-navy);
+}
+
+.as-muted {
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  color: var(--vt-muted);
+}
+
+.as-good { margin: 4px 0 0; font-size: 12px; color: #16a34a; }
+.as-bad { margin: 4px 0 0; font-size: 12px; color: #d92d20; }
+
+.as-section {
+  padding: 20px 22px;
+  background: var(--vt-tint);
+  border: 1px solid var(--vt-border);
+  border-radius: var(--vt-radius);
+  animation: sd-rise 0.55s var(--vt-ease) 0.14s both;
+}
+
+.as-result-score {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+  font-size: 14px;
+  color: var(--vt-muted);
+}
+
+.as-result-score b {
+  font-family: var(--vt-font-head);
+  font-size: 22px;
+  color: var(--vt-navy);
+}
+
+/* Keep Going banner */
+.as-keep {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 24px;
+  border-radius: var(--vt-radius);
+  background: linear-gradient(110deg, var(--vt-blue-50), #dfeafc);
+  overflow: hidden;
+  animation: sd-rise 0.55s var(--vt-ease) 0.18s both;
+}
+
+.as-keep p { margin: 4px 0 0; font-size: 12.5px; color: var(--vt-text); }
+
+.as-keep-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--vt-font-head);
+  font-size: 16px !important;
+  font-weight: 800;
+  color: var(--vt-navy) !important;
+}
+
+.as-keep-title svg { color: #f5a524; }
+
+.as-keep-trophy {
+  color: #f5a524;
+  filter: drop-shadow(0 8px 10px rgba(245, 165, 36, 0.4));
+  animation: as-trophy 2.8s ease-in-out infinite;
+}
+
+/* Eligibility tiles */
+.as-elig {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.as-elig-tile {
+  padding: 14px 16px;
+  border-radius: var(--vt-radius-sm);
+  background: var(--vt-tint);
+  transition: transform 0.3s var(--vt-ease);
+}
+
+.as-elig-tile:hover { transform: translateY(-2px); }
+.as-elig-tile.ok { background: #e9f8ef; }
+.as-elig-tile.no { background: var(--vt-orange-50); }
+
+.as-elig-label {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--vt-muted);
+}
+
+.as-elig-value {
+  margin: 4px 0 0;
+  font-family: var(--vt-font-head);
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--vt-navy);
+}
+
+.as-elig-value.good { color: #16a34a; }
+.as-elig-value.bad { color: #d92d20; }
+.as-elig-value.small { font-size: 15px; }
+.as-elig-tile.ok .as-elig-value { color: #16a34a; }
+.as-elig-tile.no .as-elig-value { color: var(--vt-orange-600); }
+
+/* Assignment breakdown */
+.as-cat { margin-bottom: 18px; }
+
+.as-cat-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.as-cat-head p {
+  margin: 0;
+  font-family: var(--vt-font-head);
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--vt-navy);
+}
+
+.as-cat-head span { font-size: 12px; color: var(--vt-muted); }
+
+/* Mock interview */
+.as-mock {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.as-mock-date {
+  margin: 0 0 8px;
+  font-weight: 600;
+  color: var(--vt-navy);
+}
+
+.as-mock-join { margin-top: 12px; }
+
+.as-mock-feedback {
+  margin: 12px 0 0;
+  max-width: 520px;
+  font-size: 13px;
+  color: var(--vt-text);
+}
+
+.as-mock-score {
+  font-family: var(--vt-font-head);
+  font-size: 34px;
+  font-weight: 800;
+  color: #16a34a;
+}
+
+@keyframes as-trophy {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-6px) rotate(-6deg); }
+}
+
+@media (max-width: 900px) {
+  .as-top { grid-template-columns: 1fr; }
+  .as-elig { grid-template-columns: 1fr; }
+}

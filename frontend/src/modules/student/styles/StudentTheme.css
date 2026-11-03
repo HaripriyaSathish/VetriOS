@@ -164,9 +164,7 @@
 .student-theme .rounded-2xl.bg-gray-100 { color: var(--vt-navy); }
 
 /* ---------- Form fields ---------- */
-.student-theme input:not([type="file"]):not(.hidden),
-.student-theme textarea,
-.student-theme select {
+.student-theme :where(input:not([type="file"]):not(.hidden), textarea, select) {
   border-color: var(--vt-border);
   border-radius: 12px;
   background: var(--vt-tint);
@@ -175,9 +173,7 @@
   transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
 
-.student-theme input:not([type="file"]):focus,
-.student-theme textarea:focus,
-.student-theme select:focus {
+.student-theme :where(input:not([type="file"]), textarea, select):focus {
   background: #fff;
   border-color: var(--vt-navy-700);
   box-shadow: 0 0 0 4px rgba(10, 53, 145, 0.12);

@@ -1,0 +1,150 @@
+/* My Progress — after the VETRI OS Figma progress screen. */
+
+.pg-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
+  gap: 18px;
+}
+
+.pg-ring-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.pg-ring-card .score-ring-value { stroke-linecap: butt; }
+
+.pg-ring-label {
+  margin: 0;
+  font-family: var(--vt-font-head);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--vt-navy);
+}
+
+.pg-facts {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+}
+
+.pg-fact {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 6px;
+  border-radius: 12px;
+  animation: sd-rise 0.5s var(--vt-ease) both;
+  animation-delay: calc(0.2s + var(--i, 0) * 0.07s);
+  transition: background 0.2s ease, transform 0.25s var(--vt-ease);
+}
+
+.pg-fact:hover { background: var(--vt-tint); transform: translateX(3px); }
+
+.pg-fact-icon {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--vt-blue-50);
+  color: #2689ef;
+}
+
+.pg-fact-text { flex: 1; min-width: 0; }
+
+.pg-fact-label {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--vt-navy);
+}
+
+.pg-fact-hint {
+  margin: 1px 0 0;
+  font-size: 11.5px;
+  color: var(--vt-muted);
+}
+
+.pg-fact-value {
+  margin: 0;
+  font-family: var(--vt-font-head);
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--vt-navy);
+}
+
+.pg-fact-value span {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--vt-muted);
+}
+
+/* Modules */
+.pg-modules { display: flex; flex-direction: column; gap: 6px; }
+
+.pg-module {
+  display: grid;
+  grid-template-columns: 26px minmax(120px, 220px) minmax(0, 1fr) 46px 40px 16px;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 8px;
+  border-radius: 12px;
+  animation: sd-rise 0.5s var(--vt-ease) both;
+  animation-delay: calc(0.25s + var(--i, 0) * 0.06s);
+  transition: background 0.2s ease;
+}
+
+.pg-module:hover { background: var(--vt-tint); }
+
+.pg-state {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.pg-state.done { background: #e9f8ef; color: #16a34a; }
+.pg-state.doing { background: var(--vt-orange-50); color: var(--vt-orange); }
+.pg-state.todo { background: #f1f4f9; color: var(--vt-muted); }
+
+.pg-module-name {
+  margin: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--vt-navy);
+}
+
+.pg-module-pct {
+  margin: 0;
+  text-align: right;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--vt-navy-700);
+}
+
+.pg-module-tasks {
+  font-size: 11px;
+  color: var(--vt-muted);
+  text-align: right;
+}
+
+.pg-chevron { color: #b6c2d9; transition: transform 0.2s ease; }
+.pg-module:hover .pg-chevron { transform: translateX(3px); color: var(--vt-orange); }
+
+@media (max-width: 900px) {
+  .pg-top { grid-template-columns: 1fr; }
+  .pg-module { grid-template-columns: 26px minmax(0, 1fr) 46px; }
+  .pg-module-bar { grid-column: 1 / -1; order: 5; }
+  .pg-module-tasks, .pg-chevron { display: none; }
+}

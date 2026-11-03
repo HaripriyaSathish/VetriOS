@@ -208,7 +208,7 @@ function Sidebar() {
           <span className="sidebar-mark">V</span>
         )}
         <span className="sidebar-brand-name">
-          Vetri<span className="sidebar-brand-accent">OS</span>
+          Vetri-<span className="sidebar-brand-accent">AI-OS</span>
         </span>
       </div>
 

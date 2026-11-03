@@ -221,7 +221,7 @@ function Login() {
           </h1>
           <p>
             Training, internships, HR, projects, clients, documents and
-            communication — all running on one shared VetriOS workspace.
+            communication — all running on one shared Vetri-AI-OS workspace.
           </p>
         </div>
       </div>
@@ -230,12 +230,12 @@ function Login() {
         <form className="login-card" onSubmit={handleSubmit}>
           <div className="login-mobile-brand">
             <span className="login-core-mark small">V</span>
-            <span>VetriOS</span>
+            <span>Vetri-AI-OS</span>
           </div>
 
           <div className="login-card-header">
             <h2>Welcome back</h2>
-            <p>Sign in to your VetriOS workspace</p>
+            <p>Sign in to your Vetri-AI-OS workspace</p>
           </div>
 
           <label htmlFor="username">Username</label>

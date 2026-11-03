@@ -74,10 +74,15 @@ class StudentAttendanceListView(APIView):
             return Response({"detail": "Not enrolled in any active batch."}, status=404)
 
         records = StudentAttendance.objects.filter(enrollment=enrollment).order_by("-attendance_date")
+        course_name = enrollment.batch.course.course_name
         return Response([
             {
                 "attendance_date": r.attendance_date,
                 "attendance_status": r.attendance_status,
+                # Existing columns, read-only — trainers record these.
+                "check_in_time": r.check_in_time,
+                "check_out_time": r.check_out_time,
+                "course_name": course_name,
             }
             for r in records
         ])

@@ -464,3 +464,73 @@
     transition: none !important;
   }
 }
+
+/* ---------- Calendar illustration motion ---------- */
+.calendar-illustration .ci-calendar {
+  animation: sd-float 4.5s ease-in-out infinite;
+}
+
+.calendar-illustration .ci-tick {
+  stroke-dasharray: 20;
+  stroke-dashoffset: 20;
+  animation: ci-draw 0.5s ease forwards;
+}
+
+.calendar-illustration .ci-hand {
+  transform-box: view-box;
+  transform-origin: 160px 124px;
+  animation: ci-spin 6s linear infinite;
+}
+
+.calendar-illustration .ci-leaves {
+  transform-box: view-box;
+  transform-origin: 170px 124px;
+  animation: ci-sway 3.2s ease-in-out infinite alternate;
+}
+
+.calendar-illustration .ci-blob {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ci-pulse 4s ease-in-out infinite;
+}
+
+.calendar-illustration .ci-text {
+  font-family: "Segoe Script", "Brush Script MT", var(--vt-font-head), cursive;
+  font-size: 19px;
+  font-weight: 800;
+  fill: var(--vt-navy);
+}
+
+.calendar-illustration .ci-text-2 { fill: var(--vt-orange); }
+
+@keyframes ci-draw { to { stroke-dashoffset: 0; } }
+@keyframes ci-spin { to { transform: rotate(360deg); } }
+@keyframes ci-sway {
+  from { transform: rotate(-4deg); }
+  to { transform: rotate(4deg); }
+}
+@keyframes ci-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
+
+
+/* Chart + "Show up, Learn, Grow" illustration side by side (Figma) */
+.sd-chart-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 240px;
+  align-items: center;
+  gap: 18px;
+}
+
+.sd-chart { min-width: 0; }
+
+.sd-chart-art .calendar-illustration {
+  width: 100%;
+  max-width: 240px;
+}
+
+@media (max-width: 900px) {
+  .sd-chart-row { grid-template-columns: 1fr; }
+  .sd-chart-art { display: none; }
+}

@@ -36,6 +36,7 @@ import {
 } from "lucide-react";
 import { NAV_ITEMS, hasAccess } from "../config/nav";
 import { figmaImage } from "../assets/figmaImages";
+import LoginIllustration from "../modules/identity-access/components/LoginIllustration";
 import {
   ShieldIcon, GraduateIcon, CalendarIcon, ChatIcon, ClipboardIcon,
   ProgressIcon, NotebookIcon, VideoIcon, ReportIcon,
@@ -973,6 +974,13 @@ function Sidebar() {
             </div>
           )}
         </>
+      )}
+
+      {/* Trainee sidebar cartoon at the bottom, as in the Figma design */}
+      {isTraineeView && (
+        <div className="sidebar-art" aria-hidden="true">
+          <LoginIllustration />
+        </div>
       )}
     </aside>
   );

@@ -502,7 +502,7 @@
 /* Summary card */
 .reqa-summary {
   position: sticky;
-  top: 16px;
+  top: 88px; /* clears the sticky topbar so the summary stays in view while scrolling */
   margin-left: 12px;
   padding: 24px;
   border-radius: 16px;

@@ -82,12 +82,16 @@ class BusinessDashboardView(APIView):
         active_cohorts = active_enrollments.values("batch_id").distinct().count()
         active_batches = Batch.objects.filter(status__iexact="ACTIVE").count()
 
-        upcoming = Batch.objects.filter(start_date__gte=today).select_related("course").order_by("start_date")
+        upcoming = Batch.objects.filter(start_date__gte=today).select_related(
+            "course", "trainer__user__person"
+        ).order_by("start_date")
         upcoming_batches = []
         for b in upcoming[:3]:
             enrolled = Enrollment.objects.filter(batch=b, status="ACTIVE").count()
             upcoming_batches.append({
                 "batch_id": b.batch_id,
+                "batch_code": b.batch_code,
+                "trainer_name": _person_name(b.trainer.user.person) if b.trainer else None,
                 "batch_name": b.batch_name,
                 "course_name": b.course.course_name,
                 "start_date": b.start_date,

@@ -14,6 +14,14 @@
   animation: none !important;
 }
 
+/* Welcome banner without the cartoon: hide it here only and let the text
+   use the full width (the shared hero is untouched for the trainee pages). */
+.sad-body .sd-hero-art { display: none; }
+.sad-body .sd-hero {
+  grid-template-columns: 1fr;
+  min-height: 0;
+}
+
 .sad-loading,
 .sad-error {
   margin: 0;

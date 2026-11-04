@@ -36,6 +36,7 @@ import PublicEnquiryForm from "./modules/public/pages/PublicEnquiryForm";
 import BatchForm from "./modules/training/pages/BatchForm";
 import WelcomeEmails from "./modules/training/pages/WelcomeEmails";
 import TrainingAttendance from "./modules/training/pages/Attendance";
+import TrainingBatches from "./modules/training/pages/TrainingBatches";
 import Assignments from "./modules/training/pages/Assignments";
 import Reports from "./modules/training/pages/Reports";
 import MockInterview from "./modules/training/pages/MockInterview";
@@ -288,6 +289,11 @@ function App() {
         <Route path="/training/completion-extension-approvals" element={
           <PermissionGate requirement={{ type: "role", value: ["Business Team", "System Administrator"] }}>
             <CompletionExtensionApprovals />
+          </PermissionGate>
+        } />
+        <Route path="/training/batches" element={
+          <PermissionGate requirement={{ type: "role", value: "Employee" }}>
+            <TrainingBatches />
           </PermissionGate>
         } />
         <Route path="/training/attendance" element={

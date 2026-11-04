@@ -1,0 +1,116 @@
+/* Dropout Risk & Student Retention (Trainer Figma, node 2081-10075). */
+
+.do-unit { font-family: var(--vt-font-body); font-size: 15px; font-weight: 500; color: var(--vt-text); }
+.do-red { color: #d92d20 !important; font-weight: 700; }
+.do-ml { margin-left: 6px; }
+.do-foot { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 11.5px; color: var(--vt-text); }
+.do-foot i { width: 7px; height: 7px; border-radius: 50%; }
+.do-foot i.g { background: #16a34a; }
+.do-foot i.o { background: var(--vt-orange); }
+.do-foot i.n { background: var(--vt-navy); }
+
+.do-watch-head { flex-wrap: wrap; }
+.do-watch-head h3 { flex-wrap: wrap; }
+.do-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+
+/* ---------- Risk cards ---------- */
+.do-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--vt-border);
+  border-radius: var(--vt-radius-sm);
+  background: var(--vt-tint);
+}
+
+.do-card.high { background: #fff8f6; border-color: #f6c9b3; }
+.do-card-top { display: flex; align-items: center; gap: 12px; }
+.do-who { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.do-who b { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 14px; color: var(--vt-navy); }
+.do-who small { font-size: 11.5px; color: var(--vt-muted); }
+
+.do-risk {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: var(--vt-orange-50);
+  color: var(--vt-orange-600);
+}
+
+.do-risk small { font-size: 9px; font-weight: 800; letter-spacing: 0.06em; }
+.do-risk b { font-family: var(--vt-font-head); font-size: 18px; }
+.do-risk.high { background: #c62828; color: #fff; }
+
+.do-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+
+.do-metrics > div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 8px;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid var(--vt-border);
+  text-align: center;
+}
+
+.do-metrics small { font-size: 11px; color: var(--vt-muted); }
+.do-metrics b { font-family: var(--vt-font-head); font-size: 17px; color: var(--vt-navy); }
+.do-metrics span { font-size: 10.5px; color: var(--vt-muted); }
+
+.do-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.bp-btn.do-danger { background: #c62828; color: #fff; }
+.bp-btn.do-danger:hover:not(:disabled) { background: #a61f1f; }
+
+/* ---------- Ledger ---------- */
+.do-table-head { display: flex; align-items: baseline; justify-content: space-between; padding: 16px 18px 6px; font-size: 12px; color: var(--vt-muted); }
+.do-table-head h3 { margin: 0; font-family: var(--vt-font-head); font-size: 17px; font-weight: 800; color: var(--vt-navy); }
+.do-cand-row { background: #fff8f6; }
+
+.do-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.do-link.red { color: #d92d20; }
+.do-link.green { color: #16a34a; }
+.do-link:hover { text-decoration: underline; }
+
+/* ---------- Side cards ---------- */
+.do-text { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--vt-text); }
+.do-rule { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--vt-navy); }
+.do-rule b { color: var(--vt-navy); }
+
+.do-threshold {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--vt-tint);
+  border: 1px solid var(--vt-border);
+  font-size: 12px;
+  color: var(--vt-text);
+}
+
+.do-threshold b { color: var(--vt-orange-600); }
+
+.do-disc { display: flex; align-items: center; gap: 10px; }
+.do-disc-name { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.do-disc-name b { font-size: 13px; color: var(--vt-navy); }
+.do-disc-name small { overflow: hidden; font-size: 11px; color: var(--vt-muted); white-space: nowrap; text-overflow: ellipsis; }
+
+@media (max-width: 560px) {
+  .do-metrics { grid-template-columns: 1fr; }
+}

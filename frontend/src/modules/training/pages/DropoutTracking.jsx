@@ -1,11 +1,25 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import {
+  ShieldCheck, TriangleAlert, UserMinus, CalendarX2, ChevronDown, Download, MessageSquare, ClipboardCheck,
+  SlidersHorizontal, RotateCcw,
+} from "lucide-react";
 import client from "../../../api/client";
+import "../styles/BusinessPages.css";
+import "../styles/TrainerDashboard.css";
+import "../styles/DropoutTracking.css";
+
+// Mirrors STREAK_THRESHOLD in local_extensions EnrollmentStatusView.
+const STREAK_THRESHOLD = 5;
+const initialsOf = (name) =>
+  (name || "?").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
 
 function DropoutTracking() {
   const [batches, setBatches] = useState([]);
   const [selectedBatchId, setSelectedBatchId] = useState("");
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [view, setView] = useState("all");
 
   const [actionStudent, setActionStudent] = useState(null);
   const [reason, setReason] = useState("");
@@ -56,88 +70,213 @@ function DropoutTracking() {
     load();
   };
 
-  return (
-    <div className="p-6 max-w-5xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Dropout Tracking</h1>
+  const active = students.filter((s) => s.status === "ACTIVE");
+  const candidates = students.filter((s) => s.is_candidate);
+  const watch = active.filter((s) => !s.is_candidate && s.current_absence_streak > 0);
+  const discontinued = students.filter((s) => s.status !== "ACTIVE");
+  const retention = students.length ? Math.round((active.length / students.length) * 1000) / 10 : null;
+  const avgAbsent = students.length ? Math.round((students.reduce((s, x) => s + x.total_absent_days, 0) / students.length) * 10) / 10 : null;
+  const riskList = view === "all" ? [...candidates, ...watch] : view === "high" ? candidates : watch;
+  const selectedBatch = batches.find((b) => String(b.batch_id) === String(selectedBatchId));
 
-      <div className="bg-white border border-gray-200 rounded-xl p-5 mb-6 max-w-sm">
-        <label className="block text-xs font-semibold text-gray-500 mb-1">Batch</label>
-        <select value={selectedBatchId} onChange={(e) => setSelectedBatchId(e.target.value)} className="border border-gray-300 rounded-md px-3 py-2 text-sm w-full">
-          {batches.map((b) => <option key={b.batch_id} value={b.batch_id}>{b.batch_name}</option>)}
-        </select>
+  const exportRisk = () => {
+    const head = ["Student", "Status", "Current streak", "Total absent days", "Candidate", "Discontinued date", "Reason"];
+    const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const lines = [head.join(",")].concat(students.map((s) => [
+      s.name, s.status, s.current_absence_streak, s.total_absent_days, s.is_candidate ? "Yes" : "No", s.discontinued_date, s.discontinued_reason,
+    ].map(esc).join(",")));
+    const url = URL.createObjectURL(new Blob([lines.join("\n")], { type: "text/csv" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `dropout-risk-${selectedBatch?.batch_name || "batch"}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="bp-page tr-page">
+      <div className="bp-head">
+        <div>
+          <p className="bp-crumb">Trainer Workspace &gt; <span>Dropout Tracking</span></p>
+          <h1 className="bp-title">Dropout Risk &amp; Student Retention</h1>
+          <p className="bp-sub">Monitor consecutive absence streaks, flag dropout candidates and record discontinuations for your cohorts.</p>
+        </div>
+        <div className="bp-actions">
+          <button type="button" className="bp-btn outline" onClick={exportRisk} disabled={!students.length}><Download size={16} /> Export Risk Report</button>
+          <Link to="/training/messages" className="bp-btn navy"><MessageSquare size={16} /> Message Trainees</Link>
+        </div>
       </div>
 
-      {loading ? (
-        <p className="text-gray-400">Loading…</p>
-      ) : students.length === 0 ? (
-        <p className="text-gray-400">No students enrolled in this batch yet.</p>
-      ) : (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
-              <tr>
-                <th className="px-4 py-2 text-left">Student</th>
-                <th className="px-4 py-2 text-left">Status</th>
-                <th className="px-4 py-2 text-left">Current Streak</th>
-                <th className="px-4 py-2 text-left">Total Absent Days</th>
-                <th className="px-4 py-2 text-left">Discontinued Date</th>
-                <th className="px-4 py-2 text-left">Reason</th>
-                <th className="px-4 py-2 text-left">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {students.map((s) => (
-                <tr key={s.enrollment_id} className={`border-t border-gray-100 ${s.is_candidate ? "bg-amber-50" : ""}`}>
-                  <td className="px-4 py-3 text-gray-900">
-                    {s.name}
-                    {s.is_candidate && <span className="ml-2 text-xs font-semibold text-amber-700">⚠ Candidate</span>}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${s.status === "ACTIVE" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
-                      {s.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">{s.current_absence_streak} day(s)</td>
-                  <td className="px-4 py-3">
-                    <span className={`font-semibold ${s.total_absent_days > 0 ? "text-red-600" : "text-gray-500"}`}>{s.total_absent_days} day(s)</span>
-                  </td>
-                  <td className="px-4 py-3">{s.discontinued_date || "—"}</td>
-                  <td className="px-4 py-3">{s.discontinued_reason || "—"}</td>
-                  <td className="px-4 py-3">
-                    {s.status === "ACTIVE" ? (
-                      <button onClick={() => openDiscontinue(s)} className="text-red-600 text-xs font-semibold">
-                        Mark Discontinued
-                      </button>
-                    ) : (
-                      <button onClick={() => reactivate(s.enrollment_id)} className="text-green-600 text-xs font-semibold">
-                        Reactivate
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <div className="bp-stats tr-stats">
+        <div className="bp-stat" style={{ "--i": 0 }}>
+          <div className="bp-stat-top">
+            <p className="bp-stat-label">Overall Retention</p>
+            <span className="tr-stat-icon green"><ShieldCheck size={20} /></span>
+          </div>
+          <p className="bp-stat-value">{retention != null ? `${retention}%` : "—"}</p>
+          <p className="do-foot"><i className="g" /> {active.length} of {students.length} still active</p>
         </div>
-      )}
+        <div className="bp-stat" style={{ "--i": 1 }}>
+          <div className="bp-stat-top">
+            <p className="bp-stat-label">At-Risk Students</p>
+            <span className="tr-stat-icon orange"><TriangleAlert size={20} /></span>
+          </div>
+          <p className="bp-stat-value tr-orange">{candidates.length} <small className="do-unit">Students</small>{candidates.length > 0 && <span className="bp-chip red">Attention</span>}</p>
+          <p className="do-foot"><i className="o" /> {STREAK_THRESHOLD}+ days absent in a row</p>
+        </div>
+        <div className="bp-stat" style={{ "--i": 2 }}>
+          <div className="bp-stat-top">
+            <p className="bp-stat-label">Discontinued</p>
+            <span className="tr-stat-icon blue"><UserMinus size={20} /></span>
+          </div>
+          <p className="bp-stat-value">{discontinued.length} <small className="do-unit">Recorded</small></p>
+          <p className="do-foot"><i className="n" /> Can be reactivated anytime</p>
+        </div>
+        <div className="bp-stat" style={{ "--i": 3 }}>
+          <div className="bp-stat-top">
+            <p className="bp-stat-label">Avg. Absent Days</p>
+            <span className="tr-stat-icon blue"><CalendarX2 size={20} /></span>
+          </div>
+          <p className="bp-stat-value">{avgAbsent != null ? avgAbsent : "—"} <small className="do-unit">days</small></p>
+          <p className="do-foot"><i className="o" /> {watch.length} with a current streak</p>
+        </div>
+      </div>
+
+      <div className="tr-grid">
+        <div className="tr-col">
+          <section className="bp-panel tr-card">
+            <div className="tr-card-head do-watch-head">
+              <div>
+                <h3>Active Risk Watchlist {candidates.length > 0 && <span className="bp-chip orange">{candidates.length} Actions Required</span>}</h3>
+                <p>Students with an ongoing absence streak in {selectedBatch?.batch_name || "this batch"}.</p>
+              </div>
+              <div className="do-controls">
+                <label className="bp-select">
+                  <select value={selectedBatchId} onChange={(e) => setSelectedBatchId(e.target.value)}>
+                    {batches.map((b) => <option key={b.batch_id} value={b.batch_id}>{b.batch_name}</option>)}
+                  </select>
+                  <ChevronDown size={14} />
+                </label>
+                <div className="bp-tabs">
+                  {[
+                    { key: "all", label: `All (${candidates.length + watch.length})` },
+                    { key: "high", label: `High Attention (${candidates.length})` },
+                    { key: "watch", label: `Watch (${watch.length})` },
+                  ].map((t) => (
+                    <button key={t.key} type="button" className={`bp-tab ${view === t.key ? "active" : ""}`} onClick={() => setView(t.key)}>{t.label}</button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {loading ? <p className="tr-empty">Loading…</p> : riskList.length === 0 ? (
+              <p className="tr-empty">Nobody has an ongoing absence streak. </p>
+            ) : riskList.map((s, i) => {
+              const high = s.is_candidate;
+              const pct = Math.min(100, Math.round((s.current_absence_streak / STREAK_THRESHOLD) * 100));
+              return (
+                <article key={s.enrollment_id} className={`do-card ${high ? "high" : ""}`}>
+                  <div className="do-card-top">
+                    <span className={`bp-avatar t${i % 4}`}>{initialsOf(s.name)}</span>
+                    <div className="do-who">
+                      <b>{s.name} <span className={`bp-chip ${high ? "red" : "orange"}`}>{high ? "HIGH ATTENTION" : "MODERATE"}</span></b>
+                      <small>{selectedBatch?.batch_name}</small>
+                    </div>
+                    <div className={`do-risk ${high ? "high" : ""}`}><small>STREAK RISK</small><b>{pct}%</b></div>
+                  </div>
+                  <div className="do-metrics">
+                    <div><small>Current Streak</small><b className={high ? "do-red" : ""}>{s.current_absence_streak} days</b><span>Flag at {STREAK_THRESHOLD}</span></div>
+                    <div><small>Total Absent</small><b>{s.total_absent_days} days</b><span>All recorded days</span></div>
+                    <div><small>Status</small><b>{s.status}</b><span>Enrollment</span></div>
+                  </div>
+                  <div className="do-actions">
+                    <Link to="/training/messages" className="bp-btn soft small">Notify Advisory</Link>
+                    <Link to="/training/attendance" className="bp-btn outline small"><ClipboardCheck size={13} /> Attendance</Link>
+                    <button type="button" className="bp-btn small do-danger" onClick={() => openDiscontinue(s)}>Mark Discontinued</button>
+                  </div>
+                </article>
+              );
+            })}
+          </section>
+
+          <section className="bp-panel">
+            <div className="do-table-head">
+              <h3>Enrollment Status Ledger</h3>
+              <span>{students.length} students</span>
+            </div>
+            <div className="bp-table-wrap">
+              <table className="bp-table">
+                <thead>
+                  <tr><th>Student</th><th>Status</th><th>Current Streak</th><th>Total Absent</th><th>Discontinued</th><th>Reason</th><th>Action</th></tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr className="bp-empty-row"><td colSpan={7}>Loading…</td></tr>
+                  ) : students.length === 0 ? (
+                    <tr className="bp-empty-row"><td colSpan={7}>No students enrolled in this batch yet.</td></tr>
+                  ) : students.map((s, i) => (
+                    <tr key={s.enrollment_id} className={s.is_candidate ? "do-cand-row" : ""}>
+                      <td>
+                        <div className="bp-person">
+                          <span className={`bp-avatar t${i % 4}`}>{initialsOf(s.name)}</span>
+                          <p className="bp-person-name">{s.name}{s.is_candidate && <span className="bp-chip orange do-ml">Candidate</span>}</p>
+                        </div>
+                      </td>
+                      <td><span className={`bp-chip ${s.status === "ACTIVE" ? "green" : "red"}`}>{s.status}</span></td>
+                      <td>{s.current_absence_streak} day(s)</td>
+                      <td className={s.total_absent_days > 0 ? "do-red" : "bp-muted"}>{s.total_absent_days} day(s)</td>
+                      <td>{s.discontinued_date || "—"}</td>
+                      <td className="bp-muted">{s.discontinued_reason || "—"}</td>
+                      <td>
+                        {s.status === "ACTIVE" ? (
+                          <button type="button" className="do-link red" onClick={() => openDiscontinue(s)}>Mark Discontinued</button>
+                        ) : (
+                          <button type="button" className="do-link green" onClick={() => reactivate(s.enrollment_id)}><RotateCcw size={12} /> Reactivate</button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+
+        <div className="tr-col">
+          <section className="bp-panel tr-card">
+            <div className="tr-card-head"><h3>Risk Formula</h3><SlidersHorizontal size={16} className="bp-muted" /></div>
+            <p className="do-text">A student becomes a dropout candidate when they're still active but have been absent on consecutive recorded days.</p>
+            <div className="do-rule"><span>Consecutive absent days</span><b>{STREAK_THRESHOLD}+ days</b></div>
+            <div className="tr-progress thin"><span style={{ width: "100%" }} /></div>
+            <div className="do-rule"><span>Enrollment status</span><b>Active</b></div>
+            <div className="do-threshold"><span>Threshold for candidate flag</span><b>{STREAK_THRESHOLD} days in a row</b></div>
+          </section>
+
+          <section className="bp-panel tr-card">
+            <div className="tr-card-head"><h3>Discontinued Students</h3><span className="bp-chip gray">{discontinued.length}</span></div>
+            {discontinued.length === 0 ? <p className="tr-empty">No discontinuations recorded.</p> : discontinued.map((s, i) => (
+              <div key={s.enrollment_id} className="do-disc">
+                <span className={`bp-avatar t${i % 4}`}>{initialsOf(s.name)}</span>
+                <span className="do-disc-name"><b>{s.name}</b><small>{s.discontinued_date || "—"}{s.discontinued_reason ? ` · ${s.discontinued_reason}` : ""}</small></span>
+                <button type="button" className="bp-btn outline small" onClick={() => reactivate(s.enrollment_id)}><RotateCcw size={12} /> Reactivate</button>
+              </div>
+            ))}
+          </section>
+        </div>
+      </div>
 
       {actionStudent && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-5">
-          <div className="bg-white rounded-2xl w-full max-w-md p-6">
-            <h3 className="font-semibold text-gray-900 mb-4">Mark {actionStudent.name} as Discontinued</h3>
-            <label className="block text-xs font-semibold text-gray-500 mb-1">Reason (optional)</label>
-            <textarea
-              value={reason} onChange={(e) => setReason(e.target.value)} rows={3}
-              placeholder="e.g. Stopped attending, no response to outreach"
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm mb-4"
-            />
-            <div className="flex gap-3">
-              <button onClick={() => setActionStudent(null)} className="flex-1 bg-gray-50 text-gray-700 border border-gray-200 rounded-md py-2 text-sm font-semibold">
-                Cancel
-              </button>
-              <button onClick={confirmDiscontinue} disabled={saving} className="flex-1 bg-red-600 text-white rounded-md py-2 text-sm font-semibold disabled:opacity-60">
-                {saving ? "Saving…" : "Confirm"}
-              </button>
+        <div className="bp-modal-backdrop" onClick={() => setActionStudent(null)}>
+          <div className="bp-modal" onClick={(e) => e.stopPropagation()}>
+            <h2>Mark {actionStudent.name} as Discontinued</h2>
+            <p>This records today as the discontinued date. You can reactivate them later.</p>
+            <label className="bp-field">
+              <span>Reason (optional)</span>
+              <textarea rows={3} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Stopped attending, no response to outreach" />
+            </label>
+            <div className="bp-modal-actions">
+              <button type="button" className="bp-btn outline" onClick={() => setActionStudent(null)}>Cancel</button>
+              <button type="button" className="bp-btn do-danger" onClick={confirmDiscontinue} disabled={saving}>{saving ? "Saving…" : "Confirm"}</button>
             </div>
           </div>
         </div>

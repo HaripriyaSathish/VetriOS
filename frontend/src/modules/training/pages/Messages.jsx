@@ -1,9 +1,18 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  Megaphone, MessageSquarePlus, MessageCircleQuestion, CheckCheck, Users, Inbox, Search, ChevronDown, Send, X,
+} from "lucide-react";
 import client from "../../../api/client";
+import "../styles/BusinessPages.css";
+import "../styles/TrainerDashboard.css";
+import "../styles/TrainerMessages.css";
 
 function getUser() {
   return JSON.parse(localStorage.getItem("user") || "null");
 }
+
+const initialsOf = (name) =>
+  (name || "?").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
 
 function Messages() {
   const user = getUser();
@@ -21,12 +30,16 @@ function Messages() {
   const [bulkSending, setBulkSending] = useState(false);
   const [bulkStatus, setBulkStatus] = useState("");
 
+  const [search, setSearch] = useState("");
+  const [overview, setOverview] = useState(null);
+
   useEffect(() => {
     client.get("/api/training/dashboard/").then(({ data }) => {
       const b = data.batches || [];
       setBatches(b);
       if (b.length > 0) setSelectedBatchId(b[0].batch_id);
     });
+    client.get("/api/training/trainer/overview/").then(({ data }) => setOverview(data)).catch(() => setOverview(null));
   }, []);
 
   useEffect(() => {
@@ -91,89 +104,173 @@ function Messages() {
     }
   };
 
+  const startBulk = (selectAll) => {
+    setBulkMode(true);
+    setBulkSelected(selectAll ? new Set(students.map((s) => s.user_id)) : new Set());
+    setBulkStatus("");
+  };
+
+  const visibleStudents = useMemo(
+    () => students.filter((s) => !search.trim() || s.name.toLowerCase().includes(search.trim().toLowerCase())),
+    [students, search],
+  );
+  const selectedStudent = students.find((s) => s.user_id === selectedStudentId);
+  const selectedBatch = batches.find((b) => String(b.batch_id) === String(selectedBatchId));
+  const stats = overview?.stats;
+  const mineCount = thread.filter((m) => m.sender === user?.user_id).length;
+
   return (
-    <div className="p-6 max-w-6xl mx-auto">
-      <div className="flex justify-between items-center mb-5">
+    <div className="bp-page tr-page msg-page">
+      <p className="bp-crumb">Trainer Workspace &gt; Communication &gt; <span>Messages &amp; Q&amp;A</span></p>
+
+      <section className="bp-panel msg-head">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Messages</h1>
+          <p className="msg-kicker"><span className="msg-badge">MENTORSHIP HUB</span></p>
+          <h1 className="bp-title">Doubt Clearing &amp; Student Messages</h1>
+          <p className="bp-sub">Answer student doubts one-on-one and broadcast announcements to your whole batch.</p>
         </div>
-        <div className="flex items-center gap-3">
-          <select value={selectedBatchId} onChange={(e) => setSelectedBatchId(e.target.value)} className="border border-gray-300 rounded-md px-3 py-2 text-sm">
-            {batches.map((b) => <option key={b.batch_id} value={b.batch_id}>{b.batch_name}</option>)}
-          </select>
-          <button
-            onClick={() => { setBulkMode(!bulkMode); setBulkSelected(new Set()); setBulkStatus(""); }}
-            className={`px-3 py-2 rounded-md text-sm font-semibold border ${bulkMode ? "bg-blue-600 text-white border-transparent" : "bg-white text-blue-600 border-blue-600"}`}
-          >
-            {bulkMode ? "Exit Bulk Send" : "Select Multiple Students"}
-          </button>
+        <div className="bp-actions">
+          <button type="button" className="bp-btn outline" onClick={() => startBulk(true)}><Megaphone size={16} /> Broadcast Announcement</button>
+          <button type="button" className="bp-btn navy" onClick={() => startBulk(false)}><MessageSquarePlus size={16} /> Message Selected Students</button>
+        </div>
+      </section>
+
+      <div className="bp-stats tr-stats">
+        <div className="bp-stat" style={{ "--i": 0 }}>
+          <div className="bp-stat-top">
+            <p className="bp-stat-label msg-label">UNREAD MESSAGES</p>
+            <span className="tr-stat-icon orange"><MessageCircleQuestion size={20} /></span>
+          </div>
+          <p className="bp-stat-value">{stats ? stats.unread_messages : "—"} {stats?.unread_messages > 0 && <span className="bp-chip orange">Pending</span>}</p>
+          <p className="tr-stat-sub">Across all your batches</p>
+        </div>
+        <div className="bp-stat" style={{ "--i": 1 }}>
+          <div className="bp-stat-top">
+            <p className="bp-stat-label msg-label">THIS CONVERSATION</p>
+            <span className="tr-stat-icon green"><CheckCheck size={20} /></span>
+          </div>
+          <p className="bp-stat-value">{thread.length} <small className="msg-unit">messages</small></p>
+          <p className="tr-stat-sub">{mineCount} sent by you</p>
+        </div>
+        <div className="bp-stat" style={{ "--i": 2 }}>
+          <div className="bp-stat-top">
+            <p className="bp-stat-label msg-label">STUDENTS IN BATCH</p>
+            <span className="tr-stat-icon blue"><Users size={20} /></span>
+          </div>
+          <p className="bp-stat-value">{students.length}</p>
+          <p className="tr-stat-sub">{selectedBatch?.batch_name || "—"}</p>
+        </div>
+        <div className="bp-stat" style={{ "--i": 3 }}>
+          <div className="bp-stat-top">
+            <p className="bp-stat-label msg-label">RECENT QUERIES</p>
+            <span className="tr-stat-icon orange"><Inbox size={20} /></span>
+          </div>
+          <p className="bp-stat-value">{overview ? overview.recent_messages.length : "—"}</p>
+          <p className="tr-stat-sub">Latest from students</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-[260px_1fr] gap-5" style={{ height: "calc(100vh - 220px)" }}>
-        <div className="bg-white border border-gray-200 rounded-xl p-4 overflow-y-auto">
-          {students.map((s) => (
-            bulkMode ? (
-              <label key={s.user_id} className={`flex items-center gap-2 px-3 py-2 rounded-md mb-1 cursor-pointer ${bulkSelected.has(s.user_id) ? "bg-blue-50" : ""}`}>
-                <input type="checkbox" checked={bulkSelected.has(s.user_id)} onChange={() => toggleBulk(s.user_id)} />
-                <span className="text-sm text-gray-900">{s.name}</span>
-              </label>
-            ) : (
-              <button
-                key={s.user_id}
-                onClick={() => setSelectedStudentId(s.user_id)}
-                className={`w-full text-left px-3 py-2 rounded-md mb-1 text-sm ${selectedStudentId === s.user_id ? "bg-blue-50 text-gray-900" : "text-gray-700"}`}
-              >
-                {s.name}
-              </button>
-            )
-          ))}
-        </div>
+      <div className="msg-grid">
+        <aside className="bp-panel msg-queue">
+          <div className="msg-queue-head">
+            <h3>Inquiries Queue <span className="bp-chip blue">{students.length} Total</span></h3>
+          </div>
+          <label className="bp-select msg-batch">
+            <select value={selectedBatchId} onChange={(e) => setSelectedBatchId(e.target.value)}>
+              {batches.map((b) => <option key={b.batch_id} value={b.batch_id}>{b.batch_name}</option>)}
+            </select>
+            <ChevronDown size={14} />
+          </label>
+          <label className="bp-search">
+            <Search size={15} />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search student name…" />
+          </label>
+          <div className="msg-list">
+            {visibleStudents.length === 0 && <p className="tr-empty">No students in this batch.</p>}
+            {visibleStudents.map((s, i) => (
+              bulkMode ? (
+                <label key={s.user_id} className={`msg-item ${bulkSelected.has(s.user_id) ? "active" : ""}`}>
+                  <input type="checkbox" checked={bulkSelected.has(s.user_id)} onChange={() => toggleBulk(s.user_id)} />
+                  <span className={`bp-avatar t${i % 4}`}>{initialsOf(s.name)}</span>
+                  <span className="msg-item-name"><b>{s.name}</b><small>@{s.username}</small></span>
+                </label>
+              ) : (
+                <button key={s.user_id} type="button" className={`msg-item ${selectedStudentId === s.user_id ? "active" : ""}`} onClick={() => setSelectedStudentId(s.user_id)}>
+                  <span className={`bp-avatar t${i % 4}`}>{initialsOf(s.name)}</span>
+                  <span className="msg-item-name"><b>{s.name}</b><small>{selectedBatch?.batch_name}</small></span>
+                </button>
+              )
+            ))}
+          </div>
+        </aside>
 
         {bulkMode ? (
-          <div className="bg-white border border-gray-200 rounded-xl p-6 flex flex-col">
-            <h3 className="font-semibold text-gray-900 mb-1">Send to Selected Students</h3>
-            <p className="text-sm text-gray-500 mb-4">Write your message once — it'll be sent individually to each selected student.</p>
-            <textarea
-              value={bulkMessage} onChange={(e) => setBulkMessage(e.target.value)}
-              rows={8} className="border border-gray-300 rounded-md px-3 py-2 text-sm mb-4"
-            />
-            <button onClick={sendBulk} disabled={bulkSending} className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-semibold w-48 disabled:opacity-60">
-              {bulkSending ? "Sending…" : `Send to ${bulkSelected.size} Student(s)`}
-            </button>
-            {bulkStatus && <p className="text-sm text-gray-700 mt-3">{bulkStatus}</p>}
-          </div>
+          <section className="bp-panel msg-thread">
+            <div className="msg-thread-head">
+              <div>
+                <h3><Megaphone size={18} /> Send to Selected Students</h3>
+                <p>Write once — it's sent individually to each selected student.</p>
+              </div>
+              <button type="button" className="bp-btn outline small" onClick={() => { setBulkMode(false); setBulkSelected(new Set()); setBulkStatus(""); }}><X size={13} /> Exit Bulk Send</button>
+            </div>
+            <div className="msg-bulk-body">
+              <div className="msg-bulk-actions">
+                <span>{bulkSelected.size} of {students.length} selected</span>
+                <button type="button" className="msg-link" onClick={() => setBulkSelected(new Set(students.map((s) => s.user_id)))}>Select all</button>
+                <button type="button" className="msg-link" onClick={() => setBulkSelected(new Set())}>Clear</button>
+              </div>
+              <div className="msg-pad">
+                <p className="msg-pad-label">Announcement</p>
+                <textarea rows={8} value={bulkMessage} onChange={(e) => setBulkMessage(e.target.value)} placeholder="Type your announcement…" />
+              </div>
+              {bulkStatus && <p className="msg-status">{bulkStatus}</p>}
+              <div className="bp-modal-actions">
+                <button type="button" className="bp-btn navy" onClick={sendBulk} disabled={bulkSending}><Send size={15} /> {bulkSending ? "Sending…" : `Send to ${bulkSelected.size} Student(s)`}</button>
+              </div>
+            </div>
+          </section>
         ) : (
-          <div className="bg-white border border-gray-200 rounded-xl flex flex-col">
-            <div className="flex-1 overflow-y-auto p-5">
-              {thread.length === 0 ? (
-                <p className="text-gray-400 text-sm">No messages yet.</p>
-              ) : (
-                thread.map((m) => {
+          <section className="bp-panel msg-thread">
+            <div className="msg-thread-head">
+              <div className="msg-student">
+                <span className="bp-avatar">{initialsOf(selectedStudent?.name)}</span>
+                <div>
+                  <h3>{selectedStudent?.name || "Select a student"}</h3>
+                  <p>{selectedStudent ? `@${selectedStudent.username} · ${selectedBatch?.batch_name || ""}` : ""}</p>
+                </div>
+              </div>
+            </div>
+            <div className="msg-active">
+              <p className="msg-active-label"><MessageCircleQuestion size={15} /> Active Thread</p>
+              <div className="msg-bubbles">
+                {thread.length === 0 ? (
+                  <p className="tr-empty">No messages yet.</p>
+                ) : thread.map((m) => {
                   const isMine = m.sender === user?.user_id;
                   return (
-                    <div key={m.message_id} className={`flex mb-3 ${isMine ? "justify-end" : "justify-start"}`}>
-                      <div className={`max-w-[70%] px-4 py-2 rounded-xl text-sm ${isMine ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-900"}`}>
-                        {m.content}
-                        <p className="text-xs opacity-70 mt-1">{new Date(m.created_at).toLocaleString()}</p>
-                      </div>
+                    <div key={m.message_id} className={`msg-bubble ${isMine ? "mine" : ""}`}>
+                      <p className="msg-meta">{isMine ? "You" : selectedStudent?.name} · {new Date(m.created_at).toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</p>
+                      <p className="msg-text">{m.content}</p>
                     </div>
                   );
-                })
-              )}
+                })}
+              </div>
             </div>
-            <div className="flex gap-3 p-4 border-t border-gray-100">
-              <input
-                value={newMessage} onChange={(e) => setNewMessage(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && send()}
-                placeholder="Type a message…"
-                className="flex-1 border border-gray-300 rounded-md px-3 py-2 text-sm"
+            <div className="msg-pad">
+              <p className="msg-pad-label">Trainer Response Pad</p>
+              <textarea
+                rows={3}
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+                placeholder={selectedStudent ? `Reply to ${selectedStudent.name}…` : "Type a message…"}
               />
-              <button onClick={send} disabled={sending} className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-semibold disabled:opacity-60">
-                Send
-              </button>
+              <div className="msg-pad-foot">
+                <span>Enter to send · Shift+Enter for a new line</span>
+                <button type="button" className="bp-btn navy" onClick={send} disabled={sending || !selectedStudentId}><Send size={15} /> {sending ? "Sending…" : "Send Answer"}</button>
+              </div>
             </div>
-          </div>
+          </section>
         )}
       </div>
     </div>

@@ -1,9 +1,27 @@
 import { useEffect, useState } from "react";
+import {
+  Ban, BriefcaseBusiness, Check, CircleCheck, CircleOff, Eye, FileText, GraduationCap, Info,
+  KeyRound, Pencil, Plus, RotateCcw, Search, Shield, ShieldCheck, ShieldPlus, UserCog, Users, X,
+} from "lucide-react";
 import client from "../../../api/client";
 import Pagination, { paginate } from "../../../components/Pagination";
+import "../../student/styles/StudentDashboard.css";
 import "../styles/RolesPermissions.css";
 
 const EMPTY_FORM = { role_name: "", description: "", is_active: true };
+const DESC_MAX = 200;
+
+// Icon tile for a role card, picked from the role's name.
+function roleIcon(name = "") {
+  const n = name.toLowerCase();
+  if (n.includes("admin")) return ShieldCheck;
+  if (n.includes("hr") || n.includes("manager")) return Users;
+  if (n.includes("trainee") || n.includes("student") || n.includes("intern")) return GraduationCap;
+  if (n.includes("project") || n.includes("client") || n.includes("lead")) return BriefcaseBusiness;
+  if (n.includes("doc")) return FileText;
+  if (n.includes("guest")) return UserCog;
+  return Shield;
+}
 
 // Roles & Permissions screen — the role table's contents, with full CRUD:
 // create, edit, view (its granted permissions), and delete (soft —
@@ -27,6 +45,7 @@ function RolesPermissions() {
   const [confirming, setConfirming] = useState(false);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
 
   const loadData = async () => {
     setLoading(true);
@@ -124,7 +143,12 @@ function RolesPermissions() {
     }
   };
 
+  const activeCount = roles.filter((r) => r.is_active).length;
+  const inactiveCount = roles.length - activeCount;
+
   const filteredRoles = roles.filter((role) => {
+    if (statusFilter === "ACTIVE" && !role.is_active) return false;
+    if (statusFilter === "INACTIVE" && role.is_active) return false;
     const q = search.trim().toLowerCase();
     if (!q) return true;
     return (
@@ -133,15 +157,28 @@ function RolesPermissions() {
     );
   });
 
+  const stats = [
+    { label: "Total roles", value: roles.length, accent: "blue", Icon: ShieldCheck },
+    { label: "Active", value: activeCount, accent: "orange", Icon: CircleCheck },
+    { label: "Inactive", value: inactiveCount, accent: "blue", Icon: CircleOff, red: inactiveCount > 0 },
+    { label: "Permissions available", value: permissionCount, accent: "orange", Icon: KeyRound },
+  ];
+
+  const chips = [
+    ["ALL", "All", roles.length],
+    ["ACTIVE", "Active", activeCount],
+    ["INACTIVE", "Inactive", inactiveCount],
+  ];
+
   return (
     <div className="rp-screen">
       <div className="rp-head">
         <div>
           <h1>Roles</h1>
-          <p>{roles.length} roles · role table</p>
+          <p>Create roles and see what each one can do</p>
         </div>
         <button className="rp-btn-accent" onClick={openCreate}>
-          + New role
+          <Plus size={16} /> New role
         </button>
       </div>
 
@@ -150,101 +187,196 @@ function RolesPermissions() {
       {loading ? (
         <p className="rp-empty">Loading…</p>
       ) : (
-        <div className="rp-panel rp-roles-panel">
-          <div className="rp-panel-head">
-            <h3>All roles</h3>
-            <input
-              className="rp-search"
-              placeholder="Search roles by name or description…"
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
-            />
-            <span className="rp-hint">role table, live</span>
+        <>
+          <div className="sd-stats rp-stats">
+            {stats.map(({ label, value, accent, Icon, red }, i) => (
+              <div
+                key={label}
+                className={`sd-card sd-card-${accent}`}
+                style={{ "--delay": `${0.05 + i * 0.07}s` }}
+              >
+                <span className="sd-card-blob" aria-hidden="true" />
+                <span className="sd-card-icon rp-stat-icon"><Icon size={22} /></span>
+                <p className={`sd-card-value sd-tone-${red ? "red" : "gray"}`}>{value}</p>
+                <p className="sd-card-label">{label}</p>
+              </div>
+            ))}
           </div>
-          <div className="rp-table-scroll">
-            <table className="rp-role-table">
-              <thead>
-                <tr>
-                  <th>Role</th>
-                  <th>Description</th>
-                  <th>Status</th>
-                  <th>Permissions</th>
-                  <th>Created</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginate(filteredRoles, page).map((role) => (
-                  <tr key={role.role_id}>
-                    <td className="rp-role-name">{role.role_name}</td>
-                    <td className="rp-sub">{role.description}</td>
-                    <td>
+
+          <div className="rp-toolbar">
+            <label className="rp-search-wrap">
+              <span className="rp-search-icon"><Search size={16} /></span>
+              <input
+                className="rp-search"
+                placeholder="Search roles by name or description"
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1);
+                }}
+              />
+              {search && (
+                <button
+                  type="button"
+                  className="rp-search-clear"
+                  aria-label="Clear search"
+                  onClick={() => {
+                    setSearch("");
+                    setPage(1);
+                  }}
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </label>
+            <div className="rp-seg">
+              {chips.map(([key, label, count]) => (
+                <button
+                  key={key}
+                  type="button"
+                  className={"rp-seg-btn" + (statusFilter === key ? " on" : "")}
+                  onClick={() => {
+                    setStatusFilter(key);
+                    setPage(1);
+                  }}
+                >
+                  {label} <b>{count}</b>
+                </button>
+              ))}
+            </div>
+          </div>
+          {(search.trim() || statusFilter !== "ALL") && (
+            <p className="rp-count">
+              Showing <b>{filteredRoles.length}</b> of {roles.length} roles
+              {search.trim() ? ` for "${search.trim()}"` : ""}
+            </p>
+          )}
+
+          {filteredRoles.length === 0 ? (
+            <div className="rp-empty-card">
+              <Shield size={26} />
+              <p>No roles match your search.</p>
+            </div>
+          ) : (
+            <div className="rp-grid">
+              {paginate(filteredRoles, page).map((role) => {
+                const Icon = roleIcon(role.role_name);
+                const pct = permissionCount
+                  ? Math.min(100, Math.round((role.permission_count / permissionCount) * 100))
+                  : 0;
+                return (
+                  <div key={role.role_id} className={"rp-card" + (role.is_active ? "" : " inactive")}>
+                    <div className="rp-card-head">
+                      <span className="rp-tile"><Icon size={19} /></span>
+                      <span className="rp-card-name">{role.role_name}</span>
                       <span className={"rp-pill " + (role.is_active ? "on" : "off")}>
-                        {role.is_active ? "● Active" : "○ Inactive"}
+                        {role.is_active ? "Active" : "Inactive"}
                       </span>
-                    </td>
-                    <td className="rp-mono">
-                      {role.permission_count} / {permissionCount}
-                    </td>
-                    <td className="rp-mono">
-                      {role.created_at ? new Date(role.created_at).toLocaleDateString() : "—"}
-                    </td>
-                    <td className="rp-actions">
-                      <button className="rp-btn-sm" onClick={() => openView(role)}>
-                        View
-                      </button>
-                      <button className="rp-btn-sm" onClick={() => openEdit(role)}>
-                        Edit
-                      </button>
-                      <button className="rp-btn-sm rp-btn-danger" onClick={() => requestToggleActive(role)}>
-                        {role.is_active ? "Deactivate" : "Reactivate"}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    </div>
+                    <p className="rp-card-desc">{role.description || "No description added."}</p>
+                    <div className="rp-perm-row">
+                      <span>Permissions</span>
+                      <span>{role.permission_count} / {permissionCount}</span>
+                    </div>
+                    <div className="rp-track"><i style={{ width: `${pct}%` }} /></div>
+                    <div className="rp-card-foot">
+                      <span className="rp-date">
+                        Created {role.created_at ? new Date(role.created_at).toLocaleDateString() : "—"}
+                      </span>
+                      <div className="rp-actions">
+                        <button className="rp-action-btn" onClick={() => openView(role)}>
+                          <Eye size={14} /> <span>View</span>
+                        </button>
+                        <button className="rp-action-btn" onClick={() => openEdit(role)}>
+                          <Pencil size={14} /> <span>Edit</span>
+                        </button>
+                        <button
+                          className={"rp-action-btn " + (role.is_active ? "danger" : "good")}
+                          onClick={() => requestToggleActive(role)}
+                        >
+                          {role.is_active ? <Ban size={14} /> : <RotateCcw size={14} />}
+                          <span>{role.is_active ? "Deactivate" : "Reactivate"}</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
           <Pagination page={page} totalItems={filteredRoles.length} onPageChange={setPage} />
-        </div>
+        </>
       )}
 
       {formOpen && (
         <div className="rp-modal-backdrop" onClick={closeForm}>
           <form className="rp-modal" onClick={(e) => e.stopPropagation()} onSubmit={handleSubmit}>
             <button type="button" className="rp-modal-x" onClick={closeForm} aria-label="Close">
-              ✕
+              <X size={14} />
             </button>
-            <h2>{editingRole ? "Edit role" : "New role"}</h2>
-            {editingRole && (
-              <p className="rp-hint">To manage this role's permissions, use the Permissions menu.</p>
-            )}
+            <div className="rp-form-head">
+              <span className="rp-form-icon">{editingRole ? <Pencil size={21} /> : <ShieldPlus size={22} />}</span>
+              <div>
+                <h2>{editingRole ? "Edit role" : "New role"}</h2>
+                <p>
+                  {editingRole
+                    ? "Change the name, description or status"
+                    : "Name it and describe it, then pick its permissions later"}
+                </p>
+              </div>
+            </div>
 
-            <label>Role name</label>
-            <input
-              value={form.role_name}
-              onChange={(e) => setForm({ ...form, role_name: e.target.value })}
-              required
-            />
+            <label className="rp-label" htmlFor="rp-role-name">
+              <span>Role name <em>*</em></span>
+            </label>
+            <div className="rp-field">
+              <Shield size={16} />
+              <input
+                id="rp-role-name"
+                value={form.role_name}
+                maxLength={100}
+                placeholder="Document Reviewer"
+                onChange={(e) => setForm({ ...form, role_name: e.target.value })}
+                required
+              />
+            </div>
+            <p className="rp-field-hint">Use a short, clear name people will recognise.</p>
 
-            <label>Description</label>
+            <label className="rp-label" htmlFor="rp-role-desc">
+              <span>Description</span>
+              <small>{form.description.length} / {DESC_MAX}</small>
+            </label>
             <textarea
+              id="rp-role-desc"
+              className="rp-textarea"
               rows={3}
+              maxLength={DESC_MAX}
+              placeholder="What is this role for?"
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
             />
 
-            <label className="rp-checkbox">
+            <label className="rp-toggle-row">
+              <span>
+                <b>Active</b>
+                <small>Can be assigned to users right away</small>
+              </span>
               <input
                 type="checkbox"
+                className="rp-switch"
                 checked={form.is_active}
                 onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
               />
-              Active
             </label>
+
+            <div className="rp-note">
+              <Info size={15} />
+              <span>
+                {editingRole
+                  ? "To manage this role's permissions, use the Permissions menu."
+                  : "After saving, set what this role can do from the Permissions menu."}
+              </span>
+            </div>
 
             {formError && <p className="rp-error">{formError}</p>}
 
@@ -253,7 +385,8 @@ function RolesPermissions() {
                 Cancel
               </button>
               <button type="submit" className="rp-btn-accent" disabled={submitting}>
-                {submitting ? "Saving…" : "Save"}
+                <Check size={16} />
+                {submitting ? "Saving…" : editingRole ? "Save changes" : "Create role"}
               </button>
             </div>
           </form>
@@ -264,12 +397,12 @@ function RolesPermissions() {
         <div className="rp-modal-backdrop" onClick={closeView}>
           <div className="rp-modal" onClick={(e) => e.stopPropagation()}>
             <button type="button" className="rp-modal-x" onClick={closeView} aria-label="Close">
-              ✕
+              <X size={14} />
             </button>
             <h2>{viewRole.role_name}</h2>
             <p className="rp-view-desc">{viewRole.description}</p>
             <span className={"rp-pill " + (viewRole.is_active ? "on" : "off")}>
-              {viewRole.is_active ? "● Active" : "○ Inactive"}
+              {viewRole.is_active ? "Active" : "Inactive"}
             </span>
 
             <h3 className="rp-view-subhead">Granted permissions</h3>
@@ -300,7 +433,7 @@ function RolesPermissions() {
         <div className="rp-modal-backdrop" onClick={cancelToggleActive}>
           <div className="rp-modal rp-confirm" onClick={(e) => e.stopPropagation()}>
             <button type="button" className="rp-modal-x" onClick={cancelToggleActive} aria-label="Close">
-              ✕
+              <X size={14} />
             </button>
             <h2>{confirmTarget.is_active ? "Deactivate role?" : "Reactivate role?"}</h2>
             <p>

@@ -6,6 +6,14 @@
   gap: 20px;
 }
 
+/* No motion on this page: the hero/stat-card animations come from the shared
+   trainee CSS, so they are switched off here only (trainee page keeps them). */
+.sad-body *,
+.sad-body *::before,
+.sad-body *::after {
+  animation: none !important;
+}
+
 .sad-loading,
 .sad-error {
   margin: 0;

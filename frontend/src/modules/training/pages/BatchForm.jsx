@@ -1,7 +1,26 @@
 import { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import {
+  CalendarPlus, Layers, BookOpen, Hash, Users, CalendarDays, UserRound, Activity, Rocket, RotateCcw, Plus,
+  Lightbulb, BarChart3, Clock3, CircleCheck, Mail, Send, Search,
+} from "lucide-react";
 import client from "../../../api/client";
-import "../styles/TrainingDashboard.css";
+import "../styles/BusinessPages.css";
+import "../styles/BatchForm.css";
+
+const EMPTY_FORM = {
+  course: "", trainer: "", batch_code: "", batch_name: "",
+  start_date: "", end_date: "", capacity: "", status: "PLANNED",
+};
+
+const fmtDate = (d) =>
+  d ? new Date(`${String(d).slice(0, 10)}T00:00:00`).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+
+function startsIn(d) {
+  const days = Math.round((new Date(`${d}T00:00:00`) - new Date(new Date().toDateString())) / 86400000);
+  if (days <= 0) return "Starting today";
+  return `Starting in ${days} day${days === 1 ? "" : "s"}`;
+}
 
 const DEFAULT_WELCOME_SUBJECT = "Welcome to VetriOS Training!";
 const DEFAULT_WELCOME_BODY =
@@ -18,10 +37,9 @@ function BatchForm() {
   const [students, setStudents] = useState([]);
   const [selectedStudents, setSelectedStudents] = useState(new Set());
 
-  const [form, setForm] = useState({
-    course: "", trainer: "", batch_code: "", batch_name: "",
-    start_date: "", end_date: "", capacity: "", status: "PLANNED",
-  });
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [upcoming, setUpcoming] = useState(null);
+  const [studentSearch, setStudentSearch] = useState("");
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -69,7 +87,17 @@ function BatchForm() {
 
   useEffect(() => {
     loadData();
+    // Upcoming batches panel — same read-only data as the Business dashboard.
+    client.get("/api/training/business/dashboard/", { params: { period: "all" } })
+      .then(({ data }) => setUpcoming(data))
+      .catch(() => setUpcoming({ upcoming_batches: [], capacity_total: 0, capacity_filled: 0 }));
   }, []);
+
+  const discard = () => {
+    setForm(EMPTY_FORM);
+    setSelectedStudents(new Set());
+    setError("");
+  };
 
   // Auto-build the trainer notification body from the actual roster the
   // moment the batch is created — still fully editable before sending.
@@ -212,234 +240,281 @@ function BatchForm() {
     }
   };
 
-  if (loading) return <p className="td-empty">Loading…</p>;
+  if (loading) return <p className="bp-loading">Loading…</p>;
 
   // --- Post-creation view: batch is made, now show editable email panels ---
   if (createdBatch) {
     return (
-      <div className="td-screen">
-        <h1>Batch Created</h1>
-        <p className="td-sub">{createdBatch.roster.length} student(s) enrolled in this batch.</p>
+      <div className="bp-page">
+        <div className="nb-done">
+          <span className="nb-done-icon"><CircleCheck size={26} /></span>
+          <div>
+            <h1 className="bp-title">Batch Created</h1>
+            <p className="bp-sub">{createdBatch.roster.length} student(s) enrolled in this batch. Send their welcome emails and notify the trainer below.</p>
+          </div>
+        </div>
 
-        {error && <p className="td-error">{error}</p>}
+        {error && <p className="bp-error">{error}</p>}
 
-        <div className="td-panel fc-form" style={{ marginBottom: 20 }}>
-          <h3>Welcome Email to Students</h3>
+        <div className="nb-card" style={{ "--i": 0 }}>
+          <h3><span className="nb-icon"><Mail size={16} /></span> Welcome Email to Students</h3>
           {welcomeResult && (
-            <p className="td-sub">
+            <p className="bp-notice">
               Sent to {welcomeResult.sent_count} student(s).
               {welcomeResult.skipped.length > 0 && ` ${welcomeResult.skipped.length} skipped: ${welcomeResult.skipped.map((s) => s.reason).join("; ")}`}
             </p>
           )}
-          <div className="fc-field" style={{ marginBottom: 12 }}>
-            <label>Subject</label>
-            <input value={welcomeSubject} onChange={(e) => setWelcomeSubject(e.target.value)} style={{ width: "100%" }} />
+          <div className="nb-stack">
+            <label className="bp-field"><span>Subject</span>
+              <input value={welcomeSubject} onChange={(e) => setWelcomeSubject(e.target.value)} />
+            </label>
+            <label className="bp-field"><span>Body (HTML) — use {"{{full_name}}"} for personalization</span>
+              <textarea value={welcomeBody} onChange={(e) => setWelcomeBody(e.target.value)} rows={5} />
+            </label>
+            <label className="bp-field"><span>CC (comma-separated, optional)</span>
+              <input value={welcomeCc} onChange={(e) => setWelcomeCc(e.target.value)} />
+            </label>
           </div>
-          <div className="fc-field" style={{ marginBottom: 12 }}>
-            <label>Body (HTML) — use {"{{full_name}}"} for personalization</label>
-            <textarea value={welcomeBody} onChange={(e) => setWelcomeBody(e.target.value)} rows={5} style={{ width: "100%" }} />
-          </div>
-          <div className="fc-field" style={{ marginBottom: 12 }}>
-            <label>CC (comma-separated, optional)</label>
-            <input value={welcomeCc} onChange={(e) => setWelcomeCc(e.target.value)} style={{ width: "100%" }} />
-          </div>
-          <button className="rp-btn-accent" onClick={sendWelcomeEmails} disabled={sendingWelcome}>
-            {sendingWelcome ? "Sending…" : `Send to ${createdBatch.roster.length} student(s)`}
+          <button type="button" className="bp-btn orange" onClick={sendWelcomeEmails} disabled={sendingWelcome}>
+            <Send size={14} /> {sendingWelcome ? "Sending…" : `Send to ${createdBatch.roster.length} student(s)`}
           </button>
         </div>
 
         {createdBatch.trainer && (
-          <div className="td-panel fc-form">
-            <h3>Notify Trainer</h3>
-            <p className="td-sub">To: {createdBatch.trainer.name} — {createdBatch.trainer.email || "no email on file"}</p>
-            {trainerMailResult === "sent" && <p className="td-sub">✅ Trainer notified.</p>}
-            <div className="fc-field" style={{ marginBottom: 12 }}>
-              <label>Subject</label>
-              <input value={trainerSubject} onChange={(e) => setTrainerSubject(e.target.value)} style={{ width: "100%" }} />
+          <div className="nb-card" style={{ "--i": 1 }}>
+            <h3><span className="nb-icon"><UserRound size={16} /></span> Notify Trainer</h3>
+            <p className="bp-sub">To: {createdBatch.trainer.name} — {createdBatch.trainer.email || "no email on file"}</p>
+            {trainerMailResult === "sent" && <p className="bp-notice">Trainer notified.</p>}
+            <div className="nb-stack">
+              <label className="bp-field"><span>Subject</span>
+                <input value={trainerSubject} onChange={(e) => setTrainerSubject(e.target.value)} />
+              </label>
+              <label className="bp-field"><span>Body (HTML) — pre-filled with the student roster, editable</span>
+                <textarea value={trainerBody} onChange={(e) => setTrainerBody(e.target.value)} rows={8} />
+              </label>
+              <label className="bp-field"><span>CC (comma-separated, optional)</span>
+                <input value={trainerCc} onChange={(e) => setTrainerCc(e.target.value)} />
+              </label>
             </div>
-            <div className="fc-field" style={{ marginBottom: 12 }}>
-              <label>Body (HTML) — pre-filled with the student roster, editable</label>
-              <textarea value={trainerBody} onChange={(e) => setTrainerBody(e.target.value)} rows={8} style={{ width: "100%" }} />
-            </div>
-            <div className="fc-field" style={{ marginBottom: 12 }}>
-              <label>CC (comma-separated, optional)</label>
-              <input value={trainerCc} onChange={(e) => setTrainerCc(e.target.value)} style={{ width: "100%" }} />
-            </div>
-            <button className="rp-btn-accent" onClick={sendTrainerNotification} disabled={sendingTrainerMail || !createdBatch.trainer.email}>
-              {sendingTrainerMail ? "Sending…" : "Notify Trainer"}
+            <button type="button" className="bp-btn navy" onClick={sendTrainerNotification} disabled={sendingTrainerMail || !createdBatch.trainer.email}>
+              <Send size={14} /> {sendingTrainerMail ? "Sending…" : "Notify Trainer"}
             </button>
           </div>
         )}
 
-        <div style={{ marginTop: 20 }}>
-          <button className="td-pill off" style={{ border: "none", cursor: "pointer" }} onClick={() => navigate("/training")}>
-            Done — Back to Training Management
-          </button>
-        </div>
+        <button type="button" className="bp-btn outline nb-back" onClick={() => navigate("/training")}>
+          Done — Back to Dashboard
+        </button>
       </div>
     );
   }
 
+  const q = studentSearch.trim().toLowerCase();
+  const visibleStudents = q
+    ? students.filter((s) => [s.name, s.course_name, s.personal_email, s.official_email].some((v) => (v || "").toLowerCase().includes(q)))
+    : students;
+  const upcomingList = upcoming?.upcoming_batches || [];
+  const avgFill = upcoming?.capacity_total ? Math.round((upcoming.capacity_filled / upcoming.capacity_total) * 100) : null;
+
   // --- Pre-creation view: the actual batch + student-selection form ---
   return (
-    <div className="td-screen">
-      <Link to="/training" style={{ fontSize: "13px", color: "#5b6478" }}>
-        ← Back to Training Management
-      </Link>
-      <h1>New Batch</h1>
+    <div className="bp-page">
+      <div className="bp-head">
+        <div>
+          <p className="bp-crumb"><span className="nb-pill">Cohort Administration</span> • Academic Cycle {new Date().getFullYear()}</p>
+          <h1 className="bp-title">Create New Training Batch</h1>
+          <p className="bp-sub">Schedule, calibrate seat allocation, and launch upcoming cohort programs for trainees.</p>
+        </div>
+        <div className="bp-actions">
+          <Link to="/training/management" className="bp-btn outline"><Layers size={15} /> View Active Batches</Link>
+        </div>
+      </div>
 
-      {error && <p className="td-error">{error}</p>}
+      {error && <p className="bp-error">{error}</p>}
 
-      <form onSubmit={handleSubmit}>
-        <div className="td-panel fc-form" style={{ marginBottom: 20 }}>
-          <h3>Batch Details</h3>
-          <div className="fc-field-grid">
-            <div className="fc-field">
-              <label>Course</label>
-              <select
-                required={!showNewCourseForm}
-                value={form.course}
-                onChange={(e) => handleCourseSelect(e.target.value)}
-              >
-                <option value="">Select a course</option>
-                <option value={ADD_NEW_COURSE_VALUE}>+ Add New Course</option>
-                {courses.map((c) => (
-                  <option key={c.course_id} value={c.course_id}>{c.course_name}</option>
-                ))}
-              </select>
+      <div className="nb-layout">
+        <form onSubmit={handleSubmit} className="nb-main">
+          <div className="nb-card" style={{ "--i": 0 }}>
+            <div className="nb-card-head">
+              <span className="nb-icon"><CalendarPlus size={17} /></span>
+              <div>
+                <h3>Batch Details Form</h3>
+                <p>Complete cohort prerequisites, then pick the converted students to enroll.</p>
+              </div>
+              <span className="bp-chip blue nb-step">Step 1 of 1</span>
+            </div>
+
+            <div className="bp-form-grid">
+              <label className="bp-field full">
+                <span>Program Track *</span>
+                <div className="nb-input"><BookOpen size={15} />
+                  <select required={!showNewCourseForm} value={form.course} onChange={(e) => handleCourseSelect(e.target.value)}>
+                    <option value="">Select a course</option>
+                    <option value={ADD_NEW_COURSE_VALUE}>+ Add New Course</option>
+                    {courses.map((c) => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}
+                  </select>
+                </div>
+              </label>
 
               {showNewCourseForm && (
-                <div style={{
-                  marginTop: 10, padding: 12, border: "1px solid #d1d5db",
-                  borderRadius: 8, background: "#f9fafb",
-                }}>
-                  <p style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>New Course</p>
-                  {courseError && <p className="td-error" style={{ fontSize: 12, marginBottom: 8 }}>{courseError}</p>}
-                  <input
-                    placeholder="Course name"
-                    value={newCourseName}
-                    onChange={(e) => setNewCourseName(e.target.value)}
-                    style={{ width: "100%", marginBottom: 8, padding: 6, fontSize: 13 }}
-                  />
-                  <textarea
-                    placeholder="Description (optional)"
-                    value={newCourseDescription}
-                    onChange={(e) => setNewCourseDescription(e.target.value)}
-                    rows={2}
-                    style={{ width: "100%", marginBottom: 8, padding: 6, fontSize: 13 }}
-                  />
-                  <input
-                    type="number"
-                    placeholder="Duration in days (optional)"
-                    value={newCourseDuration}
-                    onChange={(e) => setNewCourseDuration(e.target.value)}
-                    style={{ width: "100%", marginBottom: 8, padding: 6, fontSize: 13 }}
-                  />
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <button
-                      type="button"
-                      onClick={saveNewCourse}
-                      disabled={savingCourse}
-                      className="rp-btn-accent"
-                      style={{ fontSize: 12, padding: "6px 12px" }}
-                    >
+                <div className="nb-newcourse full">
+                  <p className="bp-person-name"><Plus size={13} /> New Course</p>
+                  {courseError && <p className="bp-form-error">{courseError}</p>}
+                  <div className="bp-form-grid">
+                    <label className="bp-field full"><span>Course name</span>
+                      <input value={newCourseName} onChange={(e) => setNewCourseName(e.target.value)} />
+                    </label>
+                    <label className="bp-field full"><span>Description (optional)</span>
+                      <textarea rows={2} value={newCourseDescription} onChange={(e) => setNewCourseDescription(e.target.value)} />
+                    </label>
+                    <label className="bp-field"><span>Duration in days (optional)</span>
+                      <input type="number" value={newCourseDuration} onChange={(e) => setNewCourseDuration(e.target.value)} />
+                    </label>
+                  </div>
+                  <div className="bp-modal-actions">
+                    <button type="button" className="bp-btn outline small" onClick={cancelNewCourse}>Cancel</button>
+                    <button type="button" className="bp-btn navy small" onClick={saveNewCourse} disabled={savingCourse}>
                       {savingCourse ? "Saving…" : "Save Course"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={cancelNewCourse}
-                      style={{ fontSize: 12, padding: "6px 12px", border: "none", background: "none", color: "#6b7280", cursor: "pointer" }}
-                    >
-                      Cancel
                     </button>
                   </div>
                 </div>
               )}
-            </div>
 
-            <div className="fc-field">
-              <label>Trainer</label>
-              <select value={form.trainer} onChange={(e) => updateField("trainer", e.target.value)}>
-                <option value="">Unassigned</option>
-                {trainers.map((t) => (
-                  <option key={t.trainer_id} value={t.trainer_id}>{t.trainer_name}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="fc-field">
-              <label>Batch Code</label>
-              <input required value={form.batch_code} onChange={(e) => updateField("batch_code", e.target.value)} />
-            </div>
-
-            <div className="fc-field">
-              <label>Batch Name</label>
-              <input required value={form.batch_name} onChange={(e) => updateField("batch_name", e.target.value)} />
-            </div>
-
-            <div className="fc-field">
-              <label>Start Date</label>
-              <input type="date" required value={form.start_date} onChange={(e) => updateField("start_date", e.target.value)} />
-            </div>
-
-            <div className="fc-field">
-              <label>End Date</label>
-              <input type="date" value={form.end_date} onChange={(e) => updateField("end_date", e.target.value)} />
-            </div>
-
-            <div className="fc-field">
-              <label>Capacity</label>
-              <input type="number" min="1" value={form.capacity} onChange={(e) => updateField("capacity", e.target.value)} />
-            </div>
-
-            <div className="fc-field">
-              <label>Status</label>
-              <select value={form.status} onChange={(e) => updateField("status", e.target.value)}>
-                <option value="PLANNED">Planned</option>
-                <option value="ACTIVE">Active</option>
-                <option value="COMPLETED">Completed</option>
-                <option value="CANCELLED">Cancelled</option>
-              </select>
+              <label className="bp-field">
+                <span>Batch Name *</span>
+                <div className="nb-input"><Layers size={15} />
+                  <input required value={form.batch_name} onChange={(e) => updateField("batch_name", e.target.value)} placeholder="e.g. Full Stack — Batch 04" />
+                </div>
+              </label>
+              <label className="bp-field">
+                <span>Batch Code *</span>
+                <div className="nb-input"><Hash size={15} />
+                  <input required value={form.batch_code} onChange={(e) => updateField("batch_code", e.target.value)} placeholder="e.g. FSD-2026-B04" />
+                </div>
+              </label>
+              <label className="bp-field">
+                <span>Commencement Date *</span>
+                <div className="nb-input"><CalendarDays size={15} />
+                  <input type="date" required value={form.start_date} onChange={(e) => updateField("start_date", e.target.value)} />
+                </div>
+              </label>
+              <label className="bp-field">
+                <span>Target Graduation Date</span>
+                <div className="nb-input"><CalendarDays size={15} />
+                  <input type="date" value={form.end_date} onChange={(e) => updateField("end_date", e.target.value)} />
+                </div>
+              </label>
+              <label className="bp-field">
+                <span>Target Capacity</span>
+                <div className="nb-input"><Users size={15} />
+                  <input type="number" min="1" value={form.capacity} onChange={(e) => updateField("capacity", e.target.value)} placeholder="Seats" />
+                </div>
+              </label>
+              <label className="bp-field">
+                <span>Status</span>
+                <div className="nb-input"><Activity size={15} />
+                  <select value={form.status} onChange={(e) => updateField("status", e.target.value)}>
+                    <option value="PLANNED">Planned</option>
+                    <option value="ACTIVE">Active</option>
+                    <option value="COMPLETED">Completed</option>
+                    <option value="CANCELLED">Cancelled</option>
+                  </select>
+                </div>
+              </label>
+              <label className="bp-field full">
+                <span>Lead Trainer Assignment</span>
+                <div className="nb-input"><UserRound size={15} />
+                  <select value={form.trainer} onChange={(e) => updateField("trainer", e.target.value)}>
+                    <option value="">Unassigned</option>
+                    {trainers.map((t) => <option key={t.trainer_id} value={t.trainer_id}>{t.trainer_name}</option>)}
+                  </select>
+                </div>
+              </label>
             </div>
           </div>
-        </div>
 
-        <div className="td-panel" style={{ marginBottom: 20 }}>
-          <div className="td-panel-head">
-            <h3>Select Students ({selectedStudents.size} selected)</h3>
+          <div className="nb-card" style={{ "--i": 1 }}>
+            <div className="nb-card-head">
+              <span className="nb-icon orange"><Users size={17} /></span>
+              <div>
+                <h3>Trainees</h3>
+                <p>Converted students not yet in a batch.</p>
+              </div>
+              <span className="bp-chip orange nb-step">{selectedStudents.size} selected</span>
+            </div>
+            <label className="bp-search nb-search">
+              <Search size={15} />
+              <input value={studentSearch} onChange={(e) => setStudentSearch(e.target.value)} placeholder="Search students..." aria-label="Search students" />
+            </label>
+            {students.length === 0 ? (
+              <p className="nb-empty">No converted students waiting to be grouped.</p>
+            ) : (
+              <div className="nb-students">
+                {visibleStudents.map((s) => {
+                  const on = selectedStudents.has(s.enquiry_id);
+                  return (
+                    <label key={s.enquiry_id} className={`nb-student ${on ? "on" : ""}`}>
+                      <input type="checkbox" checked={on} onChange={() => toggleStudent(s.enquiry_id)} />
+                      <span className="nb-check"><CircleCheck size={15} /></span>
+                      <span className="nb-student-text">
+                        <b>{s.name}</b>
+                        <small>{s.course_name} · {s.official_email || s.personal_email || "no email"}</small>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
           </div>
-          <div className="td-table-scroll">
-            <table className="td-table">
-              <thead>
-                <tr><th></th><th>Name</th><th>Course</th><th>Personal Email</th><th>Official Email</th></tr>
-              </thead>
-              <tbody>
-                {students.length === 0 ? (
-                  <tr><td colSpan={5} className="td-empty">No converted students waiting to be grouped.</td></tr>
-                ) : (
-                  students.map((s) => (
-                    <tr key={s.enquiry_id}>
-                      <td>
-                        <input type="checkbox" checked={selectedStudents.has(s.enquiry_id)} onChange={() => toggleStudent(s.enquiry_id)} />
-                      </td>
-                      <td className="td-name">{s.name}</td>
-                      <td className="td-sub">{s.course_name}</td>
-                      <td className="td-sub">{s.personal_email || "—"}</td>
-                      <td className="td-sub">{s.official_email || "—"}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
 
-        <div className="fc-submit-row">
-          <button type="submit" className="rp-btn-accent" disabled={saving || showNewCourseForm}>
-            {saving ? "Creating…" : "Create Batch"}
-          </button>
-        </div>
-      </form>
+          <div className="nb-submit">
+            <button type="button" className="bp-btn outline" onClick={discard}><RotateCcw size={14} /> Discard Changes</button>
+            <button type="submit" className="bp-btn navy" disabled={saving || showNewCourseForm}>
+              <Rocket size={15} /> {saving ? "Creating…" : "Create & Publish Batch"}
+            </button>
+          </div>
+
+          <div className="nb-info">
+            <Lightbulb size={17} />
+            <div>
+              <b>After you publish</b>
+              <p>The selected students are enrolled into the new batch, and you can send their welcome emails and notify the trainer straight away.</p>
+            </div>
+          </div>
+        </form>
+
+        <aside className="nb-side">
+          <div className="nb-side-head">
+            <h3>Upcoming Scheduled Batches</h3>
+            <span className="bp-chip blue">{upcomingList.length}</span>
+          </div>
+          {!upcoming ? <p className="nb-empty">Loading…</p> : upcomingList.length === 0 ? (
+            <p className="nb-empty">No batches starting soon.</p>
+          ) : upcomingList.map((b, i) => {
+            const fill = b.capacity ? Math.round((b.enrolled / b.capacity) * 100) : null;
+            return (
+              <Link key={b.batch_id} to={`/training/batches/${b.batch_id}`} className="nb-batch" style={{ "--i": i }}>
+                <div className="nb-batch-top">
+                  <span className="nb-code">{b.batch_code}</span>
+                  <span className={`bp-chip ${i === 0 ? "orange" : "blue"}`}><Clock3 size={10} /> {startsIn(b.start_date)}</span>
+                </div>
+                <p className="nb-batch-name">{b.batch_name}</p>
+                <p className="bp-person-sub"><CalendarDays size={11} /> {fmtDate(b.start_date)} · {b.course_name}</p>
+                <div className="nb-fill">
+                  <span>Seat Capacity Fill</span>
+                  <b>{b.enrolled}{b.capacity ? ` / ${b.capacity}` : ""} Filled{fill != null ? ` (${fill}%)` : ""}</b>
+                </div>
+                <div className="bp-meter"><span className={i % 2 ? "orange" : ""} style={{ width: `${fill ?? 0}%` }} /></div>
+                <p className="nb-trainer"><UserRound size={12} /> {b.trainer_name || "Trainer unassigned"}</p>
+              </Link>
+            );
+          })}
+          <div className="nb-avg">
+            <span><BarChart3 size={14} /> Avg Enrollment Rate</span>
+            <b>{avgFill != null ? `${avgFill}% of upcoming seats` : "—"}</b>
+          </div>
+        </aside>
+      </div>
     </div>
   );
 }

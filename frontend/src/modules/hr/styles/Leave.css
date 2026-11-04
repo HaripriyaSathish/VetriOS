@@ -8,13 +8,13 @@
 .lv-balance-row .hr-empty {
   grid-column: 1 / -1;
   background: #fff;
-  border: 1px solid #d9dfe8;
+  border: 1px solid var(--vt-border);
   border-radius: 10px;
 }
 
 .lv-balance-card {
   background: #fff;
-  border: 1px solid #d9dfe8;
+  border: 1px solid var(--vt-border);
   border-radius: 10px;
   padding: 16px 18px;
   display: flex;
@@ -24,28 +24,28 @@
 
 .lv-balance-label {
   font-size: 12.5px;
-  color: #3a4152;
+  color: var(--vt-text);
   font-weight: 600;
 }
 
 .lv-balance-value {
-  font-family: "Sora", sans-serif;
+  font-family: var(--vt-font-head);
   font-size: 22px;
   font-weight: 800;
-  color: #161a26;
+  color: var(--vt-navy);
 }
 
 .lv-balance-unit {
   font-family: "Manrope", sans-serif;
   font-size: 11px;
   font-weight: 600;
-  color: #8a93a6;
+  color: var(--vt-muted);
 }
 
 .lv-balance-bar {
   height: 6px;
   border-radius: 999px;
-  background: #eaeef4;
+  background: var(--vt-border);
   overflow: hidden;
 }
 
@@ -57,7 +57,7 @@
 
 .lv-balance-sub {
   font-size: 11px;
-  color: #8a93a6;
+  color: var(--vt-muted);
 }
 
 .lv-tabs {
@@ -66,9 +66,9 @@
 }
 
 .lv-tab {
-  border: 1px solid #d9dfe8;
+  border: 1px solid var(--vt-border);
   background: #fff;
-  color: #3a4152;
+  color: var(--vt-text);
   font-size: 12.5px;
   font-weight: 600;
   padding: 6px 14px;
@@ -78,7 +78,7 @@
 }
 
 .lv-tab:hover {
-  background: #eaeef4;
+  background: var(--vt-border);
 }
 
 .lv-tab.active {
@@ -91,7 +91,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  border: 1px solid #d9dfe8;
+  border: 1px solid var(--vt-border);
   background: #fff;
   font-size: 12px;
   font-weight: 600;
@@ -125,7 +125,7 @@
 }
 
 .lv-textarea {
-  border: 1px solid #c2cad8;
+  border: 1px solid #c9d5ec;
   border-radius: 8px;
   padding: 9px 11px;
   font-size: 13.5px;
@@ -137,9 +137,9 @@
 }
 
 .lv-textarea:focus {
-  outline: 2px solid #235777;
+  outline: 2px solid var(--vt-navy);
   outline-offset: 1px;
-  border-color: #235777;
+  border-color: var(--vt-navy);
 }
 
 @media (max-width: 1000px) {
@@ -147,3 +147,12 @@
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+/* ---------- Vetri theme (Trainer Figma) — leave balance cards ---------- */
+.lv-balance-card { border-radius: var(--vt-radius-sm); box-shadow: var(--vt-shadow); border-color: var(--vt-border); transition: transform 0.3s var(--vt-ease), box-shadow 0.3s ease; }
+.lv-balance-card:hover { transform: translateY(-3px); box-shadow: var(--vt-shadow-lg); }
+.lv-balance-card:nth-child(4n + 1) .lv-balance-bar-fill { background: var(--vt-navy); }
+.lv-balance-card:nth-child(4n + 2) .lv-balance-bar-fill { background: var(--vt-orange-gradient); }
+.lv-balance-card:nth-child(4n + 3) .lv-balance-bar-fill { background: #16a34a; }
+.lv-balance-card:nth-child(4n + 4) .lv-balance-bar-fill { background: #2a3fb8; }
+.lv-balance-value { font-family: var(--vt-font-head); color: var(--vt-navy); }

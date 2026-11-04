@@ -1,5 +1,11 @@
 import { useEffect, useState } from "react";
 import client from "../../../api/client";
+import {
+  Mail, CalendarPlus, Award, Video, Gauge, UserPlus, CalendarClock, Sparkles, Send, ClipboardList, BarChart3,
+} from "lucide-react";
+import "../styles/BusinessPages.css";
+import "../styles/TrainerDashboard.css";
+import "../styles/MockInterview.css";
 
 function MockInterview() {
   const [batches, setBatches] = useState([]);
@@ -237,251 +243,292 @@ function MockInterview() {
     if (e.result_status !== "PASS") return "—";
 
     const status = internshipStatus[e.enrollment_id];
-    if (!status) return <span className="text-gray-400 text-xs">…</span>;
+    if (!status) return <span className="bp-muted">…</span>;
 
-    if (status.is_intern) {
-      return <span className="px-2 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-700">Intern</span>;
+    if (status.is_intern || status.recommendation_status === "APPROVED") {
+      return <span className="bp-chip blue">Intern</span>;
     }
     if (status.recommendation_status === "PENDING_APPROVAL") {
-      return <span className="px-2 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">Pending Approval</span>;
+      return <span className="bp-chip orange">Pending Approval</span>;
     }
     if (status.recommendation_status === "REJECTED") {
-      return <span className="px-2 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700">Rejected</span>;
-    }
-    if (status.recommendation_status === "APPROVED") {
-      return <span className="px-2 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-700">Intern</span>;
+      return <span className="bp-chip red">Rejected</span>;
     }
 
     return (
       <button
+        type="button"
         onClick={() => recommendForInternship(e.enrollment_id)}
         disabled={recommending === e.enrollment_id}
-        className="bg-indigo-600 text-white px-2 py-1 rounded-md text-xs font-semibold disabled:opacity-60"
+        className="bp-btn navy small"
       >
         {recommending === e.enrollment_id ? "Submitting…" : "Recommend for Internship"}
       </button>
     );
   };
 
+  const passed = invitedRows.filter((e) => e.result_status === "PASS");
+  const pendingRows = invitedRows.filter((e) => !e.result_status || e.result_status === "PENDING");
+  const scored = invitedRows.filter((e) => e.score !== null && e.score !== undefined && e.score !== "");
+  const avgScore = scored.length ? Math.round((scored.reduce((s, e) => s + Number(e.score), 0) / scored.length) * 10) / 10 : null;
+  const eligibleCount = eligibility.filter((e) => e.eligible && !e.invited).length;
+  const scorecards = invitedRows.filter((e) => e.result_status && e.result_status !== "PENDING");
+  const resultTone = { PASS: "green", FAIL: "red", ABSENT: "gray" };
+
   return (
-    <div className="p-6 max-w-6xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900 mb-1">Mock Interview</h1>
-      <p className="text-gray-500 mb-6">Invite eligible students and record outcomes, round by round.</p>
-
-      {error && <p className="text-red-600 mb-4">{error}</p>}
-      {message && <p className="text-green-600 mb-4">{message}</p>}
-
-      <div className="bg-white border border-gray-200 rounded-xl p-5 mb-6">
-        <h3 className="font-semibold text-gray-900 mb-4">Generate Interview Questions with AI</h3>
-        <div className="flex flex-wrap gap-3 items-end">
-          <div className="flex-1 min-w-[220px]">
-            <label className="block text-xs font-semibold text-gray-500 mb-1">Topic</label>
-            <input
-              value={topic} onChange={(e) => setTopic(e.target.value)}
-              placeholder="e.g. React Hooks, SQL Joins, System Design"
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 mb-1">Level</label>
-            <div className="flex gap-1">
-              {[
-                { value: "easy", label: "Easy", color: "bg-green-600" },
-                { value: "intermediate", label: "Intermediate", color: "bg-amber-600" },
-                { value: "advanced", label: "Advanced", color: "bg-red-600" },
-              ].map((l) => (
-                <button
-                  key={l.value}
-                  type="button"
-                  onClick={() => setLevel(l.value)}
-                  className={`px-3 py-2 rounded-md text-xs font-semibold border ${
-                    level === l.value ? `${l.color} text-white border-transparent` : "bg-white text-gray-600 border-gray-300"
-                  }`}
-                >
-                  {l.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 mb-1">Number of Questions</label>
-            <select
-              value={questionCount} onChange={(e) => setQuestionCount(e.target.value)}
-              className="border border-gray-300 rounded-md px-3 py-2 text-sm"
-            >
-              {[5, 10, 15, 20].map((n) => <option key={n} value={n}>{n}</option>)}
-            </select>
-          </div>
-          <button onClick={generateQuestions} disabled={generating} className="bg-purple-600 text-white px-4 py-2 rounded-md text-sm font-semibold disabled:opacity-60">
-            {generating ? "Generating…" : "Generate Questions"}
-          </button>
+    <div className="bp-page tr-page">
+      <div className="bp-head">
+        <div>
+          <p className="bp-crumb mi-crumb">Trainer Workspace / <span>Mock Interview</span> <span className="bp-chip blue">Round {selectedRound}</span></p>
+          <h1 className="bp-title">Mock Technical Interviews &amp; Placement Readiness</h1>
+          <p className="bp-sub">Invite eligible trainees round by round, record scores and feedback, and recommend top performers for internships.</p>
         </div>
-
-        {generatedQuestions && (
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mt-4 whitespace-pre-wrap text-sm text-gray-700 max-h-72 overflow-y-auto">
-            {generatedQuestions}
-          </div>
-        )}
-      </div>
-
-      <div className="bg-white border border-gray-200 rounded-xl p-5 mb-6">
-        <div className="flex flex-wrap gap-4 items-end mb-4">
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 mb-1">Batch</label>
-            <select value={selectedBatchId} onChange={(e) => setSelectedBatchId(e.target.value)} className="border border-gray-300 rounded-md px-3 py-2 text-sm">
-              {batches.map((b) => (
-  <option key={b.batch_id} value={b.batch_id}>
-    {b.batch_name}{b.trainer_name ? ` — ${b.trainer_name}` : " — Unassigned"}
-  </option>
-))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 mb-1">Interview Date</label>
-            <input type="date" value={interviewDate} onChange={(e) => setInterviewDate(e.target.value)} className="border border-gray-300 rounded-md px-3 py-2 text-sm" />
-          </div>
-          <button onClick={invite} disabled={inviting} className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-semibold disabled:opacity-60">
-            {inviting ? "Sending…" : `Invite ${selected.size} Selected`}
-          </button>
+        <div className="bp-actions">
           {invitedRows.length > 0 && (
-            <button
-              onClick={() => setNotifyOpen((prev) => !prev)}
-              className="bg-green-600 text-white px-4 py-2 rounded-md text-sm font-semibold"
-            >
-              {notifyOpen ? "Close Notify Panel" : "Notify Students"}
+            <button type="button" className="bp-btn outline" onClick={() => setNotifyOpen((prev) => !prev)}>
+              <Mail size={16} /> {notifyOpen ? "Close Notify Panel" : "Notify Students"}
             </button>
           )}
-        </div>
-
-        <div className="flex flex-wrap gap-2 border-t border-gray-100 pt-4">
-          {roundTabs.map((r) => {
-            const summary = roundSummary(r);
-            const isNew = !summary;
-            return (
-              <button
-                key={r}
-                onClick={() => setSelectedRound(r)}
-                className={`px-3 py-2 rounded-md text-xs font-semibold border ${
-                  selectedRound === r
-                    ? "bg-blue-600 text-white border-transparent"
-                    : isNew
-                    ? "bg-white text-blue-600 border-blue-300 border-dashed"
-                    : "bg-white text-gray-600 border-gray-300"
-                }`}
-              >
-                {isNew ? `+ Round ${r}` : `Round ${r} (${summary.passed_count}✓ / ${summary.failed_count}✗ / ${summary.pending_count}…)`}
-              </button>
-            );
-          })}
-        </div>
-
-        {generatedQuestions && (
-          <p className="text-xs text-gray-500 mt-3">The generated questions above will be attached to this interview when you invite students.</p>
-        )}
-      </div>
-
-      {notifyOpen && (
-        <div className="bg-white border border-gray-200 rounded-xl p-5 mb-6">
-          <h3 className="font-semibold text-gray-900 mb-3">Compose Invite Email — Round {selectedRound}</h3>
-          <p className="text-xs text-gray-500 mb-3">
-            Check the invited students below to include them, edit the draft, then send.
-            Use <code>{"{{full_name}}"}</code> in the body — it's replaced per student.
-          </p>
-
-          <div className="flex flex-wrap gap-2 mb-4">
-            {invitedRows.map((e) => (
-              <label key={e.enrollment_id} className="flex items-center gap-1 text-xs bg-gray-50 border border-gray-200 rounded-md px-2 py-1">
-                <input
-                  type="checkbox"
-                  checked={selectedForNotify.has(e.enrollment_id)}
-                  onChange={() => toggleNotify(e.enrollment_id)}
-                />
-                {e.student_name}
-              </label>
-            ))}
-          </div>
-
-          <label className="block text-xs font-semibold text-gray-500 mb-1">Subject</label>
-          <input
-            value={notifySubject}
-            onChange={(e) => setNotifySubject(e.target.value)}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm mb-3"
-          />
-
-          <label className="block text-xs font-semibold text-gray-500 mb-1">Body</label>
-          <textarea
-            value={notifyBody}
-            onChange={(e) => setNotifyBody(e.target.value)}
-            rows={6}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm mb-3"
-          />
-
-          <label className="block text-xs font-semibold text-gray-500 mb-1">CC (comma-separated, optional)</label>
-          <input
-            value={notifyCc}
-            onChange={(e) => setNotifyCc(e.target.value)}
-            placeholder="trainer@example.com, manager@example.com"
-            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm mb-4"
-          />
-
-          <button
-            onClick={sendNotifications}
-            disabled={notifying}
-            className="bg-green-600 text-white px-4 py-2 rounded-md text-sm font-semibold disabled:opacity-60"
-          >
-            {notifying ? "Sending…" : `Send to ${selectedForNotify.size} Student(s)`}
+          <button type="button" className="bp-btn navy" onClick={invite} disabled={inviting}>
+            <CalendarPlus size={16} /> {inviting ? "Sending…" : `Schedule ${selected.size || ""} Mock Interview${selected.size === 1 ? "" : "s"}`}
           </button>
         </div>
-      )}
+      </div>
 
-      {loading ? (
-        <p className="text-gray-400">Loading…</p>
-      ) : (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-          <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-600">
-            Round {selectedRound} eligibility
-            {selectedRound > 1 && <span className="font-normal text-gray-400"> — requires a PASS in Round {selectedRound - 1}</span>}
+      {error && <p className="bp-notice mi-error">{error}</p>}
+      {message && <p className="bp-notice mi-ok">{message}</p>}
+
+      <div className="bp-stats tr-stats">
+        <div className="bp-stat" style={{ "--i": 0 }}>
+          <div className="bp-stat-top">
+            <p className="bp-stat-label mi-label">PLACEMENT READY TRAINEES</p>
+            <span className="bp-chip green">Round {selectedRound}</span>
           </div>
-          <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
+          <p className="bp-stat-value">{passed.length} <small className="mi-unit">Passed</small></p>
+          <p className="tr-stat-sub">Cleared this round</p>
+          <span className="mi-float green"><Award size={20} /></span>
+        </div>
+        <div className="bp-stat" style={{ "--i": 1 }}>
+          <div className="bp-stat-top">
+            <p className="bp-stat-label mi-label">SCHEDULED MOCKS</p>
+            {pendingRows.length > 0 && <span className="bp-chip orange">Pending {pendingRows.length}</span>}
+          </div>
+          <p className="bp-stat-value">{invitedRows.length} <small className="mi-unit">Invited</small></p>
+          <p className="tr-stat-sub">{pendingRows.length} awaiting a result</p>
+          <span className="mi-float navy"><Video size={20} /></span>
+        </div>
+        <div className="bp-stat" style={{ "--i": 2 }}>
+          <div className="bp-stat-top">
+            <p className="bp-stat-label mi-label">AVERAGE TECHNICAL SCORE</p>
+          </div>
+          <p className="bp-stat-value">{avgScore != null ? avgScore : "—"} <small className="mi-unit">/ 100</small></p>
+          <p className="tr-stat-sub">{scored.length} scored interviews</p>
+          <span className="mi-float blue"><Gauge size={20} /></span>
+        </div>
+        <div className="bp-stat" style={{ "--i": 3 }}>
+          <div className="bp-stat-top">
+            <p className="bp-stat-label mi-label">ELIGIBLE TO INVITE</p>
+            <span className="bp-chip blue">{eligibility.length} in batch</span>
+          </div>
+          <p className="bp-stat-value">{eligibleCount}</p>
+          <p className="tr-stat-sub">{selectedRound > 1 ? `Passed Round ${selectedRound - 1}, not yet invited` : "Not yet invited to Round 1"}</p>
+          <span className="mi-float orange"><UserPlus size={20} /></span>
+        </div>
+      </div>
+
+      <div className="tr-grid">
+        <div className="tr-col">
+          <section className="bp-panel tr-card">
+            <div className="tr-card-head">
+              <div>
+                <h3><CalendarClock size={18} /> Interview Slots &amp; Rounds</h3>
+                <p>Pick the batch, round and date, then tick eligible trainees in the table below.</p>
+              </div>
+              <span className="bp-chip blue">{selected.size} selected</span>
+            </div>
+            <div className="mi-controls">
+              <label className="bp-field">
+                <span>Batch</span>
+                <select value={selectedBatchId} onChange={(e) => setSelectedBatchId(e.target.value)}>
+                  {batches.map((b) => (
+                    <option key={b.batch_id} value={b.batch_id}>
+                      {b.batch_name}{b.trainer_name ? ` — ${b.trainer_name}` : " — Unassigned"}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="bp-field">
+                <span>Interview Date</span>
+                <input type="date" value={interviewDate} onChange={(e) => setInterviewDate(e.target.value)} />
+              </label>
+            </div>
+            <div className="mi-rounds">
+              {roundTabs.map((r) => {
+                const summary = roundSummary(r);
+                const isNew = !summary;
+                return (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => setSelectedRound(r)}
+                    className={`mi-round ${selectedRound === r ? "active" : ""} ${isNew ? "new" : ""}`}
+                  >
+                    {isNew ? `+ Round ${r}` : (
+                      <>
+                        <b>Round {r}</b>
+                        <small>{summary.passed_count} pass · {summary.failed_count} fail · {summary.pending_count} pending</small>
+                      </>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            {generatedQuestions && (
+              <p className="mi-hint"><Sparkles size={13} /> The generated questions will be attached to this interview when you invite students.</p>
+            )}
+          </section>
+
+          {notifyOpen && (
+            <section className="bp-panel tr-card">
+              <div className="tr-card-head">
+                <div>
+                  <h3><Mail size={18} /> Compose Invite Email — Round {selectedRound}</h3>
+                  <p>Tick invited students, edit the draft, then send. <code>{"{{full_name}}"}</code> is replaced per student.</p>
+                </div>
+              </div>
+              <div className="mi-recipients">
+                {invitedRows.map((e) => (
+                  <label key={e.enrollment_id} className={`mi-recipient ${selectedForNotify.has(e.enrollment_id) ? "on" : ""}`}>
+                    <input type="checkbox" checked={selectedForNotify.has(e.enrollment_id)} onChange={() => toggleNotify(e.enrollment_id)} />
+                    {e.student_name}
+                  </label>
+                ))}
+              </div>
+              <label className="bp-field"><span>Subject</span>
+                <input value={notifySubject} onChange={(e) => setNotifySubject(e.target.value)} />
+              </label>
+              <label className="bp-field"><span>Body</span>
+                <textarea rows={6} value={notifyBody} onChange={(e) => setNotifyBody(e.target.value)} />
+              </label>
+              <label className="bp-field"><span>CC (comma-separated, optional)</span>
+                <input value={notifyCc} onChange={(e) => setNotifyCc(e.target.value)} placeholder="trainer@example.com, manager@example.com" />
+              </label>
+              <div className="bp-modal-actions">
+                <button type="button" className="bp-btn navy" onClick={sendNotifications} disabled={notifying}>
+                  <Send size={15} /> {notifying ? "Sending…" : `Send to ${selectedForNotify.size} Student(s)`}
+                </button>
+              </div>
+            </section>
+          )}
+
+          <section className="bp-panel tr-card">
+            <div className="tr-card-head">
+              <div>
+                <h3><ClipboardList size={18} /> Recent Mock Interview Scorecards</h3>
+                <p>Results recorded for Round {selectedRound}.</p>
+              </div>
+            </div>
+            {scorecards.length === 0 ? <p className="tr-empty">No results recorded yet for this round.</p> : scorecards.map((e, i) => (
+              <div key={e.enrollment_id} className="mi-scorecard">
+                <span className={`bp-avatar t${i % 4}`}>{(e.student_name || "?").split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase()}</span>
+                <div className="mi-sc-body">
+                  <b>{e.student_name}</b>
+                  <span className={`bp-chip ${resultTone[e.result_status] || "gray"}`}>{e.result_status === "PASS" ? "Placement Ready" : e.result_status === "FAIL" ? "Needs Re-Evaluation" : "Absent"}</span>
+                  <p>{e.feedback ? `Trainer Notes: ${e.feedback}` : "No feedback recorded."}</p>
+                </div>
+                <div className="mi-sc-score">
+                  <b className={e.result_status === "FAIL" ? "tr-orange" : ""}>{e.score ?? "—"}</b><small>/100</small>
+                </div>
+              </div>
+            ))}
+          </section>
+        </div>
+
+        <div className="tr-col">
+          <section className="bp-panel tr-card">
+            <div className="tr-card-head">
+              <h3><Sparkles size={18} /> AI Interview Questions</h3>
+            </div>
+            <label className="bp-field"><span>Topic</span>
+              <input value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="e.g. React Hooks, SQL Joins, System Design" />
+            </label>
+            <div className="mi-levels">
+              {[
+                { value: "easy", label: "Easy" },
+                { value: "intermediate", label: "Intermediate" },
+                { value: "advanced", label: "Advanced" },
+              ].map((l) => (
+                <button key={l.value} type="button" className={`mi-level ${l.value} ${level === l.value ? "active" : ""}`} onClick={() => setLevel(l.value)}>{l.label}</button>
+              ))}
+            </div>
+            <label className="bp-field"><span>Number of Questions</span>
+              <select value={questionCount} onChange={(e) => setQuestionCount(e.target.value)}>
+                {[5, 10, 15, 20].map((n) => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </label>
+            <button type="button" className="bp-btn orange mi-full" onClick={generateQuestions} disabled={generating}>
+              <Sparkles size={15} /> {generating ? "Generating…" : "Generate Questions"}
+            </button>
+            {generatedQuestions && <div className="mi-questions">{generatedQuestions}</div>}
+          </section>
+
+          <section className="bp-panel tr-card">
+            <div className="tr-card-head">
+              <h3><BarChart3 size={18} /> Evaluation Pillars</h3>
+              <span className="bp-chip blue">All rounds</span>
+            </div>
+            {rounds.length === 0 ? <p className="tr-empty">No rounds held yet for this batch.</p> : rounds.map((r) => {
+              const total = r.passed_count + r.failed_count + r.pending_count;
+              const pct = total ? Math.round((r.passed_count / total) * 100) : 0;
+              return (
+                <div key={r.round_number} className="mi-pillar">
+                  <div className="mi-pillar-top"><b>Round {r.round_number}</b><b className={pct < 60 ? "tr-orange" : ""}>{pct}%</b></div>
+                  <div className={`tr-progress thin ${pct < 60 ? "warm" : ""}`}><span style={{ width: `${pct}%` }} /></div>
+                  <div className="mi-pillar-foot"><span>{r.passed_count} passed of {total}</span><span>{r.pending_count} pending</span></div>
+                </div>
+              );
+            })}
+          </section>
+        </div>
+      </div>
+
+      <section className="bp-panel">
+        <div className="mi-table-head">
+          <h3>Round {selectedRound} Eligibility</h3>
+          {selectedRound > 1 && <span>Requires a PASS in Round {selectedRound - 1}</span>}
+        </div>
+        <div className="bp-table-wrap">
+          <table className="bp-table mi-table">
+            <thead>
               <tr>
-                <th className="px-4 py-2"></th>
-                <th className="px-4 py-2 text-left">Student</th>
-                <th className="px-4 py-2 text-left">Eligibility</th>
-                <th className="px-4 py-2 text-left">Result</th>
-                <th className="px-4 py-2 text-left">Score</th>
-                <th className="px-4 py-2 text-left">Meeting Link</th>
-                <th className="px-4 py-2 text-left">Feedback</th>
-                <th className="px-4 py-2 text-left">Internship</th>
-                <th className="px-4 py-2 text-left"></th>
+                <th></th>
+                <th>Student</th>
+                <th>Eligibility</th>
+                <th>Result</th>
+                <th>Score</th>
+                <th>Meeting Link</th>
+                <th>Feedback</th>
+                <th>Internship</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
-              {eligibility.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="px-4 py-6 text-center text-gray-400">No students found for this round.</td>
-                </tr>
+              {loading ? (
+                <tr className="bp-empty-row"><td colSpan={9}>Loading…</td></tr>
+              ) : eligibility.length === 0 ? (
+                <tr className="bp-empty-row"><td colSpan={9}>No students found for this round.</td></tr>
               ) : eligibility.map((e) => (
-                <tr key={e.enrollment_id} className="border-t border-gray-100">
-                  <td className="px-4 py-3">
+                <tr key={e.enrollment_id}>
+                  <td>
                     {!e.invited && e.eligible && (
                       <input type="checkbox" checked={selected.has(e.enrollment_id)} onChange={() => toggle(e.enrollment_id)} />
                     )}
                   </td>
-                  <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{e.student_name}</td>
-                  <td className="px-4 py-3">
-                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${e.eligible ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
-                      {e.eligibility_note}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
+                  <td className="bp-strong mi-nowrap">{e.student_name}</td>
+                  <td><span className={`bp-chip ${e.eligible ? "green" : "red"}`}>{e.eligibility_note}</span></td>
+                  <td>
                     {e.invited ? (
-                      <select
-                        value={e.result_status || "PENDING"}
-                        onChange={(ev) => updateResult(e.student_assessment_id, "result_status", ev.target.value)}
-                        className="border border-gray-300 rounded-md px-2 py-1 text-xs"
-                      >
+                      <select className="mi-input" value={e.result_status || "PENDING"} onChange={(ev) => updateResult(e.student_assessment_id, "result_status", ev.target.value)}>
                         <option value="PENDING">Pending</option>
                         <option value="PASS">Pass</option>
                         <option value="FAIL">Fail</option>
@@ -489,53 +536,47 @@ function MockInterview() {
                       </select>
                     ) : "—"}
                   </td>
-                  <td className="px-4 py-3">
+                  <td>
                     {e.invited ? (
                       <input
+                        className="mi-input mi-score"
                         type="number" min="0" max="100" defaultValue={e.score ?? ""}
                         onBlur={(ev) => updateResult(e.student_assessment_id, "score", ev.target.value)}
-                        className="w-16 border border-gray-300 rounded-md px-2 py-1 text-xs"
                       />
                     ) : "—"}
                   </td>
-                  <td className="px-4 py-3">
+                  <td>
                     {e.invited ? (
                       <input
+                        className="mi-input mi-link"
                         defaultValue={e.meeting_link || ""}
                         placeholder="https://meet.google.com/..."
                         onBlur={(ev) => updateResult(e.student_assessment_id, "meeting_link", ev.target.value)}
-                        className="w-48 border border-gray-300 rounded-md px-2 py-1 text-xs"
                       />
                     ) : "—"}
                   </td>
-                  <td className="px-4 py-3">
+                  <td>
                     {e.invited ? (
                       <input
-  defaultValue={e.feedback || ""}
-  placeholder="Feedback for the student"
-  onBlur={(ev) => updateResult(e.student_assessment_id, "feedback", ev.target.value)}
-  className="w-56 border border-gray-300 rounded-md px-2 py-1 text-xs"
-/>
+                        className="mi-input mi-feedback"
+                        defaultValue={e.feedback || ""}
+                        placeholder="Feedback for the student"
+                        onBlur={(ev) => updateResult(e.student_assessment_id, "feedback", ev.target.value)}
+                      />
                     ) : "—"}
                   </td>
-                  <td className="px-4 py-3 whitespace-nowrap">{renderInternshipCell(e)}</td>
-                  <td className="px-4 py-3">
+                  <td className="mi-nowrap">{renderInternshipCell(e)}</td>
+                  <td>
                     {e.invited && (!e.result_status || e.result_status === "PENDING") && (
-                      <button
-                        onClick={() => revokeInvite(e.student_assessment_id)}
-                        className="text-red-600 text-xs hover:underline"
-                      >
-                        Revoke
-                      </button>
+                      <button type="button" className="mi-revoke" onClick={() => revokeInvite(e.student_assessment_id)}>Revoke</button>
                     )}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-          </div>
         </div>
-      )}
+      </section>
     </div>
   );
 }

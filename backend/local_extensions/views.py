@@ -163,6 +163,9 @@ class EnquiryListCreateView(APIView):
                 "status": e.status,
                 "source": e.source,
                 "has_fee_plan": StudentFeePayment.objects.filter(enquiry=e).exists(),
+                "address": e.address,
+                "welcome_email_sent": e.welcome_email_sent,
+                "welcome_email_sent_at": e.welcome_email_sent_at,
                 "created_at": e.created_at,
             })
         return Response(data)

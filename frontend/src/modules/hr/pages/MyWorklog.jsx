@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { Plus, SquarePen, Minus, Check, X, Eye } from "lucide-react";
+import { Plus, SquarePen, Minus, Check, X, Eye, ClipboardList, CalendarClock, UserRound } from "lucide-react";
 import client from "../../../api/client";
+import "../../training/styles/BusinessPages.css";
 import "../styles/HRDashboard.css";
 import "../styles/Attendance.css";
 
@@ -353,6 +354,31 @@ function MyWorklog() {
       {error && <p className="att-error">{error}</p>}
       {!loading && !employeeId && (
         <p className="att-error">No employee record is linked to your account — a worklog can't be submitted.</p>
+      )}
+
+      {employeeId && (
+        <div className="bp-stats att-stats">
+          <div className="bp-stat" style={{ "--i": 0 }}>
+            <div className="bp-stat-top"><p className="bp-stat-label">Logs Submitted</p><span className="bp-stat-icon"><ClipboardList size={17} /></span></div>
+            <p className="bp-stat-value">{history.length} <small className="att-unit">days</small></p>
+            <p className="bp-person-sub">In the last 30 days</p>
+          </div>
+          <div className="bp-stat" style={{ "--i": 1 }}>
+            <div className="bp-stat-top"><p className="bp-stat-label">Today's Timesheet</p><span className="bp-stat-icon orange"><CalendarClock size={17} /></span></div>
+            <p className="bp-stat-value att-today">{alreadySubmittedToday ? "Submitted" : "Pending"}</p>
+            <p className="bp-person-sub">{alreadySubmittedToday ? "Edit it from History below" : "Add today's time-blocks below"}</p>
+          </div>
+          <div className="bp-stat" style={{ "--i": 2 }}>
+            <div className="bp-stat-top"><p className="bp-stat-label">Time Blocks Logged</p><span className="bp-stat-icon green"><Check size={17} /></span></div>
+            <p className="bp-stat-value">{history.reduce((s, h) => s + (h.entries?.length || 0), 0)}</p>
+            <p className="bp-person-sub">Across all submitted days</p>
+          </div>
+          <div className="bp-stat" style={{ "--i": 3 }}>
+            <div className="bp-stat-top"><p className="bp-stat-label">Reported To</p><span className="bp-stat-icon"><UserRound size={17} /></span></div>
+            <p className="bp-stat-value att-today">{history[0]?.reported_to_name || "—"}</p>
+            <p className="bp-person-sub">Your reporting lead</p>
+          </div>
+        </div>
       )}
 
       <div className="att-panel">

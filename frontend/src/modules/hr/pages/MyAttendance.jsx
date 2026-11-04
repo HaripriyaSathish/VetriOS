@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useOutletContext } from "react-router-dom";
-import { Clock, Search, SlidersHorizontal, Columns3 } from "lucide-react";
+import { Clock, Search, SlidersHorizontal, Columns3, CalendarCheck, Timer, Plane } from "lucide-react";
 import client from "../../../api/client";
+import "../../training/styles/BusinessPages.css";
 import "../styles/HRDashboard.css";
 import "../styles/Attendance.css";
 
@@ -161,6 +162,42 @@ function MyAttendance() {
 
       {punchError && <p className="att-error">{punchError}</p>}
       {error && <p className="att-error">{error}</p>}
+
+      {data?.employee_id && (() => {
+        const hist = data.history || [];
+        const present = hist.filter((d) => d.status === "PRESENT").length;
+        const half = hist.filter((d) => d.status === "HALF_DAY").length;
+        const leave = hist.filter((d) => d.status === "ON_LEAVE").length;
+        const absent = hist.filter((d) => d.status === "ABSENT").length;
+        const counted = present + half + absent;
+        const rate = counted ? Math.round(((present + half * 0.5) / counted) * 1000) / 10 : null;
+        const hrs = hist.map((d) => Number(d.hours)).filter((h) => h > 0);
+        const avgHrs = hrs.length ? Math.round((hrs.reduce((s, h) => s + h, 0) / hrs.length) * 10) / 10 : null;
+        return (
+          <div className="bp-stats att-stats">
+            <div className="bp-stat" style={{ "--i": 0 }}>
+              <div className="bp-stat-top"><p className="bp-stat-label">Attendance Rate</p><span className="bp-stat-icon green"><CalendarCheck size={17} /></span></div>
+              <p className="bp-stat-value">{rate != null ? `${rate}%` : "—"}</p>
+              <p className="bp-person-sub">{present} present · {absent} absent · {half} half day</p>
+            </div>
+            <div className="bp-stat" style={{ "--i": 1 }}>
+              <div className="bp-stat-top"><p className="bp-stat-label">Average Hours</p><span className="bp-stat-icon"><Timer size={17} /></span></div>
+              <p className="bp-stat-value">{avgHrs != null ? avgHrs : "—"} <small className="att-unit">hrs/day</small></p>
+              <p className="bp-person-sub">Across days with a check-out</p>
+            </div>
+            <div className="bp-stat" style={{ "--i": 2 }}>
+              <div className="bp-stat-top"><p className="bp-stat-label">Today</p><span className="bp-stat-icon orange"><Clock size={17} /></span></div>
+              <p className="bp-stat-value att-today">{today?.checked_out ? "Checked out" : today?.checked_in ? "On duty" : "Not in"}</p>
+              <p className="bp-person-sub">{today?.check_in_time ? `In at ${formatTime(today.check_in_time)}` : "Check in to start your day"}</p>
+            </div>
+            <div className="bp-stat" style={{ "--i": 3 }}>
+              <div className="bp-stat-top"><p className="bp-stat-label">On Leave</p><span className="bp-stat-icon"><Plane size={17} /></span></div>
+              <p className="bp-stat-value">{leave} <small className="att-unit">days</small></p>
+              <p className="bp-person-sub">Approved leave in the last 14 days</p>
+            </div>
+          </div>
+        );
+      })()}
 
       <div className="att-banner">
         <div className="att-banner-left">

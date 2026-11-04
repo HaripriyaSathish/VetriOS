@@ -1,5 +1,5 @@
 .att-screen {
-  font-family: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--vt-font-body);
 }
 
 .att-eyebrow {
@@ -8,7 +8,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: #8a93a6;
+  color: var(--vt-muted);
   margin-bottom: 4px;
 }
 
@@ -22,16 +22,16 @@
 }
 
 .att-head h1 {
-  font-family: "Sora", sans-serif;
+  font-family: var(--vt-font-head);
   font-size: 26px;
   font-weight: 800;
-  color: #161a26;
+  color: var(--vt-navy);
   margin: 0 0 4px;
 }
 
 .att-head p {
   font-size: 13px;
-  color: #3a4152;
+  color: var(--vt-text);
   margin: 0;
 }
 
@@ -106,7 +106,7 @@
 
 .att-stat-card {
   background: #fff;
-  border: 1px solid #d9dfe8;
+  border: 1px solid var(--vt-border);
   border-radius: 10px;
   padding: 16px 18px;
   display: flex;
@@ -116,25 +116,25 @@
 
 .att-stat-label {
   font-size: 13px;
-  color: #3a4152;
+  color: var(--vt-text);
   font-weight: 600;
 }
 
 .att-stat-value {
-  font-family: "Sora", sans-serif;
+  font-family: var(--vt-font-head);
   font-size: 28px;
   font-weight: 800;
-  color: #161a26;
+  color: var(--vt-navy);
 }
 
 .att-stat-sub {
   font-size: 11px;
-  color: #8a93a6;
+  color: var(--vt-muted);
 }
 
 .att-panel {
   background: #fff;
-  border: 1px solid #d9dfe8;
+  border: 1px solid var(--vt-border);
   border-radius: 10px;
   overflow: hidden;
 }
@@ -150,20 +150,20 @@
   flex-wrap: wrap;
   gap: 12px;
   padding: 16px 18px;
-  border-bottom: 1px solid #d9dfe8;
+  border-bottom: 1px solid var(--vt-border);
 }
 
 .att-panel-head h3 {
   margin: 0 0 3px;
   font-size: 15px;
-  font-family: "Sora", sans-serif;
-  color: #161a26;
+  font-family: var(--vt-font-head);
+  color: var(--vt-navy);
 }
 
 .att-panel-head p {
   margin: 0;
   font-size: 12px;
-  color: #8a93a6;
+  color: var(--vt-muted);
 }
 
 .att-toolbar-right {
@@ -176,10 +176,10 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  border: 1px solid #c2cad8;
+  border: 1px solid #c9d5ec;
   border-radius: 8px;
   padding: 7px 12px;
-  color: #8a93a6;
+  color: var(--vt-muted);
   min-width: 220px;
 }
 
@@ -188,7 +188,7 @@
   outline: none;
   font-size: 13px;
   font-family: inherit;
-  color: #161a26;
+  color: var(--vt-navy);
   width: 100%;
 }
 
@@ -222,7 +222,7 @@
 }
 
 .att-pill.no-login {
-  background: #eaeef4;
+  background: var(--vt-border);
   color: #5a6376;
 }
 
@@ -263,17 +263,17 @@
 .wl-text-input {
   width: 100%;
   box-sizing: border-box;
-  border: 1px solid #d9dfe8;
+  border: 1px solid var(--vt-border);
   border-radius: 6px;
   padding: 7px 9px;
   font-size: 13px;
   font-family: inherit;
-  color: #161a26;
+  color: var(--vt-navy);
 }
 
 .wl-text-input:focus {
   outline: none;
-  border-color: #235777;
+  border-color: var(--vt-navy);
 }
 
 /* The table sits flush against the panel's edges (like every other
@@ -282,3 +282,16 @@
 .wl-form-footer {
   padding: 16px 18px;
 }
+
+/* ---------- Vetri theme (Trainer Figma) — panels, buttons, stat row ---------- */
+.att-screen { max-width: 1240px; margin: 0 auto; }
+.att-head h1 { font-size: 30px; letter-spacing: -0.02em; }
+.att-eyebrow { color: var(--vt-navy-700); }
+.att-panel { border-radius: var(--vt-radius); box-shadow: var(--vt-shadow); border-color: var(--vt-border); }
+.att-btn-accent { background: var(--vt-navy); border-radius: 12px; box-shadow: 0 10px 18px -12px rgba(0, 38, 115, 0.9); }
+.att-btn-accent:hover:not(:disabled) { background: var(--vt-navy-700); }
+.att-banner { border-radius: var(--vt-radius-sm); background: linear-gradient(120deg, var(--vt-navy-900), var(--vt-navy) 60%, #2a3fb8); color: #fff; border: none; }
+.att-banner strong, .att-banner-time { color: #fff; }
+.att-stats { margin-bottom: 18px; }
+.att-unit { font-family: var(--vt-font-body); font-size: 14px; font-weight: 500; color: var(--vt-text); }
+.att-today { font-size: 20px !important; }

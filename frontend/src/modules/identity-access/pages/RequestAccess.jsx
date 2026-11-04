@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ShieldCheck, Settings, Users, Briefcase, Check, FileText, ClipboardCheck,
-  ArrowLeft, ArrowRight, Send, X, Plus, Search, Key, FileSearch,
+  ArrowLeft, ArrowRight, Send, X, Plus, Search, Key, FileSearch, Hourglass, Info,
 } from "lucide-react";
 import client from "../../../api/client";
+import "../../training/styles/BusinessPages.css";
 import "../styles/RequestAccess.css";
 import "../styles/PermissionRequests.css";
 
@@ -235,14 +236,53 @@ function RequestAccess() {
     }
   };
 
+  const approvedCount = sentRequests.filter((r) => r.status === "APPROVED").length;
+  const recentSent = sentRequests.slice(0, 5);
+
   return (
-    <div className="reqa-screen">
-      <div className="reqa-head">
-        <span className="reqa-eyebrow">Identity &amp; Access</span>
-        <h1><span className="reqa-head-icon"><ShieldCheck size={19} /></span> Request access</h1>
-        <p>Ask a specific admin for a permission — they'll review it and let you know.</p>
+    <div className="bp-page reqa-screen">
+      <div className="bp-head">
+        <div>
+          <p className="reqa-eyebrow"><ShieldCheck size={14} /> Access Control &amp; Provisioning</p>
+          <h1 className="bp-title">Request Access &amp; Privileges</h1>
+          <p className="bp-sub">Ask a specific admin for a permission or a document — they'll review it and let you know.</p>
+        </div>
+        <div className="bp-actions">
+          <button type="button" className="bp-btn navy" onClick={startNewRequest}>
+            <Plus size={16} /> New Access Request
+          </button>
+        </div>
       </div>
 
+      <div className="bp-stats">
+        <div className="bp-stat" style={{ "--i": 0 }}>
+          <div className="bp-stat-top">
+            <p className="bp-stat-label">Granted Requests</p>
+            <span className="bp-stat-icon"><Key size={17} /></span>
+          </div>
+          <p className="bp-stat-value">{approvedCount} <span className="bp-chip green">Approved</span></p>
+          <p className="reqa-stat-sub">Requests you sent that an admin approved</p>
+        </div>
+        <div className="bp-stat" style={{ "--i": 1 }}>
+          <div className="bp-stat-top">
+            <p className="bp-stat-label">Pending Approvals</p>
+            <span className="bp-stat-icon orange"><Hourglass size={17} /></span>
+          </div>
+          <p className="bp-stat-value reqa-orange">{sentPendingCount} <span className="bp-chip orange">In Review</span></p>
+          <p className="reqa-stat-sub">Waiting on the admin you asked</p>
+        </div>
+        <div className="bp-stat" style={{ "--i": 2 }}>
+          <div className="bp-stat-top">
+            <p className="bp-stat-label">Waiting on You</p>
+            <span className="bp-stat-icon"><ShieldCheck size={17} /></span>
+          </div>
+          <p className="bp-stat-value">{receivedPendingCount} <span className="bp-chip blue">Received</span></p>
+          <p className="reqa-stat-sub">Requests others sent you to decide</p>
+        </div>
+      </div>
+
+      <div className="reqa-layout">
+      <div className="reqa-main">
       <div className="reqa-tabs">
         <button type="button" className={"reqa-tab" + (tab === "new" ? " active" : "")} onClick={startNewRequest}>
           <Plus size={14} /> New request
@@ -554,6 +594,51 @@ function RequestAccess() {
           </div>
         </>
       )}
+      </div>
+
+      <aside className="bp-panel reqa-recent">
+        <div className="reqa-recent-head">
+          <div>
+            <h2>Recent Access Requests</h2>
+            <p>History and status of your submitted requests</p>
+          </div>
+          {sentRequests.length > 0 && (
+            <button type="button" className="reqa-link" onClick={() => setTab("sent")}>View All</button>
+          )}
+        </div>
+        {recentSent.length === 0 ? (
+          <p className="reqa-recent-empty">{listLoading ? "Loading…" : "You haven't requested anything yet."}</p>
+        ) : (
+          <table className="bp-table reqa-recent-table">
+            <thead>
+              <tr><th>Request</th><th>Approver</th><th>Status</th></tr>
+            </thead>
+            <tbody>
+              {recentSent.map((r) => (
+                <tr key={r.permission_request_id}>
+                  <td>
+                    <p className="reqa-req-id">#REQ-{r.permission_request_id}</p>
+                    <p className="reqa-req-what">{r.document_deleted ? "Document deleted" : r.permission_requested}</p>
+                    <p className="bp-person-sub">{formatDate(r.created_at)}</p>
+                  </td>
+                  <td>
+                    <span className="reqa-approver">
+                      <span className="bp-avatar">{(r.target_admin_name || "?").split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase()}</span>
+                      {r.target_admin_name}
+                    </span>
+                  </td>
+                  <td><span className={`preq-badge ${STATUS_CLASS[r.status]}`}>{r.status.charAt(0) + r.status.slice(1).toLowerCase()}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        <div className="reqa-notice">
+          <Info size={15} />
+          <p>Approving a request is a decision and notification only — the permission itself is granted separately through Roles or User Permissions.</p>
+        </div>
+      </aside>
+      </div>
 
       {confirmTarget && (
         <div className="preq-modal-backdrop" onClick={() => setConfirmTarget(null)}>

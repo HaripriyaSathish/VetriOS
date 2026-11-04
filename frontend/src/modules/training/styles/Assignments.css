@@ -1,0 +1,194 @@
+/* Assignments, Labs & Capstone Reviews (Trainer Figma, node 2081-7527).
+   Builds on BusinessPages.css, TrainerDashboard.css, TrainingBatches.css. */
+
+.as-error { background: #fdecec; color: #d92d20; }
+.as-success { background: #e9f8ef; color: #16a34a; }
+.as-label { font-size: 10.5px; letter-spacing: 0.05em; color: var(--vt-text); }
+.as-unit { font-family: var(--vt-font-body); font-size: 15px; font-weight: 500; color: var(--vt-text); }
+.as-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0; font-size: 11.5px; color: var(--vt-muted); }
+
+.as-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px 14px;
+}
+
+/* ---------- Submission cards ---------- */
+.as-card {
+  padding: 16px 18px;
+  border: 1px solid var(--vt-border);
+  border-left: 4px solid var(--vt-navy);
+  border-radius: var(--vt-radius-sm);
+  background: #fff;
+  box-shadow: var(--vt-shadow);
+  animation: bp-rise 0.45s var(--vt-ease) both;
+}
+
+.as-card.pending { border-left-color: var(--vt-orange); }
+.as-card.idle { border-left-color: #c3cbdb; }
+
+.as-card-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.as-tags { display: inline-flex; align-items: center; gap: 8px; }
+.as-flag { font-size: 11px; font-weight: 700; color: var(--vt-navy-700); }
+.as-flag.warm { color: var(--vt-orange-600); }
+.as-flag.muted { color: var(--vt-muted); }
+
+.as-card h3 {
+  margin: 10px 0 4px;
+  font-family: var(--vt-font-head);
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--vt-navy);
+}
+
+.as-who { margin: 0 0 10px; font-size: 12.5px; color: var(--vt-muted); }
+.as-who b { color: var(--vt-navy); }
+
+.as-checks {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.as-checks > span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--vt-tint);
+  border: 1px solid var(--vt-border);
+  font-size: 12px;
+  color: var(--vt-text);
+}
+
+.as-checks svg { color: #16a34a; }
+.as-note { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; display: block !important; }
+
+.as-links { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+.as-links a { display: inline-flex; align-items: center; gap: 5px; overflow-wrap: anywhere; font-size: 12px; color: var(--vt-navy-700); }
+
+.as-card-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.as-verify { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--vt-text); cursor: pointer; }
+.as-verify input { accent-color: var(--vt-navy); }
+
+.as-grade {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--vt-border);
+}
+
+.as-grade .bp-field input[type="number"] { width: 90px; }
+.as-grow { flex: 1; min-width: 200px; }
+
+/* ---------- Side cards ---------- */
+.as-velocity { display: flex; align-items: center; gap: 14px; padding: 12px; border-radius: 12px; background: var(--vt-blue-50); }
+.as-velocity b { font-size: 13px; color: var(--vt-navy); }
+.as-velocity p { margin: 2px 0 0; font-size: 12px; color: var(--vt-text); }
+
+.as-ring {
+  width: 56px;
+  height: 56px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, #fff 76%, transparent 78%), conic-gradient(var(--vt-navy) var(--p), #dfe6f3 0);
+}
+
+.as-ring b { font-size: 15px; }
+
+.as-milestone { border-radius: 12px; background: var(--vt-tint); border: 1px solid var(--vt-border); overflow: hidden; }
+
+.as-milestone > button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: none;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.as-m-no {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: var(--vt-blue-50);
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--vt-navy);
+}
+
+.as-m-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.as-m-text b { overflow: hidden; font-size: 12.5px; color: var(--vt-navy); white-space: nowrap; text-overflow: ellipsis; }
+.as-m-text small { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--vt-muted); }
+
+.as-m-body {
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 10px 12px;
+  border-top: 1px solid var(--vt-border);
+  background: #fff;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--vt-text);
+  white-space: pre-wrap;
+}
+
+.as-leader { display: flex; align-items: center; gap: 10px; }
+.as-leader-name { flex: 1; display: flex; flex-direction: column; }
+.as-leader-name b { font-size: 13px; color: var(--vt-navy); }
+.as-leader-name small { font-size: 11px; color: var(--vt-muted); }
+.as-leader-score { font-family: var(--vt-font-head); font-size: 16px; color: var(--vt-navy); }
+
+/* ---------- Creator modal ---------- */
+.as-modal { max-width: 640px; }
+.as-section { padding: 14px 0; border-top: 1px solid var(--vt-border); }
+.as-section h4 { display: flex; align-items: center; gap: 6px; margin: 0 0 10px; font-size: 13.5px; color: var(--vt-navy); }
+
+.as-generated {
+  max-height: 280px;
+  overflow-y: auto;
+  margin: 12px 0;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--vt-tint);
+  border: 1px solid var(--vt-border);
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--vt-text);
+  white-space: pre-wrap;
+}
+
+.as-inline { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
+.as-inline-end { display: flex; align-items: flex-end; justify-content: flex-end; }
+
+.as-toggle {
+  margin-bottom: 10px;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--vt-navy-700);
+  cursor: pointer;
+}
+
+.as-ok { margin: 10px 0 0; font-size: 13px; color: #16a34a; }

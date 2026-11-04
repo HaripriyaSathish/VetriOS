@@ -14,6 +14,11 @@ from .views import (
 from .views import BatchMockInterviewsView, InviteToMockInterviewView, NotifyMockInterviewInvitesView, UpdateMockInterviewResultView, RevokeMockInterviewInviteView
 from .views import GenerateMockInterviewQuestionsView
 from .views import AssistantBatchReportDownloadView, CourseCreateView
+from .trainer_overview_views import TrainerOverviewView
+from .business_dashboard_views import (
+    BusinessDashboardView, BusinessStudentsView, BusinessFeesView, BusinessStudentProfileView,
+    BusinessInternshipApprovalsView, BusinessLifecycleApprovalsView, BusinessManagerAssignmentView,
+)
 
 router = DefaultRouter()
 router.register("batches", BatchViewSet, basename="batch")
@@ -28,6 +33,14 @@ urlpatterns = [
     path("topic-log/<int:topic_log_id>/", DeleteTopicLogView.as_view(), name="delete-topic-log"),
     path("trainers/", TrainerListView.as_view(), name="trainer-list"),
     path("management/overview/", TrainingOverviewView.as_view(), name="training-overview"),
+    path("trainer/overview/", TrainerOverviewView.as_view(), name="trainer-overview"),
+    path("business/dashboard/", BusinessDashboardView.as_view(), name="business-dashboard"),
+    path("business/students/", BusinessStudentsView.as_view(), name="business-students"),
+    path("business/fees/", BusinessFeesView.as_view(), name="business-fees"),
+    path("business/students/<int:person_id>/", BusinessStudentProfileView.as_view(), name="business-student-profile"),
+    path("business/internship-approvals/", BusinessInternshipApprovalsView.as_view(), name="business-internship-approvals"),
+    path("business/lifecycle-approvals/", BusinessLifecycleApprovalsView.as_view(), name="business-lifecycle-approvals"),
+    path("business/manager-assignment/", BusinessManagerAssignmentView.as_view(), name="business-manager-assignment"),
     path("courses/", CourseListView.as_view(), name="course-list"),
     path("batches/<int:batch_id>/training-log-download/", BatchTrainingLogDownloadView.as_view(), name="training-log-download"),
     path("tasks/generate-content/", GenerateTaskContentView.as_view(), name="generate-task-content"),

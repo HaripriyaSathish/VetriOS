@@ -1,0 +1,144 @@
+/* Internship / Completion & Extension approvals — Business Team Figma. */
+
+.ap-small {
+  font-family: var(--vt-font-body);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--vt-muted);
+}
+
+.bp-meter > span.ap-green { background: linear-gradient(90deg, #16a34a, #34d399); }
+
+.ap-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 16px 18px 6px;
+}
+
+.ap-panel-head h3 {
+  margin: 0;
+  font-family: var(--vt-font-head);
+  font-size: 15.5px;
+  font-weight: 700;
+  color: var(--vt-navy);
+}
+
+.ap-empty { margin: 0; padding: 18px; font-size: 13px; color: var(--vt-muted); }
+
+.ap-log { display: flex; flex-direction: column; padding: 6px 12px 12px; }
+
+.ap-log-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 6px;
+  border-bottom: 1px solid var(--vt-border);
+  animation: bp-rise 0.4s var(--vt-ease) both;
+  animation-delay: calc(var(--row, 0) * 0.04s);
+}
+
+.ap-log-row:last-child { border-bottom: none; }
+.ap-log-text { flex: 1; min-width: 0; }
+.ap-when { font-size: 11.5px; white-space: nowrap; }
+
+.ap-log-dot {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.ap-log-dot.green { background: #e9f8ef; color: #16a34a; }
+.ap-log-dot.red { background: #fdecec; color: #d92d20; }
+
+.ap-name { text-decoration: none; display: inline-block; }
+.ap-name:hover { color: var(--vt-orange); }
+
+.ap-score { display: inline-flex; align-items: center; gap: 8px; }
+.ap-score b { font-family: var(--vt-font-head); font-size: 14px; color: var(--vt-navy); }
+.ap-orange { color: var(--vt-orange) !important; }
+
+.ap-att { min-width: 110px; }
+.ap-att-top { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 11.5px; color: var(--vt-muted); }
+.ap-att-top b { color: var(--vt-navy); }
+
+.ap-mock { padding: 5px 11px; }
+
+.ap-actions { display: flex; justify-content: flex-end; gap: 6px; }
+
+.ap-reject {
+  background: #fdecec;
+  color: #d92d20;
+}
+
+.ap-reject:hover:not(:disabled) { background: #fbd5d1; }
+
+.ap-form-row td { background: var(--vt-tint); }
+
+.ap-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  animation: bp-rise 0.3s var(--vt-ease) both;
+}
+
+.ap-form .bp-field { min-width: 200px; }
+
+.ap-note {
+  flex-basis: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 12.5px;
+  font-style: italic;
+  color: var(--vt-text);
+}
+
+/* Completion & Extension specifics */
+.ap-type {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.ap-type.completion { background: #e9f8ef; color: #16a34a; }
+.ap-type.extension { background: var(--vt-orange-50); color: var(--vt-orange-600); }
+
+.ap-quote {
+  display: flex;
+  gap: 6px;
+  max-width: 280px;
+  margin: 0;
+  font-size: 12.5px;
+  font-style: italic;
+  color: var(--vt-text);
+}
+
+.ap-quote svg { flex: none; margin-top: 2px; color: var(--vt-muted); }
+
+.ap-info {
+  display: flex;
+  gap: 12px;
+  padding: 16px 18px;
+  border-radius: var(--vt-radius-sm);
+  background: var(--vt-blue-50);
+  border: 1px solid #cfe0fb;
+  animation: bp-rise 0.5s var(--vt-ease) 0.3s both;
+}
+
+.ap-info svg { flex: none; color: var(--vt-navy-700); }
+.ap-info p { margin: 0; font-size: 12.5px; color: var(--vt-text); }
+.ap-info b { display: block; margin-bottom: 3px; font-size: 13px; color: var(--vt-navy); }
+
+.ap-caps { font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; }

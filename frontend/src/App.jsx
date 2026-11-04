@@ -8,6 +8,7 @@ import Permissions from "./modules/identity-access/pages/Permissions";
 import UserPermissions from "./modules/identity-access/pages/UserPermissions";
 import RequestAccess from "./modules/identity-access/pages/RequestAccess";
 import TrainingRouter from "./modules/training/pages/TrainingRouter";
+import TrainingManagement from "./modules/training/pages/TrainingManagement";
 import HRDashboard from "./modules/hr/pages/HRDashboard";
 import HROverview from "./modules/hr/pages/HROverview";
 import Attendance from "./modules/hr/pages/Attendance";
@@ -35,6 +36,7 @@ import PublicEnquiryForm from "./modules/public/pages/PublicEnquiryForm";
 import BatchForm from "./modules/training/pages/BatchForm";
 import WelcomeEmails from "./modules/training/pages/WelcomeEmails";
 import TrainingAttendance from "./modules/training/pages/Attendance";
+import TrainingBatches from "./modules/training/pages/TrainingBatches";
 import Assignments from "./modules/training/pages/Assignments";
 import Reports from "./modules/training/pages/Reports";
 import MockInterview from "./modules/training/pages/MockInterview";
@@ -234,6 +236,11 @@ function App() {
             <TrainingRouter />
           </PermissionGate>
         } />
+        <Route path="/training/management" element={
+          <PermissionGate requirement={{ type: "perm", value: "TRAINING_VIEW" }}>
+            <TrainingManagement />
+          </PermissionGate>
+        } />
         <Route path="/training/enquiries" element={
           <PermissionGate requirement={{ type: "perm", value: "TRAINING_VIEW" }}>
             <EnquiryList />
@@ -282,6 +289,11 @@ function App() {
         <Route path="/training/completion-extension-approvals" element={
           <PermissionGate requirement={{ type: "role", value: ["Business Team", "System Administrator"] }}>
             <CompletionExtensionApprovals />
+          </PermissionGate>
+        } />
+        <Route path="/training/batches" element={
+          <PermissionGate requirement={{ type: "role", value: "Employee" }}>
+            <TrainingBatches />
           </PermissionGate>
         } />
         <Route path="/training/attendance" element={

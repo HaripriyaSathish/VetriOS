@@ -1,277 +1,378 @@
-import { useEffect, useState } from "react";
-import { Send, Clock, Layers, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import {
-  ResponsiveContainer, PieChart, Pie, Cell,
-  AreaChart, Area, XAxis, CartesianGrid, Tooltip,
-} from "recharts";
+  Plus, Megaphone, SquarePen, Inbox, Send, FileText, Hourglass, BadgeCheck, CircleX, Layers,
+  Search, Reply, Printer, Copy, Clock3, CheckCircle2, AlertTriangle, MailOpen, RotateCw,
+} from "lucide-react";
 import client from "../../../api/client";
-import "../styles/Email.css";
+import "../../training/styles/BusinessPages.css";
+import "../styles/EmailMailbox.css";
 
-// Fixed categorical order (same dataviz-validated set used across the
-// other dashboards) — never cycled, never reassigned per data.
-const TYPE_COLORS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4"];
-const OTHER_COLOR = "#9a9993";
-const SENT_COLOR = "#2a78d6";
+// Mailbox folders map onto AiEmail.generation_status; "campaigns" lists
+// EmailBatch rows instead of individual emails.
+const FOLDERS = [
+  { key: "all", label: "All mail", Icon: Inbox, match: () => true },
+  { key: "SENT", label: "Sent", Icon: Send, match: (e) => e.generation_status === "SENT" },
+  { key: "DRAFT", label: "Drafts", Icon: FileText, match: (e) => e.generation_status === "DRAFT" },
+  { key: "PENDING_APPROVAL", label: "Pending approval", Icon: Hourglass, match: (e) => e.generation_status === "PENDING_APPROVAL", tone: "orange" },
+  { key: "APPROVED", label: "Approved", Icon: BadgeCheck, match: (e) => e.generation_status === "APPROVED" },
+  { key: "FAILED", label: "Failed / Rejected", Icon: CircleX, match: (e) => ["FAILED", "REJECTED"].includes(e.generation_status) },
+];
 
-const BATCH_STATUS_META = {
-  DRAFT: { label: "Draft", color: "#6b7280" },
-  SCHEDULED: { label: "Scheduled", color: "#b45309" },
-  PROCESSING: { label: "Processing", color: "#235777" },
-  COMPLETED: { label: "Completed", color: "#16a34a" },
-  FAILED: { label: "Failed", color: "#96271f" },
+const STATUS_META = {
+  SENT: { label: "Sent", tone: "green" },
+  DRAFT: { label: "Draft", tone: "gray" },
+  PENDING_APPROVAL: { label: "Pending approval", tone: "orange" },
+  APPROVED: { label: "Approved", tone: "blue" },
+  REJECTED: { label: "Rejected", tone: "red" },
+  FAILED: { label: "Failed", tone: "red" },
 };
 
-function formatDay(iso) {
-  return new Date(iso + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
+const BATCH_META = {
+  DRAFT: { label: "Draft", tone: "gray" },
+  SCHEDULED: { label: "Scheduled", tone: "orange" },
+  PROCESSING: { label: "Processing", tone: "blue" },
+  COMPLETED: { label: "Completed", tone: "green" },
+  FAILED: { label: "Failed", tone: "red" },
+};
+
+const TAG_DOTS = ["#002673", "#e7510c", "#1baf7a", "#d92d20", "#2689ef"];
+
+const listOf = (data) => (Array.isArray(data) ? data : data?.results || []);
+const initialsOf = (name) =>
+  (name || "?").split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
+
+function whenOf(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const now = new Date();
+  if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const y = new Date(now);
+  y.setDate(now.getDate() - 1);
+  if (d.toDateString() === y.toDateString()) return "Yesterday";
+  return d.toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
-function formatTime(iso) {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+// Bodies are stored as rich-text HTML; show them as plain paragraphs
+// (DOMParser never executes scripts, and only textContent is used).
+function bodyText(html) {
+  if (!html) return "";
+  const withBreaks = html.replace(/<br\s*\/?>/gi, "\n").replace(/<\/(p|div|li|h[1-6])>/gi, "\n");
+  const text = new DOMParser().parseFromString(withBreaks, "text/html").body.textContent || "";
+  return text.replace(/\n{3,}/g, "\n\n").trim();
 }
 
-function ChartTooltip({ label, rows }) {
-  return (
-    <div className="maild-tooltip">
-      {label && <div className="maild-tooltip-label">{label}</div>}
-      {rows.map((r) => (
-        <div className="maild-tooltip-row" key={r.name}>
-          <span className="maild-tooltip-swatch" style={{ background: r.color }} />
-          <span className="maild-tooltip-name">{r.name}</span>
-          <span className="maild-tooltip-val">{r.value}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function TypeDonut({ slices, total }) {
-  return (
-    <div className="maild-donut-wrap">
-      <ResponsiveContainer width="100%" height={150}>
-        <PieChart>
-          <Pie data={slices} dataKey="count" nameKey="type_name" innerRadius={52} outerRadius={72} paddingAngle={1.5} stroke="none">
-            {slices.map((s) => <Cell key={s.type_name} fill={s.color} />)}
-          </Pie>
-          <Tooltip
-            cursor={false}
-            content={({ active, payload }) => {
-              if (!active || !payload?.length) return null;
-              const p = payload[0];
-              const pct = total > 0 ? Math.round((p.value / total) * 100) : 0;
-              return <ChartTooltip rows={[{ name: p.name, value: `${p.value} (${pct}%)`, color: p.payload.color }]} />;
-            }}
-          />
-        </PieChart>
-      </ResponsiveContainer>
-      <div className="maild-donut-center">
-        <span className="maild-donut-total">{total}</span>
-        <span className="maild-donut-caption">typed</span>
-      </div>
-    </div>
-  );
-}
-
-function SentTrendChart({ points }) {
-  return (
-    <ResponsiveContainer width="100%" height={190}>
-      <AreaChart data={points} margin={{ top: 20, right: 0, left: 0, bottom: 0 }}>
-        <defs>
-          <linearGradient id="sentFade" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={SENT_COLOR} stopOpacity="0.16" />
-            <stop offset="100%" stopColor={SENT_COLOR} stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        <CartesianGrid vertical={false} stroke="#eef0f3" />
-        <XAxis
-          dataKey="date" tickFormatter={formatDay} axisLine={{ stroke: "#c3c2b7" }} tickLine={false}
-          tick={{ fontSize: 10.5, fill: "#8a93a6", fontFamily: "Manrope, sans-serif" }}
-          interval="preserveStartEnd"
-        />
-        <Tooltip
-          cursor={{ stroke: "#c3c2b7", strokeDasharray: "3 3" }}
-          content={({ active, payload, label }) => {
-            if (!active || !payload?.length) return null;
-            return <ChartTooltip label={formatDay(label)} rows={[{ name: "Emails sent", value: payload[0].value, color: SENT_COLOR }]} />;
-          }}
-        />
-        <Area type="monotone" dataKey="count" stroke={SENT_COLOR} strokeWidth={2.5} fill="url(#sentFade)" activeDot={{ r: 4, fill: SENT_COLOR }} />
-      </AreaChart>
-    </ResponsiveContainer>
-  );
-}
-
-function EmailDashboard() {
+export default function EmailDashboard() {
+  const [emails, setEmails] = useState([]);
+  const [batches, setBatches] = useState([]);
   const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [folder, setFolder] = useState("all");
+  const [scope, setScope] = useState("all");
+  const [tag, setTag] = useState("");
+  const [search, setSearch] = useState("");
+  const [selectedId, setSelectedId] = useState(null);
+  const [sending, setSending] = useState(false);
+  const [syncedAt, setSyncedAt] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
-    client.get("/api/email/dashboard/")
-      .then(({ data }) => setStats(data))
-      .catch(() => setError("Couldn't load email stats."));
-  }, []);
+    setLoading(true);
+    Promise.allSettled([
+      client.get("/api/email/emails/"),
+      client.get("/api/email/batches/"),
+      client.get("/api/email/dashboard/"),
+    ]).then(([e, b, s]) => {
+      if (e.status === "fulfilled") setEmails(listOf(e.value.data));
+      if (b.status === "fulfilled") setBatches(listOf(b.value.data));
+      if (s.status === "fulfilled") setStats(s.value.data);
+      setError(e.status === "rejected" ? "Couldn't load the mailbox." : "");
+      setSyncedAt(new Date());
+      setLoading(false);
+    });
+  }, [reloadKey]);
 
-  const typeSlices = stats
-    ? (() => {
-        const top = stats.emails_by_type.slice(0, 5).map((t, i) => ({ ...t, color: TYPE_COLORS[i] }));
-        const otherCount = stats.emails_by_type.slice(5).reduce((s, t) => s + t.count, 0);
-        if (otherCount > 0) top.push({ type_name: "Other", count: otherCount, color: OTHER_COLOR });
-        return top;
-      })()
-    : [];
-  const typeTotal = typeSlices.reduce((s, t) => s + t.count, 0);
+  const batchById = useMemo(() => Object.fromEntries(batches.map((b) => [b.email_batch_id, b])), [batches]);
+  const tags = useMemo(() => [...new Set(batches.map((b) => b.email_type_name).filter(Boolean))], [batches]);
+
+  const folderCounts = useMemo(
+    () => Object.fromEntries(FOLDERS.map((f) => [f.key, emails.filter(f.match).length])),
+    [emails],
+  );
+
+  const isCampaigns = folder === "campaigns";
+  const q = search.trim().toLowerCase();
+
+  const visibleEmails = useMemo(() => {
+    const f = FOLDERS.find((x) => x.key === folder) || FOLDERS[0];
+    return emails.filter((e) => {
+      if (!f.match(e)) return false;
+      if (scope === "direct" && e.email_batch) return false;
+      if (scope === "campaign" && !e.email_batch) return false;
+      if (tag && batchById[e.email_batch]?.email_type_name !== tag) return false;
+      return !q || [e.subject, e.recipient_email, e.created_by_name].some((v) => (v || "").toLowerCase().includes(q));
+    });
+  }, [emails, folder, scope, tag, q, batchById]);
+
+  const visibleBatches = useMemo(
+    () => batches.filter((b) =>
+      (!tag || b.email_type_name === tag) &&
+      (!q || [b.batch_name, b.email_type_name].some((v) => (v || "").toLowerCase().includes(q)))),
+    [batches, tag, q],
+  );
+
+  const selected = emails.find((e) => e.ai_email_id === selectedId) || (!isCampaigns ? visibleEmails[0] : null);
+  const selectedBatch = selected?.email_batch ? batchById[selected.email_batch] : null;
+
+  const sentTotal = stats ? stats.sent + stats.failed : 0;
+  const health = sentTotal ? Math.round((stats.sent / sentTotal) * 100) : null;
+  const syncedLabel = syncedAt ? syncedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—";
+
+  const sendNow = async (email) => {
+    setSending(true);
+    setNotice("");
+    try {
+      await client.post(`/api/email/emails/${email.ai_email_id}/send/`);
+      setNotice(`Sent "${email.subject}" to ${email.recipient_email}.`);
+      setReloadKey((k) => k + 1);
+    } catch (err) {
+      setNotice(err.response?.data?.detail || "Send failed.");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const copyBody = (email) => {
+    navigator.clipboard?.writeText(bodyText(email.generated_body)).then(() => setNotice("Email body copied."));
+  };
 
   return (
-    <div className="mail-screen">
-      <div className="mail-head">
+    <div className="bp-page mbx-page">
+      <div className="bp-head">
         <div>
-          <span className="mail-eyebrow">Email</span>
-          <h1>Overview</h1>
-          <p>Draft, approve, and send emails backed by real templates and batches.</p>
+          <p className="bp-crumb">Business Operations &gt; <span>Email &amp; Communications</span></p>
+          <div className="mbx-title-row">
+            <h1 className="bp-title">Business Communications &amp; Mailbox</h1>
+            <span className="mbx-sync">
+              {health != null && <span className="bp-chip green">{health}% delivered</span>}
+              <span>Synced {syncedLabel}</span>
+              <button type="button" className="mbx-icon-btn" onClick={() => setReloadKey((k) => k + 1)} aria-label="Refresh">
+                <RotateCw size={14} />
+              </button>
+            </span>
+          </div>
         </div>
-        <span className="mail-provider-badge">Gmail only</span>
+        <div className="bp-actions">
+          <Link to="/email/batches" className="bp-btn outline"><Megaphone size={16} /> New Bulk Campaign</Link>
+          <Link to="/email/compose" className="bp-btn navy"><SquarePen size={16} /> Compose Email</Link>
+        </div>
       </div>
 
-      {error && <div className="mail-error">{error}</div>}
+      {error && <p className="bp-notice mbx-error">{error}</p>}
+      {notice && <p className="bp-notice">{notice}</p>}
 
-      {stats && (
-        <>
-          <div className="mail-stat-row">
-            <div className="mail-stat">
-              <div className="mail-stat-icon navy"><Send size={18} /></div>
-              <div>
-                <div className="mail-stat-value">{stats.sent}</div>
-                <div className="mail-stat-label">Sent</div>
-              </div>
-            </div>
-            <div className="mail-stat">
-              <div className="mail-stat-icon orange"><Clock size={18} /></div>
-              <div>
-                <div className="mail-stat-value">{stats.pending_approval}</div>
-                <div className="mail-stat-label">Pending approval</div>
-              </div>
-            </div>
-            <div className="mail-stat">
-              <div className="mail-stat-icon green"><Layers size={18} /></div>
-              <div>
-                <div className="mail-stat-value">{stats.active_batches}</div>
-                <div className="mail-stat-label">Active batches</div>
-              </div>
-            </div>
-            <div className="mail-stat">
-              <div className="mail-stat-icon rose"><AlertTriangle size={18} /></div>
-              <div>
-                <div className="mail-stat-value">{stats.failed}</div>
-                <div className="mail-stat-label">Failed</div>
-              </div>
-            </div>
-          </div>
+      <div className="mbx-grid">
+        {/* ---------- Folders ---------- */}
+        <aside className="bp-panel mbx-folders">
+          <Link to="/email/compose" className="bp-btn navy mbx-compose"><Plus size={16} /> Compose Thread</Link>
 
-          <div className="maild-charts-row">
-            <div className="maild-card">
-              <div className="maild-card-head">
-                <span className="maild-card-title">Emails by Type</span>
-                <span className="maild-card-sub">{typeTotal} typed</span>
+          <p className="mbx-group-label">Mailboxes</p>
+          {FOLDERS.map((f) => (
+            <button
+              key={f.key}
+              type="button"
+              className={`mbx-folder ${folder === f.key ? "active" : ""}`}
+              onClick={() => { setFolder(f.key); setSelectedId(null); }}
+            >
+              <f.Icon size={16} /> <span>{f.label}</span>
+              <b className={f.tone && folderCounts[f.key] ? "warn" : ""}>{folderCounts[f.key]}</b>
+            </button>
+          ))}
+          <button
+            type="button"
+            className={`mbx-folder ${isCampaigns ? "active" : ""}`}
+            onClick={() => { setFolder("campaigns"); setSelectedId(null); }}
+          >
+            <Layers size={16} /> <span>Sent Campaigns</span> <b>{batches.length}</b>
+          </button>
+
+          {tags.length > 0 && (
+            <>
+              <p className="mbx-group-label">Batch Tags</p>
+              {tags.map((t, i) => (
+                <button
+                  key={t}
+                  type="button"
+                  className={`mbx-tag ${tag === t ? "active" : ""}`}
+                  onClick={() => setTag(tag === t ? "" : t)}
+                >
+                  <i style={{ background: TAG_DOTS[i % TAG_DOTS.length] }} /> #{t.replace(/\s+/g, "-")}
+                </button>
+              ))}
+            </>
+          )}
+
+          {stats && (
+            <div className="mbx-health">
+              <div className="mbx-health-top">
+                <b>Delivery health</b>
+                <span>{stats.sent} / {sentTotal || 0}</span>
               </div>
-              {typeTotal === 0 ? (
-                <p className="maild-loading">No typed emails yet.</p>
-              ) : (
-                <>
-                  <TypeDonut slices={typeSlices} total={typeTotal} />
-                  <div className="maild-legend">
-                    {typeSlices.map((s) => (
-                      <div className="maild-legend-row" key={s.type_name}>
-                        <span className="maild-legend-swatch" style={{ background: s.color }} />
-                        <span className="maild-legend-name">{s.type_name}</span>
-                        <span className="maild-legend-val">{s.count}</span>
-                      </div>
-                    ))}
+              <div className="bp-meter"><span style={{ width: `${health ?? 0}%` }} /></div>
+              <p>{stats.active_batches} active batches · {stats.failed} failed</p>
+            </div>
+          )}
+        </aside>
+
+        {/* ---------- Message list ---------- */}
+        <section className="bp-panel mbx-list">
+          <label className="bp-search">
+            <Search size={15} />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search emails, recipients, campaigns…" />
+          </label>
+          {!isCampaigns && (
+            <div className="mbx-scopes">
+              {[
+                { key: "all", label: "All", n: emails.filter((e) => (FOLDERS.find((f) => f.key === folder) || FOLDERS[0]).match(e)).length },
+                { key: "direct", label: "Direct" },
+                { key: "campaign", label: "Campaigns" },
+              ].map((s) => (
+                <button key={s.key} type="button" className={`mbx-scope ${scope === s.key ? "active" : ""}`} onClick={() => setScope(s.key)}>
+                  {s.label}{s.n != null && <small>({s.n})</small>}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className="mbx-items">
+            {loading ? (
+              <p className="mbx-empty">Loading…</p>
+            ) : isCampaigns ? (
+              visibleBatches.length === 0 ? <p className="mbx-empty">No campaigns yet.</p> : visibleBatches.map((b) => {
+                const meta = BATCH_META[b.status] || { label: b.status, tone: "gray" };
+                const rate = b.total_emails ? Math.round((b.successful_emails / b.total_emails) * 100) : 0;
+                return (
+                  <div key={b.email_batch_id} className="mbx-item">
+                    <div className="mbx-item-top">
+                      <span className="mbx-from"><Megaphone size={14} className="mbx-camp-icon" /> {b.email_type_name || "Campaign"}</span>
+                      <time>{whenOf(b.completed_at || b.started_at || b.created_at)}</time>
+                    </div>
+                    <p className="mbx-subject">{b.batch_name}</p>
+                    <p className="mbx-snippet">
+                      {b.successful_emails}/{b.total_emails} delivered{b.failed_emails ? ` · ${b.failed_emails} failed` : ""}
+                      {b.created_by_name ? ` · by ${b.created_by_name}` : ""}
+                    </p>
+                    <div className="mbx-chips">
+                      <span className="bp-chip green">{rate}% Delivered</span>
+                      <span className={`bp-chip ${meta.tone}`}>{meta.label}</span>
+                    </div>
                   </div>
-                </>
-              )}
-            </div>
+                );
+              })
+            ) : visibleEmails.length === 0 ? (
+              <p className="mbx-empty">No emails in this folder.</p>
+            ) : visibleEmails.map((e) => {
+              const meta = STATUS_META[e.generation_status] || { label: e.generation_status, tone: "gray" };
+              const batch = e.email_batch ? batchById[e.email_batch] : null;
+              return (
+                <button
+                  key={e.ai_email_id}
+                  type="button"
+                  className={`mbx-item ${selected?.ai_email_id === e.ai_email_id ? "active" : ""}`}
+                  onClick={() => setSelectedId(e.ai_email_id)}
+                >
+                  <div className="mbx-item-top">
+                    <span className="mbx-from">
+                      <i className={`mbx-dot ${meta.tone}`} /> {e.recipient_email.split(",")[0]}
+                    </span>
+                    <time>{whenOf(e.generated_at || e.created_at)}</time>
+                  </div>
+                  <p className="mbx-subject">{e.subject || "(no subject)"}</p>
+                  <p className="mbx-snippet">{bodyText(e.generated_body).slice(0, 110)}</p>
+                  <div className="mbx-chips">
+                    {batch && <span className="bp-chip blue">#{batch.batch_name}</span>}
+                    <span className={`bp-chip ${meta.tone}`}>{meta.label}</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </section>
 
-            <div className="maild-card">
-              <div className="maild-card-head">
-                <span className="maild-card-title">Emails Sent</span>
-                <span className="maild-card-sub">last 14 days</span>
-              </div>
-              <SentTrendChart points={stats.sent_trend} />
+        {/* ---------- Reading pane ---------- */}
+        <section className="bp-panel mbx-read">
+          {!selected ? (
+            <div className="mbx-read-empty">
+              <MailOpen size={34} />
+              <p>{isCampaigns ? "Campaign delivery is summarised in the list." : "Select an email to read it."}</p>
             </div>
-
-            <div className="maild-card">
-              <div className="maild-card-head">
-                <span className="maild-card-title">Batch Status</span>
-                <span className="maild-card-sub">{stats.batch_status.reduce((s, b) => s + b.count, 0)} batches</span>
+          ) : (
+            <>
+              <div className="mbx-toolbar">
+                <div>
+                  <Link to="/email/compose" className="mbx-icon-btn" title="Reply"><Reply size={16} /></Link>
+                </div>
+                <div>
+                  <button type="button" className="mbx-icon-btn" title="Copy body" onClick={() => copyBody(selected)}><Copy size={16} /></button>
+                  <button type="button" className="mbx-icon-btn" title="Print" onClick={() => window.print()}><Printer size={16} /></button>
+                </div>
               </div>
-              {stats.batch_status.length === 0 ? (
-                <p className="maild-loading">No batches yet.</p>
-              ) : (
-                <div className="maild-pipeline">
-                  {stats.batch_status.map((b) => {
-                    const meta = BATCH_STATUS_META[b.status] || { label: b.status, color: "#6b7280" };
-                    const max = Math.max(...stats.batch_status.map((x) => x.count), 1);
-                    return (
-                      <div className="maild-pipeline-row" key={b.status}>
-                        <span className="maild-pipeline-label" style={{ color: meta.color }}>{meta.label}</span>
-                        <div className="maild-pipeline-bar-track">
-                          <div className="maild-pipeline-bar-fill" style={{ width: `${(b.count / max) * 100}%`, background: meta.color }} />
-                        </div>
-                        <span className="maild-pipeline-count">{b.count}</span>
-                      </div>
-                    );
-                  })}
+
+              <div className="mbx-chips">
+                {selectedBatch && <span className="bp-chip blue">#{selectedBatch.batch_name}</span>}
+                {(() => {
+                  const meta = STATUS_META[selected.generation_status] || { label: selected.generation_status, tone: "gray" };
+                  return <span className={`bp-chip ${meta.tone}`}>{meta.label}</span>;
+                })()}
+                {selected.approval_status && <span className="bp-chip gray">Approval: {selected.approval_status.toLowerCase()}</span>}
+              </div>
+              <h2 className="mbx-read-subject">{selected.subject || "(no subject)"}</h2>
+
+              <div className="mbx-sender">
+                <span className="bp-avatar">{initialsOf(selected.created_by_name || selected.recipient_email)}</span>
+                <div className="mbx-sender-text">
+                  <p><b>{selected.created_by_name || "VetriOS"}</b></p>
+                  <p>To: {selected.recipient_email}</p>
+                  {selected.cc_emails && <p>Cc: {selected.cc_emails}</p>}
+                </div>
+                <time>
+                  {selected.generated_at || selected.created_at
+                    ? new Date(selected.generated_at || selected.created_at).toLocaleString([], { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })
+                    : ""}
+                </time>
+              </div>
+
+              <div className="mbx-body">{bodyText(selected.generated_body) || "No body."}</div>
+
+              <div className="mbx-meta">
+                <p className="mbx-meta-title"><CheckCircle2 size={15} /> Delivery details</p>
+                <ul>
+                  <li><Clock3 size={14} /> Drafted {selected.created_at ? new Date(selected.created_at).toLocaleString() : "—"}</li>
+                  <li>
+                    {selected.generation_status === "SENT" ? <CheckCircle2 size={14} className="ok" /> : <AlertTriangle size={14} className="warn" />}
+                    {selected.generation_status === "SENT" ? "Delivered via SMTP" : `Not sent yet — ${(STATUS_META[selected.generation_status]?.label || selected.generation_status).toLowerCase()}`}
+                  </li>
+                  {selected.generation_provider && <li><SquarePen size={14} /> Drafted with {selected.generation_provider}{selected.generation_model ? ` · ${selected.generation_model}` : ""}</li>}
+                </ul>
+              </div>
+
+              {["DRAFT", "APPROVED"].includes(selected.generation_status) && (
+                <div className="mbx-send">
+                  <p>
+                    <b>{selected.generation_status === "DRAFT" ? "Draft ready" : "Approved"}</b>
+                    <span>Send it to {selected.recipient_email} now.</span>
+                  </p>
+                  <button type="button" className="bp-btn navy" disabled={sending} onClick={() => sendNow(selected)}>
+                    <Send size={15} /> {sending ? "Sending…" : "Send Now"}
+                  </button>
                 </div>
               )}
-            </div>
-          </div>
-
-          <div className="maild-bottom-row">
-            <div className="maild-card">
-              <div className="maild-card-head">
-                <span className="maild-card-title">Recent Batches</span>
-                <span className="maild-card-sub">latest 5</span>
-              </div>
-              {stats.recent_batches.length === 0 ? (
-                <p className="maild-loading">No batches yet.</p>
-              ) : (
-                stats.recent_batches.map((b, i) => (
-                  <div className="maild-list-row" key={i}>
-                    <span className="maild-list-icon" style={{ background: "#eef3f7", color: "#235777" }}><Layers size={15} /></span>
-                    <div className="maild-list-text">
-                      <div className="maild-list-title">{b.batch_name}</div>
-                      <div className="maild-list-sub">{b.successful_emails}/{b.total_emails} sent{b.failed_emails > 0 ? ` · ${b.failed_emails} failed` : ""}</div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-
-            <div className="maild-card">
-              <div className="maild-card-head">
-                <span className="maild-card-title">Recently Sent</span>
-                <span className="maild-card-sub">latest 5</span>
-              </div>
-              {stats.recent_sent.length === 0 ? (
-                <p className="maild-loading">Nothing sent yet.</p>
-              ) : (
-                stats.recent_sent.map((e, i) => (
-                  <div className="maild-list-row" key={i}>
-                    <span className="maild-list-icon" style={{ background: "#dcfce7", color: "#16a34a" }}><CheckCircle2 size={15} /></span>
-                    <div className="maild-list-text">
-                      <div className="maild-list-title">{e.subject}</div>
-                      <div className="maild-list-sub">{e.recipient_email}</div>
-                    </div>
-                    <span className="maild-list-time">{formatTime(e.generated_at)}</span>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </>
-      )}
+            </>
+          )}
+        </section>
+      </div>
     </div>
   );
 }
-
-export default EmailDashboard;

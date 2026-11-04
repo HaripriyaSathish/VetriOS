@@ -20,7 +20,14 @@
 .sad-body .sd-hero {
   grid-template-columns: 1fr;
   min-height: 0;
+  padding: 12px 24px;
 }
+.sad-body .sd-hero-text { max-width: none; }
+.sad-body .sd-hero-eyebrow { margin-bottom: 2px; font-size: 12px; }
+.sad-body .sd-hero-title { font-size: 19px; line-height: 1.25; }
+.sad-body .sd-hero-sub { margin: 4px 0 0; font-size: 13px; }
+.sad-body .sad-banner-actions { margin-top: 8px; }
+.sad-body .sad-qa { padding: 6px 12px; font-size: 12.5px; }
 
 .sad-loading,
 .sad-error {

@@ -42,6 +42,8 @@
 
 /* ---- stat cards (trainee .sd-card look) ---- */
 .rp-stats { margin-bottom: 20px; }
+/* the shared .sd-card-icon bob is switched off on this page */
+.rp-stats .sd-card-icon { animation: none; }
 .rp-stat-icon {
   width: 44px;
   height: 44px;

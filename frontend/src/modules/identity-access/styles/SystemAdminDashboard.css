@@ -1,60 +1,150 @@
 .sad-body {
-  font-family: "Manrope", ui-sans-serif, system-ui, sans-serif;
-  color: #3a4152;
+  font-family: var(--vt-font-body);
+  color: var(--vt-text);
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: 20px;
 }
 
 .sad-loading,
 .sad-error {
-  color: #8a93a6;
-  font-size: 13.5px;
-}
-.sad-error { color: #96271f; }
-
-.sad-page-head h1 {
-  margin: 0 0 4px;
-  font-family: "Manrope", sans-serif;
-  font-size: 22px;
-  font-weight: 700;
-  color: #161a26;
-  letter-spacing: -0.2px;
-}
-.sad-page-head p {
   margin: 0;
+  color: var(--vt-muted);
   font-size: 13.5px;
-  color: #8a93a6;
+}
+.sad-error { color: #d92d20; }
+
+/* ---- quick actions inside the hero ---- */
+.sad-banner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+.sad-qa {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  font-family: var(--vt-font-head);
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+.sad-qa:hover {
+  background: rgba(255, 255, 255, 0.24);
+  transform: translateY(-1px);
+}
+.sad-qa.primary {
+  border: none;
+  background: linear-gradient(135deg, #e7510c, #ff8a4c);
+}
+.sad-qa.primary:hover {
+  background: linear-gradient(135deg, #c9450a, #e7510c);
 }
 
-/* ---- KPI row ---- */
-.sad-kpi-row {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
-}
-.sad-kpi-card {
-  background: #fff;
-  border: 1px solid #e2e6ed;
-  border-radius: 10px;
-  padding: 18px 20px;
+/* ---- panels: same look as the trainee dashboard's .sd-panel ---- */
+.sad-card {
+  padding: 22px 24px;
+  background: var(--vt-white);
+  border: 1px solid var(--vt-border);
+  border-radius: var(--vt-radius);
+  box-shadow: var(--vt-shadow);
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
 }
-.sad-kpi-top { display: flex; align-items: center; justify-content: space-between; }
-.sad-kpi-label {
-  font-size: 12.5px; font-weight: 700; color: #8a93a6;
-  text-transform: uppercase; letter-spacing: 0.03em;
+.sad-card-head { display: flex; align-items: center; justify-content: space-between; }
+.sad-card-title {
+  font-family: var(--vt-font-head);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--vt-navy);
 }
-.sad-kpi-icon {
-  width: 30px; height: 30px; border-radius: 8px;
-  display: flex; align-items: center; justify-content: center;
+.sad-card-sub { font-size: 11.5px; color: var(--vt-muted); font-weight: 500; }
+
+.sad-pill {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
 }
-.sad-kpi-value { font-size: 30px; font-weight: 800; color: #161a26; letter-spacing: -0.5px; }
-.sad-kpi-delta { display: flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 600; }
-.sad-kpi-delta.attn { color: #b45309; }
-.sad-muted { color: #8a93a6; font-weight: 500; }
+.sad-pill.ok { background: #e9f8ef; color: #16a34a; }
+.sad-pill.warn { background: var(--vt-orange-50); color: var(--vt-orange-600); }
+
+/* ---- KPI cards reuse the trainee .sd-card look; just add the footer ---- */
+.sad-kpi { cursor: pointer; justify-content: flex-start; }
+.sad-kpi .sd-card-icon {
+  width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 8px;
+  border-radius: 13px;
+  background: #fff;
+  color: var(--vt-navy-700);
+  box-shadow: 0 6px 14px -8px rgba(0, 38, 115, 0.35);
+}
+.sad-kpi.sd-card-orange .sd-card-icon { color: var(--vt-orange); }
+.sad-kpi-foot { margin-top: 6px; font-size: 12px; }
+.sad-delta { display: inline-flex; align-items: center; gap: 5px; font-weight: 600; }
+.sad-delta.up { color: #16a34a; }
+.sad-delta.attn { color: var(--vt-orange-600); }
+.sad-muted { color: var(--vt-muted); font-weight: 500; }
+
+/* ---- attention + health row ---- */
+.sad-attn-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: stretch;
+}
+.sad-attn-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 4px;
+  border-bottom: 1px solid var(--vt-border);
+}
+.sad-attn-item:last-of-type { border-bottom: none; }
+.sad-attn-btn {
+  padding: 6px 13px;
+  border: none;
+  border-radius: 9px;
+  background: linear-gradient(135deg, #e7510c, #ff8a4c);
+  color: #fff;
+  font-family: var(--vt-font-head);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.sad-attn-btn.ghost {
+  background: #fff;
+  border: 1px solid #c9d8f5;
+  color: var(--vt-navy-700);
+}
+.sad-viewall {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--vt-navy-700);
+  font-family: var(--vt-font-head);
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.sad-viewall:hover { text-decoration: underline; }
 
 /* ---- charts row ---- */
 .sad-charts-row {
@@ -63,24 +153,12 @@
   gap: 16px;
   align-items: stretch;
 }
-.sad-card {
-  background: #fff;
-  border: 1px solid #e2e6ed;
-  border-radius: 10px;
-  padding: 18px 20px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-.sad-card-head { display: flex; align-items: baseline; justify-content: space-between; }
-.sad-card-title { font-size: 14px; font-weight: 700; color: #161a26; }
-.sad-card-sub { font-size: 11.5px; color: #8a93a6; font-weight: 500; }
 
 .sad-legend { display: flex; flex-direction: column; gap: 8px; }
-.sad-legend-row { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: #3a4152; }
+.sad-legend-row { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--vt-text); }
 .sad-legend-swatch { width: 9px; height: 9px; border-radius: 2px; flex: none; }
 .sad-legend-name { flex: 1; }
-.sad-legend-val { font-weight: 700; color: #161a26; font-variant-numeric: tabular-nums; }
+.sad-legend-val { font-weight: 700; color: var(--vt-navy); font-variant-numeric: tabular-nums; }
 
 /* ---- donut center overlay ---- */
 .sad-donut-wrap { position: relative; }
@@ -89,63 +167,63 @@
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   pointer-events: none;
 }
-.sad-donut-total { font-size: 22px; font-weight: 800; color: #161a26; line-height: 1.1; }
-.sad-donut-caption { font-size: 10.5px; color: #8a93a6; }
+.sad-donut-total {
+  font-family: var(--vt-font-head);
+  font-size: 22px; font-weight: 800; color: var(--vt-navy); line-height: 1.1;
+}
+.sad-donut-caption { font-size: 10.5px; color: var(--vt-muted); }
 
 /* ---- chart hover tooltip ---- */
 .sad-tooltip {
   background: #fff;
-  border: 1px solid #e2e6ed;
+  border: 1px solid var(--vt-border);
   border-radius: 8px;
   padding: 8px 10px;
-  box-shadow: 0 8px 20px rgba(22, 26, 38, 0.1);
-  font-family: "Manrope", sans-serif;
+  box-shadow: 0 8px 20px rgba(0, 38, 115, 0.14);
+  font-family: var(--vt-font-body);
 }
-.sad-tooltip-label { font-size: 11px; font-weight: 700; color: #8a93a6; margin-bottom: 4px; }
-.sad-tooltip-row { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: #3a4152; }
+.sad-tooltip-label { font-size: 11px; font-weight: 700; color: var(--vt-muted); margin-bottom: 4px; }
+.sad-tooltip-row { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--vt-text); }
 .sad-tooltip-swatch { width: 8px; height: 8px; border-radius: 2px; flex: none; }
 .sad-tooltip-name { flex: 1; }
-.sad-tooltip-val { font-weight: 700; color: #161a26; margin-left: 10px; }
+.sad-tooltip-val { font-weight: 700; color: var(--vt-navy); margin-left: 10px; }
 
-/* ---- bottom row ---- */
-.sad-bottom-row {
-  display: grid;
-  grid-template-columns: 1fr 1.3fr;
-  gap: 16px;
-}
+/* ---- health rows ---- */
 .sad-health-row {
-  display: flex; align-items: center; gap: 12px; padding: 11px 4px;
-  border-bottom: 1px solid #f0f2f5;
+  display: flex; align-items: center; gap: 12px; padding: 10px 4px;
+  border-bottom: 1px solid var(--vt-border);
 }
 .sad-health-row:last-child { border-bottom: none; }
 .sad-health-icon {
-  width: 34px; height: 34px; border-radius: 8px; flex: none;
+  width: 34px; height: 34px; border-radius: 10px; flex: none;
   display: flex; align-items: center; justify-content: center;
 }
 .sad-health-text { flex: 1; display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-.sad-health-name { font-size: 13px; font-weight: 700; color: #161a26; }
-.sad-health-sub { font-size: 11.5px; color: #8a93a6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sad-health-name { font-size: 13px; font-weight: 600; color: var(--vt-navy); }
+.sad-health-sub { font-size: 11.5px; color: var(--vt-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sad-health-badge {
   font-size: 11px; font-weight: 700; padding: 4px 9px; border-radius: 999px;
   display: flex; align-items: center; gap: 5px; flex: none;
 }
 
+/* ---- activity rows ---- */
 .sad-activity-row {
   display: flex; align-items: flex-start; gap: 12px; padding: 11px 4px;
-  border-bottom: 1px solid #f0f2f5;
+  border-bottom: 1px solid var(--vt-border);
 }
 .sad-activity-row:last-child { border-bottom: none; }
 .sad-activity-icon {
-  width: 30px; height: 30px; border-radius: 999px; flex: none;
+  width: 32px; height: 32px; border-radius: 10px; flex: none;
   display: flex; align-items: center; justify-content: center;
 }
 .sad-activity-text { flex: 1; min-width: 0; }
-.sad-activity-title { font-size: 13px; font-weight: 600; color: #161a26; line-height: 1.4; }
-.sad-activity-sub { font-size: 11.5px; color: #8a93a6; margin-top: 2px; }
-.sad-activity-time { font-size: 11px; color: #8a93a6; font-weight: 600; flex: none; white-space: nowrap; padding-top: 1px; }
+.sad-activity-title { font-size: 13px; font-weight: 600; color: var(--vt-navy); line-height: 1.4; overflow-wrap: anywhere; }
+.sad-activity-sub { font-size: 11.5px; color: var(--vt-muted); margin-top: 2px; }
+.sad-activity-time { font-size: 11px; color: var(--vt-muted); font-weight: 600; flex: none; white-space: nowrap; padding-top: 1px; }
 
 @media (max-width: 1280px) {
-  .sad-kpi-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .sad-charts-row { grid-template-columns: 1fr; }
-  .sad-bottom-row { grid-template-columns: 1fr; }
+  .sad-attn-row { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
 }

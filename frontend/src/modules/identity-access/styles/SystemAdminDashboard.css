@@ -6,6 +6,22 @@
   gap: 20px;
 }
 
+/* No motion on this page: the hero/stat-card animations come from the shared
+   trainee CSS, so they are switched off here only (trainee page keeps them). */
+.sad-body *,
+.sad-body *::before,
+.sad-body *::after {
+  animation: none !important;
+}
+
+/* Welcome banner without the cartoon: hide it here only and let the text
+   use the full width (the shared hero is untouched for the trainee pages). */
+.sad-body .sd-hero-art { display: none; }
+.sad-body .sd-hero {
+  grid-template-columns: 1fr;
+  min-height: 0;
+}
+
 .sad-loading,
 .sad-error {
   margin: 0;

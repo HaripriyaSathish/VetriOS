@@ -500,10 +500,14 @@
 }
 
 /* Summary card */
-.reqa-summary {
-  position: sticky;
-  top: 88px; /* clears the sticky topbar so the summary stays in view while scrolling */
+.reqa-side {
+  align-self: start;
   margin-left: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.reqa-summary {
   padding: 24px;
   border-radius: 16px;
   background: linear-gradient(160deg, var(--vt-navy), var(--vt-navy-900));
@@ -592,6 +596,96 @@
   color: #fff;
 }
 
+/* Request history: its own card under the summary */
+.reqa-hist {
+  padding: 18px 20px;
+  background: #fff;
+  border: 1px solid var(--vt-border);
+  border-radius: 16px;
+  box-shadow: var(--vt-shadow);
+}
+.reqa-hist-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+.reqa-hist-head h3 {
+  margin: 0;
+  font-family: var(--vt-font-head);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--vt-navy);
+}
+.reqa-hist-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--vt-navy-700);
+  font-family: var(--vt-font-head);
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.reqa-hist-all:hover { text-decoration: underline; }
+.reqa-hist-empty {
+  margin: 10px 0 0;
+  font-size: 12.5px;
+  color: var(--vt-muted);
+}
+.reqa-hist-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--vt-border);
+}
+.reqa-hist-row:last-child { border-bottom: none; padding-bottom: 0; }
+.reqa-hist-dot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  margin-top: 10px; /* centres the dot on the title + status row */
+  border-radius: 50%;
+  background: #7b88a6;
+}
+.reqa-hist-dot.pending { background: var(--vt-orange); }
+.reqa-hist-dot.approved { background: #16a34a; }
+.reqa-hist-dot.rejected { background: #d92d20; }
+.reqa-hist-dot.revoked { background: #7b88a6; }
+.reqa-hist-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.reqa-hist-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.reqa-hist-title {
+  min-width: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--vt-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.reqa-hist-meta {
+  font-size: 11px;
+  color: var(--vt-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Sent confirmation */
 .reqa-done {
   display: flex;
@@ -650,8 +744,7 @@
   .reqa-grid {
     grid-template-columns: minmax(0, 1fr);
   }
-  .reqa-summary {
-    position: static;
+  .reqa-side {
     margin-left: 0;
   }
   .reqa-grid {

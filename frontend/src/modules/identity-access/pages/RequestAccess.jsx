@@ -303,11 +303,6 @@ function RequestAccess() {
           <h1 className="bp-title">Request Access &amp; Privileges</h1>
           <p className="bp-sub">Ask an admin for a permission or a document. They'll review it and let you know.</p>
         </div>
-        <div className="bp-actions">
-          <button type="button" className="bp-btn navy" onClick={startNewRequest}>
-            <Plus size={16} /> New Access Request
-          </button>
-        </div>
       </div>
 
       <div className="bp-stats reqa-stats">
@@ -525,6 +520,7 @@ function RequestAccess() {
               </div>
             </div>
 
+            <div className="reqa-side">
             <aside className="reqa-summary">
               <h3>Request summary</h3>
               <small>To</small>
@@ -555,7 +551,40 @@ function RequestAccess() {
                 <div className="reqa-next-step"><span className="dot" />The admin reviews it</div>
                 <div className="reqa-next-step"><span className="dot" />You get a notification</div>
               </div>
+
             </aside>
+
+            <section className="reqa-hist">
+              <div className="reqa-hist-head">
+                <h3>Request history</h3>
+                {sentRequests.length > 0 && (
+                  <button type="button" className="reqa-hist-all" onClick={() => setTab("sent")}>
+                    View all <ArrowRight size={12} />
+                  </button>
+                )}
+              </div>
+              {sentRequests.length === 0 ? (
+                <p className="reqa-hist-empty">No requests sent yet.</p>
+              ) : (
+                sentRequests.slice(0, 4).map((r) => (
+                  <div className="reqa-hist-row" key={r.permission_request_id}>
+                    <span className={`reqa-hist-dot ${STATUS_CLASS[r.status] || ""}`} />
+                    <div className="reqa-hist-text">
+                      <span className="reqa-hist-top">
+                        <span className="reqa-hist-title">
+                          {r.document_deleted ? "Document deleted" : r.permission_requested}
+                        </span>
+                        <span className={`preq-badge ${STATUS_CLASS[r.status] || ""}`}>{r.status}</span>
+                      </span>
+                      <span className="reqa-hist-meta">
+                        To {r.target_admin_name} · {timeAgo(r.created_at)}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </section>
+            </div>
           </div>
         )
       )}

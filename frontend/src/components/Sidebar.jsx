@@ -505,7 +505,7 @@ function Sidebar() {
                 <span className="nav-icon">
                   <CheckCircle2 size={14} />
                 </span>
-                Approvals
+                Promotion approvals
               </NavLink>
 
             </div>

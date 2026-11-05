@@ -13,11 +13,19 @@ import {
   Plus,
   KeyRound,
   CheckCircle2,
+  Users,
+  UserCheck,
+  GraduationCap,
+  UserX,
+  X,
+  ArrowUpDown,
 } from "lucide-react";
 import client from "../../../api/client";
 import Pagination, { paginate } from "../../../components/Pagination";
 import { EmployeeAvatar } from "../components/EmployeeAvatar";
+import "../../student/styles/StudentDashboard.css";
 import "../styles/HRDashboard.css";
+import "../styles/Employees.css";
 
 const EMPTY_FILTERS = {
   department_id: "",
@@ -72,6 +80,8 @@ function suggestNextEmployeeCode(employees) {
   return `EMP${String(maxNum + 1).padStart(width, "0")}`;
 }
 
+const isIntern = (e) => /intern/i.test(e.employment_type_name || "");
+
 function toCsv(rows) {
   const header = ["Name", "Email", "Code", "Designation", "Department", "Branch", "Employment Type", "Joining Date", "Status"];
   const lines = rows.map((r) =>
@@ -98,7 +108,9 @@ function downloadCsv(csv, filename) {
 // person" mode here yet, unlike Identity & Access's account creation.
 // Departments/Designations are read-only tabs for now — CRUD for those
 // is a later stage.
-function HRDashboard() {
+// view picks which list this page shows — Employees, Departments and
+// Designations each have their own sidebar entry and route.
+function HRDashboard({ view = "employees" }) {
   const [employees, setEmployees] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [designations, setDesignations] = useState([]);
@@ -107,7 +119,7 @@ function HRDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const [tab, setTab] = useState("employees"); // "employees" | "departments" | "designations"
+  const tab = view; // "employees" | "departments" | "designations"
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
 
@@ -566,13 +578,21 @@ function HRDashboard() {
   const activeDesignations = useMemo(() => designations.filter((d) => d.is_active), [designations]);
   const activeBranches = useMemo(() => branches.filter((b) => b.is_active), [branches]);
 
+  const [typeFilter, setTypeFilter] = useState("ALL"); // ALL | FULL | INTERN
+  const [sortBy, setSortBy] = useState("name_asc");
+  const [selectedId, setSelectedId] = useState(null);
+  const [noLoginOnly, setNoLoginOnly] = useState(false);
+
   useEffect(() => {
     setPage(1);
-  }, [filters]);
+  }, [filters, typeFilter, sortBy, noLoginOnly]);
 
   const filteredEmployees = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return employees.filter((emp) => {
+    const list = employees.filter((emp) => {
+      if (noLoginOnly && emp.has_login) return false;
+      if (typeFilter === "INTERN" && !isIntern(emp)) return false;
+      if (typeFilter === "FULL" && !/full/i.test(emp.employment_type_name || "")) return false;
       if (q) {
         const matchesSearch = [emp.full_name, emp.email, emp.employee_code, emp.designation_name, emp.department_name]
           .filter(Boolean)
@@ -589,7 +609,47 @@ function HRDashboard() {
       if (filters.joined_to && (!emp.joining_date || emp.joining_date > filters.joined_to)) return false;
       return true;
     });
-  }, [employees, search, filters]);
+    const byName = (a, b) => (a.full_name || "").localeCompare(b.full_name || "");
+    const sorters = {
+      name_asc: byName,
+      name_desc: (a, b) => byName(b, a),
+      joined_new: (a, b) => (b.joining_date || "").localeCompare(a.joining_date || "") || byName(a, b),
+      joined_old: (a, b) => (a.joining_date || "").localeCompare(b.joining_date || "") || byName(a, b),
+      department: (a, b) => (a.department_name || "zzz").localeCompare(b.department_name || "zzz") || byName(a, b),
+    };
+    return [...list].sort(sorters[sortBy] || byName);
+  }, [employees, search, filters, typeFilter, sortBy, noLoginOnly]);
+
+  const empCounts = useMemo(
+    () => ({
+      total: employees.length,
+      active: employees.filter((e) => e.status === "ACTIVE").length,
+      interns: employees.filter(isIntern).length,
+      inactive: employees.filter((e) => e.status !== "ACTIVE").length,
+      noLogin: employees.filter((e) => !e.has_login).length,
+    }),
+    [employees]
+  );
+  const activeCard = noLoginOnly
+    ? "NOLOGIN"
+    : filters.status === "ACTIVE"
+    ? "ACTIVE"
+    : filters.status === "INACTIVE"
+    ? "INACTIVE"
+    : typeFilter === "INTERN"
+    ? "INTERN"
+    : "ALL";
+  const pickCard = (key) => {
+    setPage(1);
+    setNoLoginOnly(key === "NOLOGIN");
+    if (key === "NOLOGIN") { setFilters({ ...filters, status: "" }); setTypeFilter("ALL"); }
+    if (key === "ALL") { setFilters({ ...filters, status: "" }); setTypeFilter("ALL"); }
+    if (key === "ACTIVE") { setFilters({ ...filters, status: "ACTIVE" }); setTypeFilter("ALL"); }
+    if (key === "INACTIVE") { setFilters({ ...filters, status: "INACTIVE" }); setTypeFilter("ALL"); }
+    if (key === "INTERN") { setFilters({ ...filters, status: "" }); setTypeFilter("INTERN"); }
+  };
+  const selectedEmp = employees.find((e) => e.employee_id === selectedId) || null;
+
 
   const handleExport = () => downloadCsv(toCsv(filteredEmployees), "employees.csv");
 
@@ -597,44 +657,81 @@ function HRDashboard() {
     <div className="hr-screen">
       <div className="hr-head">
         <div>
-          <h1>Employees</h1>
-          <p>Manage your people, teams, and employment details.</p>
+          <h1>{tab === "departments" ? "Departments" : tab === "designations" ? "Designations" : "Employees"}</h1>
+          <p>
+            {tab === "departments"
+              ? "Manage the departments your people belong to."
+              : tab === "designations"
+              ? "Manage job titles and designations."
+              : "Manage your people, teams, and employment details."}
+          </p>
         </div>
-        <button className="hr-btn-accent" onClick={openCreate}>
-          + New employee
-        </button>
-      </div>
-
-      <div className="hr-tabs">
-        <button
-          className={"hr-tab" + (tab === "employees" ? " active" : "")}
-          onClick={() => setTab("employees")}
-        >
-          All employees <span className="hr-tab-count">{employees.length}</span>
-        </button>
-        <button
-          className={"hr-tab" + (tab === "departments" ? " active" : "")}
-          onClick={() => setTab("departments")}
-        >
-          Departments <span className="hr-tab-count">{departments.length}</span>
-        </button>
-        <button
-          className={"hr-tab" + (tab === "designations" ? " active" : "")}
-          onClick={() => setTab("designations")}
-        >
-          Designations <span className="hr-tab-count">{designations.length}</span>
-        </button>
+        {tab === "employees" && (
+          <button type="button" className="hr-btn-accent emp-new-btn" onClick={openCreate}>
+            <Plus size={16} /> New employee
+          </button>
+        )}
       </div>
 
       {error && <p className="hr-error">{error}</p>}
 
       {tab === "employees" && (
-        <div className="hr-panel">
+        <div className="sd-stats emp-stats">
+          <div
+            className={`sd-card sd-card-blue emp-stat emp-stat-total${["ALL", "ACTIVE", "INACTIVE"].includes(activeCard) ? " selected" : ""}`}
+          >
+            <span className="sd-card-blob" aria-hidden="true" />
+            <span className="sd-card-icon"><Users size={20} /></span>
+            <button type="button" className="emp-total-main" onClick={() => pickCard("ALL")}>
+              <span className="sd-card-value">{empCounts.total}</span>
+              <span className="sd-card-label">Total employees</span>
+            </button>
+            <div className="emp-chips">
+              <button type="button" className={activeCard === "ACTIVE" ? "on" : ""} onClick={() => pickCard("ACTIVE")}>
+                <b>{empCounts.active}</b> Active
+              </button>
+              <button
+                type="button"
+                className={(activeCard === "INACTIVE" ? "on " : "") + (empCounts.inactive > 0 ? "alert" : "")}
+                onClick={() => pickCard("INACTIVE")}
+              >
+                <b>{empCounts.inactive}</b> Inactive
+              </button>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            className={`sd-card sd-card-blue emp-stat${activeCard === "INTERN" ? " selected" : ""}`}
+            onClick={() => pickCard("INTERN")}
+          >
+            <span className="sd-card-blob" aria-hidden="true" />
+            <span className="sd-card-icon"><GraduationCap size={20} /></span>
+            <span className={`sd-card-value${empCounts.interns === 0 ? " sd-tone-gray" : ""}`}>{empCounts.interns}</span>
+            <span className="sd-card-label">Interns</span>
+          </button>
+
+          <button
+            type="button"
+            className={`sd-card sd-card-orange emp-stat${activeCard === "NOLOGIN" ? " selected" : ""}`}
+            onClick={() => pickCard("NOLOGIN")}
+          >
+            <span className="sd-card-blob" aria-hidden="true" />
+            <span className="sd-card-icon"><UserX size={20} /></span>
+            <span className={`sd-card-value${empCounts.noLogin > 0 ? " sd-tone-red" : " sd-tone-gray"}`}>{empCounts.noLogin}</span>
+            <span className="sd-card-label">No login yet</span>
+          </button>
+        </div>
+      )}
+
+      {tab === "employees" && (
+        <div className={"emp-layout" + (selectedEmp ? " has-side" : "")}>
+        <div className="hr-panel emp-main">
           <div className="hr-toolbar">
             <div className="hr-search">
               <Search size={15} />
               <input
-                placeholder="Search employees…"
+                placeholder="Search name, code, department"
                 value={search}
                 onChange={(e) => {
                   setSearch(e.target.value);
@@ -642,6 +739,23 @@ function HRDashboard() {
                 }}
               />
             </div>
+            <div className="emp-seg" role="group" aria-label="Employment type">
+              {[["ALL", "All types"], ["FULL", "Full time"], ["INTERN", "Intern"]].map(([key, label]) => (
+                <button key={key} type="button" className={typeFilter === key ? "active" : ""} onClick={() => setTypeFilter(key)}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <label className="emp-sort">
+              <ArrowUpDown size={14} />
+              <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} aria-label="Sort by">
+                <option value="name_asc">Name A to Z</option>
+                <option value="name_desc">Name Z to A</option>
+                <option value="joined_new">Newest joined</option>
+                <option value="joined_old">Oldest joined</option>
+                <option value="department">Department</option>
+              </select>
+            </label>
             <div className="hr-popover-anchor" ref={filtersRef}>
               <button
                 type="button"
@@ -781,7 +895,9 @@ function HRDashboard() {
           </div>
 
           {loading ? (
-            <p className="hr-empty">Loading…</p>
+            <div className="emp-skeleton" aria-label="Loading employees">
+              {[0, 1, 2, 3, 4].map((i) => <div key={i} className="emp-skel-row" />)}
+            </div>
           ) : filteredEmployees.length === 0 ? (
             <p className="hr-empty">
               {employees.length === 0
@@ -801,8 +917,7 @@ function HRDashboard() {
                       {columns.email && <th>Email</th>}
                       {columns.phone && <th>Phone</th>}
                       <th>Department</th>
-                      <th>Branch</th>
-                      <th>Employment Type</th>
+                      <th>Type</th>
                       <th>Joined</th>
                       <th>Status</th>
                       <th>Actions</th>
@@ -811,17 +926,22 @@ function HRDashboard() {
                   <tbody>
                     {paginate(filteredEmployees, page, 6).map((emp) => {
                       return (
-                        <tr key={emp.employee_id}>
+                        <tr
+                          key={emp.employee_id}
+                          className={"emp-row" + (selectedId === emp.employee_id ? " selected" : "")}
+                          onClick={() => setSelectedId(emp.employee_id)}
+                        >
                           <td>
                             <div className="hr-cell-user">
                               <EmployeeAvatar personId={emp.person_id} size={28} version={avatarVersion} />
                               <div>
-                                <div className="hr-name">{emp.full_name}</div>
+                                <div className="hr-name">
+                                  {emp.full_name}
+                                  {!emp.has_login && <span className="emp-tag">No login</span>}
+                                </div>
                                 <div className="hr-sub">
+                                  {emp.employee_code ? `${emp.employee_code} · ` : ""}
                                   {emp.designation_name || "—"}
-                                  {emp.employment_type_name && /intern/i.test(emp.employment_type_name) && (
-                                    <span className="hr-pill warn hr-intern-badge">Intern</span>
-                                  )}
                                 </div>
                               </div>
                             </div>
@@ -829,16 +949,27 @@ function HRDashboard() {
                           {columns.employee_code && <td className="hr-mono">{emp.employee_code}</td>}
                           {columns.email && <td>{emp.email || "—"}</td>}
                           {columns.phone && <td>{emp.phone || "—"}</td>}
-                          <td>{emp.department_name || "—"}</td>
-                          <td>{emp.branch_name || "—"}</td>
-                          <td>{emp.employment_type_name || "—"}</td>
+                          <td>
+                            {emp.department_name ? (
+                              <span className="emp-dept">{emp.department_name}</span>
+                            ) : (
+                              <span className="emp-dept warn">Not set</span>
+                            )}
+                          </td>
+                          <td>
+                            {isIntern(emp) ? (
+                              <span className="hr-pill warn">Intern</span>
+                            ) : (
+                              emp.employment_type_name || "—"
+                            )}
+                          </td>
                           <td className="hr-mono">{emp.joining_date || "—"}</td>
                           <td>
                             <span className={"hr-pill " + (emp.status === "ACTIVE" ? "on" : "off")}>
                               {emp.status === "ACTIVE" ? "Active" : emp.status}
                             </span>
                           </td>
-                          <td>
+                          <td onClick={(e) => e.stopPropagation()}>
                             <div className="hr-row-actions">
                               <button
                                 type="button"
@@ -899,9 +1030,47 @@ function HRDashboard() {
                   </tbody>
                 </table>
               </div>
+              <div className="emp-result">
+                Showing {Math.min(filteredEmployees.length, (page - 1) * 6 + 1)}–{Math.min(filteredEmployees.length, page * 6)} of {filteredEmployees.length}
+                {filteredEmployees.length !== employees.length ? ` (${employees.length} total)` : ""}
+              </div>
               <Pagination page={page} totalItems={filteredEmployees.length} onPageChange={setPage} pageSize={6} />
             </>
           )}
+        </div>
+
+        {selectedEmp && (
+          <aside className="emp-side" aria-label="Employee profile">
+            <button type="button" className="emp-side-x" onClick={() => setSelectedId(null)} aria-label="Close profile">
+              <X size={15} />
+            </button>
+            <div className="emp-side-head">
+              <EmployeeAvatar personId={selectedEmp.person_id} size={56} version={avatarVersion} />
+              <strong>{selectedEmp.full_name}</strong>
+              <span>{selectedEmp.employee_code ? `${selectedEmp.employee_code} · ` : ""}{selectedEmp.designation_name || "No designation"}</span>
+              <span className={"hr-pill " + (selectedEmp.status === "ACTIVE" ? "on" : "off")}>
+                {selectedEmp.status === "ACTIVE" ? "Active" : selectedEmp.status}
+              </span>
+            </div>
+            <dl className="emp-side-list">
+              <dt>Department</dt><dd>{selectedEmp.department_name || "Not set"}</dd>
+              <dt>Type</dt><dd>{selectedEmp.employment_type_name || "—"}</dd>
+              <dt>Branch</dt><dd>{selectedEmp.branch_name || "—"}</dd>
+              <dt>Joined</dt><dd>{selectedEmp.joining_date || "—"}</dd>
+              <dt>Email</dt><dd>{selectedEmp.email || "—"}</dd>
+              <dt>Phone</dt><dd>{selectedEmp.phone || "—"}</dd>
+              <dt>Login</dt><dd>{selectedEmp.has_login ? "Has a login" : "No login yet"}</dd>
+            </dl>
+            <div className="emp-side-actions">
+              <button type="button" className="hr-btn-sm" onClick={() => openView(selectedEmp)}>
+                <Eye size={14} /> View
+              </button>
+              <button type="button" className="hr-btn-accent hr-btn-accent-sm" onClick={() => openEdit(selectedEmp)}>
+                <SquarePen size={14} /> Edit
+              </button>
+            </div>
+          </aside>
+        )}
         </div>
       )}
 

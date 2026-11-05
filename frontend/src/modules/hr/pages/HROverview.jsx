@@ -1,12 +1,15 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
-  Users, UserCheck, CalendarClock, UserX, TrendingUp, Award,
+  Users, UserCheck, CalendarClock, UserX, UserPlus, FileText, Award, Bell, PartyPopper, ArrowRight,
 } from "lucide-react";
 import {
   ResponsiveContainer, PieChart, Pie, Cell,
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
 } from "recharts";
 import client from "../../../api/client";
+import StudentHero from "../../student/components/StudentHero";
+import "../../student/styles/StudentDashboard.css";
 import "../styles/HROverview.css";
 
 const DEPT_COLOR = "#2a78d6";
@@ -25,6 +28,25 @@ const PIPELINE_META = {
   IN_PROGRESS: { label: "In progress", color: "#b45309", bg: "#ffedd5" },
   COMPLETED: { label: "Completed", color: "#16a34a", bg: "#dcfce7" },
 };
+
+function greeting() {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  return "Good evening";
+}
+
+function timeAgo(iso) {
+  if (!iso) return "";
+  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours} ${hours === 1 ? "hour" : "hours"} ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days} ${days === 1 ? "day" : "days"} ago`;
+  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
 
 function formatDay(iso) {
   return new Date(iso + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
@@ -135,7 +157,12 @@ function AttendanceDonut({ counts }) {
   );
 }
 
+
 function HROverview() {
+  const navigate = useNavigate();
+  const user = JSON.parse(localStorage.getItem("user") || "null");
+  const firstName = (user?.full_name || "").trim().split(/\s+/)[0] || "there";
+
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
 
@@ -150,49 +177,100 @@ function HROverview() {
 
   const { kpis, attendance_today, headcount_by_department, leave_trend, onboarding_pipeline, pending_promotions, recent_activity } = data;
   const pipelineTotal = Object.values(onboarding_pipeline).reduce((s, n) => s + n, 0);
+  const inProgress = onboarding_pipeline.IN_PROGRESS || 0;
+
+  // The same notification can be sent more than once — show each only once.
+  const seen = new Set();
+  const activity = recent_activity
+    .filter((a) => {
+      const key = `${a.title}|${a.message}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 4);
+
+  const attention = [
+    kpis.pending_leave_requests > 0 && {
+      text: `${kpis.pending_leave_requests} leave ${kpis.pending_leave_requests === 1 ? "request" : "requests"} to review`,
+      to: "/hr/leave", tone: "orange",
+    },
+    kpis.employees_without_login > 0 && {
+      text: `${kpis.employees_without_login} ${kpis.employees_without_login === 1 ? "employee has" : "employees have"} never logged in`,
+      to: "/hr/employees", tone: "orange",
+    },
+    pending_promotions.length > 0 && {
+      text: `${pending_promotions.length} ${pending_promotions.length === 1 ? "promotion" : "promotions"} awaiting approval`,
+      to: "/hr/promotions", tone: "blue",
+    },
+    inProgress > 0 && {
+      text: `${inProgress} ${inProgress === 1 ? "intern" : "interns"} in onboarding`,
+      to: "/hr/onboarding", tone: "blue",
+    },
+  ].filter(Boolean);
+
+  const statCards = [
+    { label: "Active employees", value: kpis.total_active_employees, icon: Users, accent: "blue", to: "/hr/employees" },
+    { label: "Present today", value: kpis.present_today, icon: UserCheck, accent: "blue", to: "/hr/attendance", gray: kpis.present_today === 0 },
+    { label: "Pending leave", value: kpis.pending_leave_requests, icon: CalendarClock, accent: "blue", to: "/hr/leave", gray: kpis.pending_leave_requests === 0 },
+    { label: "No login yet", value: kpis.employees_without_login, icon: UserX, accent: "orange", to: "/hr/employees", red: kpis.employees_without_login > 0, gray: kpis.employees_without_login === 0 },
+  ];
 
   return (
     <div className="hrd-body">
-      <div className="hrd-page-head">
-        <h1>HR Dashboard</h1>
-        <p>An overview of headcount, attendance, and requests across VetriOS.</p>
+      <StudentHero
+        eyebrow="Welcome back!"
+        title={`${greeting()}, ${firstName}. You have ${kpis.total_active_employees} active employees.`}
+        subtitle={attention.length > 0
+          ? `${attention.length} ${attention.length === 1 ? "item needs" : "items need"} your attention.`
+          : "Nothing needs your attention right now."}
+      >
+        <div className="hrd-banner-actions">
+          <button type="button" className="hrd-qa primary" onClick={() => navigate("/hr/employees")}>
+            <UserPlus size={14} /> Add employee
+          </button>
+          <button type="button" className="hrd-qa" onClick={() => navigate("/hr/leave")}>
+            <CalendarClock size={14} /> Review leave
+          </button>
+          <button type="button" className="hrd-qa" onClick={() => navigate("/hr/promotions")}>
+            <FileText size={14} /> Draft promotion
+          </button>
+        </div>
+      </StudentHero>
+
+      <div className="sd-stats">
+        {statCards.map((k) => (
+          <div
+            key={k.label}
+            role="button"
+            tabIndex={0}
+            className={`sd-card sd-card-${k.accent} hrd-kpi`}
+            onClick={() => navigate(k.to)}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); navigate(k.to); } }}
+          >
+            <span className="sd-card-blob" aria-hidden="true" />
+            <span className="sd-card-icon"><k.icon size={20} /></span>
+            <p className={`sd-card-value${k.red ? " sd-tone-red" : k.gray ? " sd-tone-gray" : ""}`}>{k.value}</p>
+            <p className="sd-card-label">{k.label}</p>
+          </div>
+        ))}
       </div>
 
-      <div className="hrd-kpi-row">
-        <div className="hrd-kpi-card">
-          <div className="hrd-kpi-top">
-            <span className="hrd-kpi-label">Active Employees</span>
-            <span className="hrd-kpi-icon" style={{ background: "#eef3f7", color: "#235777" }}><Users size={16} /></span>
-          </div>
-          <div className="hrd-kpi-value">{kpis.total_active_employees}</div>
+      {attention.length > 0 && (
+        <div className="hrd-attn">
+          <span className="hrd-attn-title">Needs attention</span>
+          {attention.map((a) => (
+            <button key={a.text} type="button" className={`hrd-chip ${a.tone}`} onClick={() => navigate(a.to)}>
+              {a.text} <ArrowRight size={12} />
+            </button>
+          ))}
         </div>
-        <div className="hrd-kpi-card">
-          <div className="hrd-kpi-top">
-            <span className="hrd-kpi-label">Present Today</span>
-            <span className="hrd-kpi-icon" style={{ background: "#dcfce7", color: "#16a34a" }}><UserCheck size={16} /></span>
-          </div>
-          <div className="hrd-kpi-value">{kpis.present_today}</div>
-        </div>
-        <div className="hrd-kpi-card">
-          <div className="hrd-kpi-top">
-            <span className="hrd-kpi-label">Pending Leave</span>
-            <span className="hrd-kpi-icon" style={{ background: "#ffedd5", color: "#b45309" }}><CalendarClock size={16} /></span>
-          </div>
-          <div className="hrd-kpi-value">{kpis.pending_leave_requests}</div>
-        </div>
-        <div className="hrd-kpi-card">
-          <div className="hrd-kpi-top">
-            <span className="hrd-kpi-label">No Login Yet</span>
-            <span className="hrd-kpi-icon" style={{ background: "#fbe7e5", color: "#96271f" }}><UserX size={16} /></span>
-          </div>
-          <div className="hrd-kpi-value">{kpis.employees_without_login}</div>
-        </div>
-      </div>
+      )}
 
       <div className="hrd-charts-row">
         <div className="hrd-card">
           <div className="hrd-card-head">
-            <span className="hrd-card-title">Headcount by Department</span>
+            <span className="hrd-card-title">Headcount by department</span>
             <span className="hrd-card-sub">{kpis.total_active_employees} active</span>
           </div>
           {headcount_by_department.length === 0 ? (
@@ -204,7 +282,7 @@ function HROverview() {
 
         <div className="hrd-card">
           <div className="hrd-card-head">
-            <span className="hrd-card-title">Leave Requests</span>
+            <span className="hrd-card-title">Leave requests</span>
             <span className="hrd-card-sub">last 7 days</span>
           </div>
           <LeaveTrendChart points={leave_trend} />
@@ -212,7 +290,7 @@ function HROverview() {
 
         <div className="hrd-card">
           <div className="hrd-card-head">
-            <span className="hrd-card-title">Today's Attendance</span>
+            <span className="hrd-card-title">Today's attendance</span>
             <span className="hrd-card-sub">as of just now</span>
           </div>
           <AttendanceDonut counts={attendance_today} />
@@ -231,15 +309,19 @@ function HROverview() {
       <div className="hrd-bottom-row">
         <div className="hrd-card">
           <div className="hrd-card-head">
-            <span className="hrd-card-title">Pending Promotions</span>
+            <span className="hrd-card-title">Pending promotions</span>
             <span className="hrd-card-sub">{pending_promotions.length} awaiting approval</span>
           </div>
           {pending_promotions.length === 0 ? (
-            <p className="hrd-loading">Nothing pending.</p>
+            <div className="hrd-empty">
+              <PartyPopper size={22} />
+              <strong>You're all caught up</strong>
+              <span>No promotions are waiting for approval.</span>
+            </div>
           ) : (
             pending_promotions.map((p, i) => (
               <div className="hrd-list-row" key={i}>
-                <span className="hrd-list-icon" style={{ background: "#eef3f7", color: "#235777" }}><Award size={15} /></span>
+                <span className="hrd-list-icon" style={{ background: "#fff1ea", color: "#e7510c" }}><Award size={15} /></span>
                 <div className="hrd-list-text">
                   <div className="hrd-list-title">{p.employee_name}</div>
                   <div className="hrd-list-sub">→ {p.new_designation}</div>
@@ -252,7 +334,7 @@ function HROverview() {
 
         <div className="hrd-card">
           <div className="hrd-card-head">
-            <span className="hrd-card-title">Onboarding Pipeline</span>
+            <span className="hrd-card-title">Onboarding pipeline</span>
             <span className="hrd-card-sub">{pipelineTotal} interns</span>
           </div>
           {pipelineTotal === 0 ? (
@@ -277,19 +359,20 @@ function HROverview() {
 
         <div className="hrd-card">
           <div className="hrd-card-head">
-            <span className="hrd-card-title">Recent Activity</span>
+            <span className="hrd-card-title">Recent activity</span>
             <span className="hrd-card-sub">your notifications</span>
           </div>
-          {recent_activity.length === 0 ? (
+          {activity.length === 0 ? (
             <p className="hrd-loading">Nothing yet.</p>
           ) : (
-            recent_activity.map((a, i) => (
+            activity.map((a, i) => (
               <div className="hrd-list-row" key={i}>
-                <span className="hrd-list-icon" style={{ background: "#eef3f7", color: "#235777" }}><TrendingUp size={15} /></span>
+                <span className="hrd-list-icon" style={{ background: "#eef3fc", color: "#0a3591" }}><Bell size={15} /></span>
                 <div className="hrd-list-text">
                   <div className="hrd-list-title">{a.title}</div>
                   {a.message && <div className="hrd-list-sub">{a.message}</div>}
                 </div>
+                <span className="hrd-list-time">{timeAgo(a.created_at)}</span>
               </div>
             ))
           )}

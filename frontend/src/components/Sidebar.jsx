@@ -10,6 +10,8 @@ import {
   Lock,
   ChevronDown,
   Briefcase,
+  Building2,
+  BadgeCheck,
   CalendarCheck,
   Palmtree,
   ClipboardList,
@@ -550,6 +552,26 @@ function Sidebar() {
                   <Users size={14} />
                 </span>
                 Employees
+              </NavLink>
+
+              <NavLink
+                to="/hr/departments"
+                className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
+              >
+                <span className="nav-icon">
+                  <Building2 size={14} />
+                </span>
+                Departments
+              </NavLink>
+
+              <NavLink
+                to="/hr/designations"
+                className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
+              >
+                <span className="nav-icon">
+                  <BadgeCheck size={14} />
+                </span>
+                Designations
               </NavLink>
 
               <NavLink

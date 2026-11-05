@@ -62,15 +62,15 @@ function ReportFilterPanel({
             </select>
           </div>
         )}
-      </div>
 
-      <div className="rpt-filter-actions">
-        <button type="button" className="hr-btn-sm" onClick={onPreview} disabled={previewing}>
-          {previewing ? "Loading…" : "Preview report"}
-        </button>
-        <button type="button" className="hr-btn-accent" onClick={onExport} disabled={exporting}>
-          <Download size={14} /> {exporting ? "Exporting…" : "Export report"}
-        </button>
+        <div className="rpt-filter-actions">
+          <button type="button" className="hr-btn-sm" onClick={onPreview} disabled={previewing}>
+            {previewing ? "Loading…" : "Preview report"}
+          </button>
+          <button type="button" className="hr-btn-accent" onClick={onExport} disabled={exporting}>
+            <Download size={14} /> {exporting ? "Exporting…" : "Export report"}
+          </button>
+        </div>
       </div>
     </div>
   );

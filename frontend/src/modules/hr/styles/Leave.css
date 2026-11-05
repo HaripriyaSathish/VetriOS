@@ -156,3 +156,113 @@
 .lv-balance-card:nth-child(4n + 3) .lv-balance-bar-fill { background: #16a34a; }
 .lv-balance-card:nth-child(4n + 4) .lv-balance-bar-fill { background: #2a3fb8; }
 .lv-balance-value { font-family: var(--vt-font-head); color: var(--vt-navy); }
+
+/* ---------- Leave page redesign (scoped to .lv-v2) ---------- */
+.lv-v2 .att-head h1 { font-size: 32px; }
+.lv-v2 .att-head p { font-size: 15px; }
+.lv-v2 .att-eyebrow { color: var(--vt-orange); font-size: 12px; }
+.lv-v2 .att-btn-accent { background: var(--vt-orange); box-shadow: 0 8px 16px -10px rgba(232, 121, 31, .9); font-size: 14px; }
+.lv-v2 .att-btn-accent:hover:not(:disabled) { background: #d86d17; }
+.lv2-label { margin: 4px 0 8px; font-size: 12.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--vt-muted); }
+
+.lv2-tone-blue { --k: #2b6fd6; }
+.lv2-tone-green { --k: #2f9e5a; }
+.lv2-tone-orange { --k: #e8791f; }
+.lv2-tone-violet { --k: #8a4fd8; }
+.lv2-icon { width: 40px; height: 40px; border-radius: 11px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; background: var(--k); color: #fff; }
+
+.lv-v2 .lv-balance-row { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.lv-v2 .lv-balance-card {
+  border: 1px solid #d5e0ef; border-radius: 14px; padding: 14px 16px; gap: 10px;
+  box-shadow: 0 2px 4px rgba(16, 24, 40, .08), 0 8px 18px rgba(16, 24, 40, .08);
+}
+.lv2-balance-top { display: flex; align-items: center; gap: 12px; }
+.lv-v2 .lv-balance-value { display: block; font-size: 26px; line-height: 1.1; color: var(--k); }
+.lv-v2 .lv-balance-unit { font-size: 13px; color: var(--vt-muted); }
+.lv-v2 .lv-balance-label { display: block; font-size: 14px; font-weight: 600; color: var(--vt-text); margin-top: 2px; }
+.lv-v2 .lv-balance-bar { height: 8px; background: #e8eef6; }
+.lv-v2 .lv-balance-bar-fill { background: var(--k); }
+.lv-v2 .lv-balance-sub { display: flex; justify-content: space-between; font-size: 12.5px; }
+
+.lv2-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-bottom: 20px; }
+.lv2-stat {
+  display: flex; align-items: center; gap: 14px; background: #fff; padding: 14px 18px;
+  border: 1px solid #d5e0ef; border-bottom: 3px solid var(--k); border-radius: 14px;
+  box-shadow: 0 2px 4px rgba(16, 24, 40, .08), 0 8px 18px rgba(16, 24, 40, .10);
+}
+.lv2-stat .lv2-icon { width: 44px; height: 44px; }
+.lv2-stat b { display: block; font-family: var(--vt-font-head); font-size: 30px; font-weight: 800; line-height: 1.05; color: var(--k); }
+.lv2-stat span:not(.lv2-icon) { font-size: 13.5px; color: var(--vt-muted); }
+
+.lv-v2 .att-panel { border-radius: 14px; box-shadow: 0 1px 2px rgba(16, 24, 40, .05), 0 4px 12px rgba(16, 24, 40, .06); }
+.lv-v2 .att-panel-head h3 { font-size: 17px; }
+.lv-v2 .att-panel-head p { font-size: 13.5px; }
+.lv-v2 .lv-tab { font-size: 13.5px; padding: 7px 15px; }
+.lv-v2 .lv-tab.active { background: var(--vt-navy); border-color: var(--vt-navy); color: #fff; }
+.lv-v2 .hr-table td { padding: 12px 16px; font-size: 14px; }
+.lv-v2 .hr-name { font-size: 14.5px; }
+.lv-v2 tr.lv-pending td:first-child { box-shadow: inset 3px 0 0 var(--vt-orange); }
+.lv2-dates { display: inline-flex; align-items: center; gap: 7px; }
+.lv2-dates svg { color: #8a95a5; }
+.lv-v2 .att-pill { font-size: 12.5px; padding: 4px 12px; }
+.lv-v2 .att-pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; margin-right: 6px; }
+.lv-v2 .lv-action-btn { font-size: 13px; padding: 6px 12px; border-radius: 9px; }
+.lv-v2 .lv-action-approve { background: #e3f5e9; border-color: #e3f5e9; }
+.lv-v2 .lv-action-reject { background: #fdecea; border-color: #fdecea; }
+
+.lv2-total { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; padding: 9px 12px; border-radius: 10px; background: #f3f7fb; font-size: 13.5px; color: var(--vt-muted); }
+.lv2-total b { font-weight: 600; color: var(--vt-navy); }
+.hr-modal.org-modal .lv-textarea:focus { outline: none; border-color: var(--vt-orange); box-shadow: 0 0 0 3px rgba(232, 121, 31, .15); }
+.hr-modal.org-modal select:focus { outline: none; border-color: var(--vt-orange); box-shadow: 0 0 0 3px rgba(232, 121, 31, .15); }
+@media (max-width: 760px) { .lv2-stats { grid-template-columns: 1fr; } }
+
+/* One row of five cards: three balances + two stats. */
+.lv2-row { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; margin-bottom: 20px; align-items: stretch; }
+.lv-v2 .lv2-row .lv-balance-card { padding: 14px; }
+.lv-v2 .lv2-row .lv-balance-value { font-size: 23px; }
+.lv-v2 .lv2-row .lv-balance-unit { font-size: 12px; }
+.lv-v2 .lv2-row .lv-balance-label { font-size: 13px; }
+.lv2-row .lv2-icon { width: 38px; height: 38px; }
+.lv2-row .lv2-stat {
+  flex-direction: column; align-items: stretch; gap: 6px; padding: 14px;
+}
+.lv2-row .lv2-stat .lv2-balance-top { gap: 10px; }
+.lv2-row .lv2-stat b { font-size: 28px; }
+.lv2-stat-label { font-size: 13.5px; font-weight: 600; color: var(--vt-text); }
+.lv2-row .lv2-stat span.lv2-stat-sub { font-size: 12.5px; color: var(--vt-muted); }
+.lv2-nobalance { margin: -8px 0 20px; background: #fff; border: 1px solid var(--vt-border); border-radius: 12px; }
+@media (max-width: 1250px) { .lv2-row { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 760px) { .lv2-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Two labelled groups on one line: personal balances (3) and team overview (2). */
+.lv2-groups { display: grid; grid-template-columns: 3fr 2fr; gap: 22px; margin-bottom: 20px; }
+.lv2-group { min-width: 0; }
+.lv2-group .lv2-label { margin: 0 0 8px; }
+.lv2-group-team .lv2-row { position: relative; }
+.lv2-group-team .lv2-row::before {
+  content: ""; position: absolute; left: -12px; top: 0; bottom: 0;
+  border-left: 2px dashed #c3d1e6;
+}
+.lv2-row { margin-bottom: 0; }
+.lv2-row-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.lv2-row-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 1250px) {
+  .lv2-groups { grid-template-columns: 1fr; }
+  .lv2-group-team .lv2-row::before { display: none; }
+  .lv2-row-3, .lv2-row-2 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) { .lv2-row-3, .lv2-row-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* ---------- Promotions page ---------- */
+.pr2-move { display: inline-flex; align-items: center; gap: 8px; }
+.pr2-move > span { color: var(--vt-muted); }
+.pr2-move svg { color: var(--vt-orange); flex-shrink: 0; }
+.pr2-move b { font-weight: 600; color: var(--vt-navy); }
+.pr2-preview {
+  display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 12px; padding: 10px 12px;
+  background: #f3f7fb; border-radius: 12px; font-size: 14px;
+}
+.pr2-preview > span { color: var(--vt-muted); }
+.pr2-preview b { font-weight: 600; color: var(--vt-navy); }
+.pr2-preview svg { color: var(--vt-orange); }
+.lv-v2 .hr-stats-head { margin-bottom: 10px; }

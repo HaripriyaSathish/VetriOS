@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Search,
   SlidersHorizontal,
@@ -13,12 +14,15 @@ import {
   Plus,
   KeyRound,
   CheckCircle2,
-  Users,
   UserCheck,
-  GraduationCap,
-  UserX,
+  CalendarOff,
+  UserPlus,
+  Award,
   X,
   ArrowUpDown,
+  Building2,
+  BadgeCheck,
+  FileText,
 } from "lucide-react";
 import client from "../../../api/client";
 import Pagination, { paginate } from "../../../components/Pagination";
@@ -65,6 +69,42 @@ const EMPTY_DESIG_FORM = { designation_code: "", designation_name: "", descripti
 // possible — suggest it instead: highest EMP<N> in use, plus one, same
 // zero-padding width. Pre-filled but still an editable text field, so
 // HR can always override it.
+const fmtDate = (d) => {
+  if (!d) return "";
+  const dt = new Date(`${d}T00:00:00`);
+  return Number.isNaN(dt.getTime()) ? d : dt.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+};
+
+const tenureText = (d) => {
+  if (!d) return "";
+  const start = new Date(`${d}T00:00:00`);
+  if (Number.isNaN(start.getTime())) return "";
+  const now = new Date();
+  const days = Math.floor((now - start) / 86400000);
+  if (days < 0) return "Not started";
+  if (days < 30) return `${days} ${days === 1 ? "day" : "days"}`;
+  const months = Math.floor(days / 30.44);
+  if (months < 12) return `${months} ${months === 1 ? "month" : "months"}`;
+  const y = Math.floor(months / 12);
+  const m = months % 12;
+  return m ? `${y} yr ${m} mo` : `${y} ${y === 1 ? "year" : "years"}`;
+};
+
+const matchesStatus = (row, f) =>
+  f === "ACTIVE" ? row.is_active : f === "INACTIVE" ? !row.is_active : f === "NODESC" ? !(row.description || "").trim() : true;
+
+const initialsOf = (name) => {
+  const w = String(name || "").trim().split(/\s+/).filter(Boolean);
+  if (w.length === 0) return "?";
+  return (w.length === 1 ? w[0].slice(0, 2) : w[0][0] + w[1][0]).toUpperCase();
+};
+
+const chipTone = (name) => {
+  let h = 0;
+  for (const c of String(name || "")) h = (h * 31 + c.charCodeAt(0)) % 5;
+  return "c" + h;
+};
+
 function suggestNextEmployeeCode(employees) {
   let maxNum = 0;
   let width = 3;
@@ -119,7 +159,12 @@ function HRDashboard({ view = "employees" }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const tab = view; // "employees" | "departments" | "designations"
+  // "organization" is one page with a Departments / Designations switch.
+  const orgMode = view === "organization";
+  const [orgTab, setOrgTab] = useState(() =>
+    new URLSearchParams(window.location.search).get("tab") === "designations" ? "designations" : "departments"
+  );
+  const tab = orgMode ? orgTab : view; // "employees" | "departments" | "designations"
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
 
@@ -234,6 +279,8 @@ function HRDashboard({ view = "employees" }) {
   const [desigSubmitting, setDesigSubmitting] = useState(false);
   const [desigConfirmTarget, setDesigConfirmTarget] = useState(null);
   const [desigConfirming, setDesigConfirming] = useState(false);
+  const [deptFilter, setDeptFilter] = useState("ALL"); // ALL | ACTIVE | INACTIVE | NODESC
+  const [desigFilter, setDesigFilter] = useState("ALL");
 
   // Bumped after every successful avatar upload — folded into the
   // Cloudinary URL as ?v= so the browser re-fetches instead of showing
@@ -295,7 +342,7 @@ function HRDashboard({ view = "employees" }) {
     setModalOpen(true);
     try {
       const { data } = await client.get(`/api/hr/employees/${emp.employee_id}/`);
-      setForm({
+      const loaded = {
         first_name: data.first_name || "",
         last_name: data.last_name || "",
         email: data.email || "",
@@ -309,7 +356,9 @@ function HRDashboard({ view = "employees" }) {
         branch_id: data.branch_id || "",
         joining_date: data.joining_date || "",
         confirmation_date: data.confirmation_date || "",
-      });
+      };
+      setForm(loaded);
+      setOrigForm(loaded);
     } catch (err) {
       setFormError("Couldn't load this employee's details.");
     }
@@ -495,11 +544,12 @@ function HRDashboard({ view = "employees" }) {
 
   const filteredDepartments = useMemo(() => {
     const q = deptSearch.trim().toLowerCase();
-    if (!q) return departments;
-    return departments.filter((d) =>
-      [d.department_name, d.description].filter(Boolean).some((v) => v.toLowerCase().includes(q))
+    return departments.filter(
+      (d) =>
+        matchesStatus(d, deptFilter) &&
+        (!q || [d.department_name, d.description].filter(Boolean).some((v) => v.toLowerCase().includes(q)))
     );
-  }, [departments, deptSearch]);
+  }, [departments, deptSearch, deptFilter]);
 
   // --- Designations CRUD ---
   const openCreateDesig = () => {
@@ -568,11 +618,12 @@ function HRDashboard({ view = "employees" }) {
 
   const filteredDesignations = useMemo(() => {
     const q = desigSearch.trim().toLowerCase();
-    if (!q) return designations;
-    return designations.filter((d) =>
-      [d.designation_name, d.description, d.designation_code].filter(Boolean).some((v) => v.toLowerCase().includes(q))
+    return designations.filter(
+      (d) =>
+        matchesStatus(d, desigFilter) &&
+        (!q || [d.designation_name, d.description, d.designation_code].filter(Boolean).some((v) => v.toLowerCase().includes(q)))
     );
-  }, [designations, desigSearch]);
+  }, [designations, desigSearch, desigFilter]);
 
   const activeDepartments = useMemo(() => departments.filter((d) => d.is_active), [departments]);
   const activeDesignations = useMemo(() => designations.filter((d) => d.is_active), [designations]);
@@ -582,15 +633,32 @@ function HRDashboard({ view = "employees" }) {
   const [sortBy, setSortBy] = useState("name_asc");
   const [selectedId, setSelectedId] = useState(null);
   const [noLoginOnly, setNoLoginOnly] = useState(false);
+  const [joinedOnly, setJoinedOnly] = useState(false);
+  const [origForm, setOrigForm] = useState(null); // loaded values while editing, to show what changed
+  const navigate = useNavigate();
+  // Today's figures (present, on leave, pending promotions) come from the HR dashboard API.
+  const [todayStats, setTodayStats] = useState(null);
+  useEffect(() => {
+    client.get("/api/hr/dashboard/")
+      .then(({ data }) => setTodayStats({
+        present: data.kpis.present_today,
+        onLeave: data.kpis.on_leave_today,
+        promotions: data.pending_promotions.length,
+        activeTotal: data.kpis.total_active_employees,
+      }))
+      .catch(() => setTodayStats(null));
+  }, []);
 
   useEffect(() => {
     setPage(1);
-  }, [filters, typeFilter, sortBy, noLoginOnly]);
+  }, [filters, typeFilter, sortBy, noLoginOnly, joinedOnly]);
 
+  const thisMonth = new Date().toISOString().slice(0, 7);
   const filteredEmployees = useMemo(() => {
     const q = search.trim().toLowerCase();
     const list = employees.filter((emp) => {
       if (noLoginOnly && emp.has_login) return false;
+      if (joinedOnly && !(emp.joining_date || "").startsWith(thisMonth)) return false;
       if (typeFilter === "INTERN" && !isIntern(emp)) return false;
       if (typeFilter === "FULL" && !/full/i.test(emp.employment_type_name || "")) return false;
       if (q) {
@@ -618,7 +686,7 @@ function HRDashboard({ view = "employees" }) {
       department: (a, b) => (a.department_name || "zzz").localeCompare(b.department_name || "zzz") || byName(a, b),
     };
     return [...list].sort(sorters[sortBy] || byName);
-  }, [employees, search, filters, typeFilter, sortBy, noLoginOnly]);
+  }, [employees, search, filters, typeFilter, sortBy, noLoginOnly, joinedOnly, thisMonth]);
 
   const empCounts = useMemo(
     () => ({
@@ -627,10 +695,13 @@ function HRDashboard({ view = "employees" }) {
       interns: employees.filter(isIntern).length,
       inactive: employees.filter((e) => e.status !== "ACTIVE").length,
       noLogin: employees.filter((e) => !e.has_login).length,
+      joined: employees.filter((e) => (e.joining_date || "").startsWith(thisMonth)).length,
     }),
-    [employees]
+    [employees, thisMonth]
   );
-  const activeCard = noLoginOnly
+  const activeCard = joinedOnly
+    ? "JOINED"
+    : noLoginOnly
     ? "NOLOGIN"
     : filters.status === "ACTIVE"
     ? "ACTIVE"
@@ -642,6 +713,8 @@ function HRDashboard({ view = "employees" }) {
   const pickCard = (key) => {
     setPage(1);
     setNoLoginOnly(key === "NOLOGIN");
+    setJoinedOnly(key === "JOINED");
+    if (key === "JOINED") { setFilters({ ...filters, status: "" }); setTypeFilter("ALL"); }
     if (key === "NOLOGIN") { setFilters({ ...filters, status: "" }); setTypeFilter("ALL"); }
     if (key === "ALL") { setFilters({ ...filters, status: "" }); setTypeFilter("ALL"); }
     if (key === "ACTIVE") { setFilters({ ...filters, status: "ACTIVE" }); setTypeFilter("ALL"); }
@@ -651,15 +724,57 @@ function HRDashboard({ view = "employees" }) {
   const selectedEmp = employees.find((e) => e.employee_id === selectedId) || null;
 
 
+  const formRequired = [form.first_name, form.employee_code, form.employment_type_id, form.designation_id, form.joining_date];
+  const formDone = formRequired.filter((v) => String(v || "").trim() !== "").length;
+  const formDesignation = designations.find((d) => String(d.designation_id) === String(form.designation_id))?.designation_name;
+  const formType = employmentTypes.find((t) => String(t.employment_type_id) === String(form.employment_type_id))?.employment_type_name;
+  const formDept = departments.find((d) => String(d.department_id) === String(form.department_id))?.department_name;
+
+  const isChanged = (k) => !!editingEmployee && !!origForm && String(form[k] ?? "") !== String(origForm[k] ?? "");
+  const chg = (k) => (isChanged(k) ? "emp-changed" : "");
+  const wasLabel = (k) => {
+    const v = origForm ? origForm[k] : "";
+    if (v === "" || v == null) return "empty";
+    if (k === "designation_id") return designations.find((d) => String(d.designation_id) === String(v))?.designation_name || v;
+    if (k === "employment_type_id") return employmentTypes.find((t) => String(t.employment_type_id) === String(v))?.employment_type_name || v;
+    if (k === "department_id") return departments.find((d) => String(d.department_id) === String(v))?.department_name || v;
+    if (k === "branch_id") return branches.find((b) => String(b.branch_id) === String(v))?.branch_name || v;
+    return v;
+  };
+  const was = (k) => (isChanged(k) ? <span className="emp-form-was">Was {wasLabel(k)}</span> : null);
+  const changeCount = editingEmployee && origForm ? Object.keys(origForm).filter(isChanged).length : 0;
+  const viewHasLogin = viewEmployee ? !!employees.find((e) => e.employee_id === viewEmployee.employee_id)?.has_login : false;
+
+  const isDesig = tab === "designations";
+  const orgRows = isDesig ? designations : departments;
+  const orgFilter = isDesig ? desigFilter : deptFilter;
+  const pickOrgFilter = (f) => {
+    if (isDesig) {
+      setDesigFilter(orgFilter === f ? "ALL" : f);
+      setDesigPage(1);
+    } else {
+      setDeptFilter(orgFilter === f ? "ALL" : f);
+      setDeptPage(1);
+    }
+  };
+  const orgCards = [
+    { key: "ALL", label: isDesig ? "Designations" : "Departments", value: orgRows.length, tone: "blue", Icon: isDesig ? BadgeCheck : Building2 },
+    { key: "ACTIVE", label: "Active", value: orgRows.filter((r) => r.is_active).length, tone: "green", Icon: CheckCircle2 },
+    { key: "INACTIVE", label: "Inactive", value: orgRows.filter((r) => !r.is_active).length, tone: "amber", Icon: Ban },
+    { key: "NODESC", label: "No description", value: orgRows.filter((r) => !(r.description || "").trim()).length, tone: "violet", Icon: FileText },
+  ];
+
   const handleExport = () => downloadCsv(toCsv(filteredEmployees), "employees.csv");
 
   return (
-    <div className="hr-screen">
+    <div className={"hr-screen" + (orgMode ? " org-page" : "")}>
       <div className="hr-head">
         <div>
-          <h1>{tab === "departments" ? "Departments" : tab === "designations" ? "Designations" : "Employees"}</h1>
+          <h1>{orgMode ? "Organization" : tab === "departments" ? "Departments" : tab === "designations" ? "Designations" : "Employees"}</h1>
           <p>
-            {tab === "departments"
+            {orgMode
+              ? "Manage departments and designations in one place."
+              : tab === "departments"
               ? "Manage the departments your people belong to."
               : tab === "designations"
               ? "Manage job titles and designations."
@@ -676,50 +791,38 @@ function HRDashboard({ view = "employees" }) {
       {error && <p className="hr-error">{error}</p>}
 
       {tab === "employees" && (
-        <div className="sd-stats emp-stats">
-          <div
-            className={`sd-card sd-card-blue emp-stat emp-stat-total${["ALL", "ACTIVE", "INACTIVE"].includes(activeCard) ? " selected" : ""}`}
-          >
-            <span className="sd-card-blob" aria-hidden="true" />
-            <span className="sd-card-icon"><Users size={20} /></span>
-            <button type="button" className="emp-total-main" onClick={() => pickCard("ALL")}>
-              <span className="sd-card-value">{empCounts.total}</span>
-              <span className="sd-card-label">Total employees</span>
-            </button>
-            <div className="emp-chips">
-              <button type="button" className={activeCard === "ACTIVE" ? "on" : ""} onClick={() => pickCard("ACTIVE")}>
-                <b>{empCounts.active}</b> Active
-              </button>
-              <button
-                type="button"
-                className={(activeCard === "INACTIVE" ? "on " : "") + (empCounts.inactive > 0 ? "alert" : "")}
-                onClick={() => pickCard("INACTIVE")}
-              >
-                <b>{empCounts.inactive}</b> Inactive
-              </button>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            className={`sd-card sd-card-blue emp-stat${activeCard === "INTERN" ? " selected" : ""}`}
-            onClick={() => pickCard("INTERN")}
-          >
-            <span className="sd-card-blob" aria-hidden="true" />
-            <span className="sd-card-icon"><GraduationCap size={20} /></span>
-            <span className={`sd-card-value${empCounts.interns === 0 ? " sd-tone-gray" : ""}`}>{empCounts.interns}</span>
-            <span className="sd-card-label">Interns</span>
+        <div className="emp-mini-row org-stats">
+          <button type="button" className="emp-mini tone-green" onClick={() => navigate("/hr/attendance")}>
+            <span className="emp-mini-icon"><UserCheck size={15} /></span>
+            <span className="emp-mini-text">
+              <b>{todayStats ? todayStats.present : "-"}{todayStats ? <i> / {todayStats.activeTotal}</i> : null}</b>
+              <span>Present today</span>
+            </span>
           </button>
-
+          <button type="button" className="emp-mini tone-amber" onClick={() => navigate("/hr/attendance")}>
+            <span className="emp-mini-icon"><CalendarOff size={15} /></span>
+            <span className="emp-mini-text">
+              <b>{todayStats ? todayStats.onLeave : "-"}</b>
+              <span>On leave today</span>
+            </span>
+          </button>
           <button
             type="button"
-            className={`sd-card sd-card-orange emp-stat${activeCard === "NOLOGIN" ? " selected" : ""}`}
-            onClick={() => pickCard("NOLOGIN")}
+            className={`emp-mini tone-blue${activeCard === "JOINED" ? " selected" : ""}`}
+            onClick={() => pickCard(activeCard === "JOINED" ? "ALL" : "JOINED")}
           >
-            <span className="sd-card-blob" aria-hidden="true" />
-            <span className="sd-card-icon"><UserX size={20} /></span>
-            <span className={`sd-card-value${empCounts.noLogin > 0 ? " sd-tone-red" : " sd-tone-gray"}`}>{empCounts.noLogin}</span>
-            <span className="sd-card-label">No login yet</span>
+            <span className="emp-mini-icon"><UserPlus size={15} /></span>
+            <span className="emp-mini-text">
+              <b>{empCounts.joined}</b>
+              <span>Joined this month</span>
+            </span>
+          </button>
+          <button type="button" className="emp-mini tone-violet" onClick={() => navigate("/hr/promotions")}>
+            <span className="emp-mini-icon"><Award size={15} /></span>
+            <span className="emp-mini-text">
+              <b>{todayStats ? todayStats.promotions : "-"}</b>
+              <span>Pending promotions</span>
+            </span>
           </button>
         </div>
       )}
@@ -1074,6 +1177,35 @@ function HRDashboard({ view = "employees" }) {
         </div>
       )}
 
+      {orgMode && (
+        <>
+          <div className="hr-tabs">
+            <button type="button" className={"hr-tab" + (!isDesig ? " active" : "")} onClick={() => setOrgTab("departments")}>
+              <Building2 size={15} /> Departments <span className="hr-tab-count">{departments.length}</span>
+            </button>
+            <button type="button" className={"hr-tab" + (isDesig ? " active" : "")} onClick={() => setOrgTab("designations")}>
+              <BadgeCheck size={15} /> Designations <span className="hr-tab-count">{designations.length}</span>
+            </button>
+          </div>
+          <div className="emp-mini-row org-stats">
+            {orgCards.map(({ key, label, value, tone, Icon }) => (
+              <button
+                key={key}
+                type="button"
+                className={`emp-mini tone-${tone}${orgFilter === key && key !== "ALL" ? " selected" : ""}`}
+                onClick={() => (key === "ALL" ? (isDesig ? setDesigFilter("ALL") : setDeptFilter("ALL")) : pickOrgFilter(key))}
+              >
+                <span className="emp-mini-icon"><Icon size={15} /></span>
+                <span className="emp-mini-text">
+                  <b>{loading ? "-" : value}</b>
+                  <span>{label}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
       {tab === "departments" && (
         <div className="hr-panel">
           <div className="hr-toolbar">
@@ -1099,7 +1231,7 @@ function HRDashboard({ view = "employees" }) {
             <p className="hr-empty">
               {departments.length === 0
                 ? "No departments yet — add the first one."
-                : `No departments match "${deptSearch}".`}
+                : "No departments match your search or filter."}
             </p>
           ) : (
             <>
@@ -1116,8 +1248,10 @@ function HRDashboard({ view = "employees" }) {
                 <tbody>
                   {paginate(filteredDepartments, deptPage, 6).map((d) => (
                     <tr key={d.department_id}>
-                      <td className="hr-name">{d.department_name}</td>
-                      <td className="hr-sub">{d.description || "—"}</td>
+                      <td className="hr-name">
+                        <span className="org-name"><span className={"org-chip " + chipTone(d.department_name)}>{initialsOf(d.department_name)}</span>{d.department_name}</span>
+                      </td>
+                      <td className="hr-sub">{d.description || <span className="org-nodesc">No description</span>}</td>
                       <td>
                         <span className={"hr-pill " + (d.is_active ? "on" : "off")}>
                           {d.is_active ? "Active" : "Inactive"}
@@ -1181,7 +1315,7 @@ function HRDashboard({ view = "employees" }) {
             <p className="hr-empty">
               {designations.length === 0
                 ? "No designations yet — add the first one."
-                : `No designations match "${desigSearch}".`}
+                : "No designations match your search or filter."}
             </p>
           ) : (
             <>
@@ -1199,8 +1333,10 @@ function HRDashboard({ view = "employees" }) {
                 <tbody>
                   {paginate(filteredDesignations, desigPage, 6).map((d) => (
                     <tr key={d.designation_id}>
-                      <td className="hr-name">{d.designation_name}</td>
-                      <td className="hr-sub">{d.description || "—"}</td>
+                      <td className="hr-name">
+                        <span className="org-name"><span className={"org-chip " + chipTone(d.designation_name)}>{initialsOf(d.designation_name)}</span>{d.designation_name}</span>
+                      </td>
+                      <td className="hr-sub">{d.description || <span className="org-nodesc">No description</span>}</td>
                       <td className="hr-mono">{d.level_number ?? "—"}</td>
                       <td>
                         <span className={"hr-pill " + (d.is_active ? "on" : "off")}>
@@ -1242,176 +1378,179 @@ function HRDashboard({ view = "employees" }) {
 
       {modalOpen && (
         <div className="hr-modal-backdrop" onClick={closeModal}>
-          <form className="hr-modal hr-modal-wide" onClick={(e) => e.stopPropagation()} onSubmit={handleSubmit}>
+          <form className="hr-modal hr-modal-wide emp-form" onClick={(e) => e.stopPropagation()} onSubmit={handleSubmit}>
             <button type="button" className="hr-modal-x" onClick={closeModal} aria-label="Close">
               ✕
             </button>
             <h2>{editingEmployee ? "Edit employee" : "New employee"}</h2>
             <p className="hr-hint">
               {editingEmployee
-                ? "Updates this employee's details."
-                : "Creates a new person record along with their employee details."}
+                ? `Updating ${editingEmployee.full_name || "this employee"}${editingEmployee.employee_code ? ` · ${editingEmployee.employee_code}` : ""}`
+                : "Add a person to Vetri IT Systems. Fields marked * are required."}
             </p>
+            <div className="emp-form-bar"><i style={{ width: `${(formDone / formRequired.length) * 100}%` }} /></div>
 
-            <div className="hr-avatar-picker">
-              {avatarPreview ? (
-                <img className="hr-avatar hr-avatar-photo" style={{ width: 56, height: 56 }} src={avatarPreview} alt="" />
-              ) : editingEmployee ? (
-                <EmployeeAvatar personId={editingEmployee.person_id} size={56} version={avatarVersion} />
-              ) : (
-                <div className="hr-avatar hr-avatar-fallback" style={{ width: 56, height: 56 }}>
-                  <CircleUserRound size={40} />
+            <div className="emp-form-grid">
+              <div className="emp-form-main">
+                <section className="emp-form-sec">
+                  <h3><span className="emp-step">1</span>Personal details</h3>
+                  <div className="hr-form-row">
+                    <div className={chg("first_name")}>
+                      <label>First name <u>*</u></label>
+                      <input value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} required />
+                      {was("first_name")}
+                    </div>
+                    <div className={chg("last_name")}>
+                      <label>Last name</label>
+                      <input value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} />
+                      {was("last_name")}
+                    </div>
+                  </div>
+                  <div className="hr-form-row">
+                    <div className={chg("email")}>
+                      <label>Email</label>
+                      <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+                      {was("email")}
+                    </div>
+                    <div className={chg("phone")}>
+                      <label>Phone</label>
+                      <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+                      {was("phone")}
+                    </div>
+                  </div>
+                  <div className="hr-form-row">
+                    <div className={chg("date_of_birth")}>
+                      <label>Date of birth</label>
+                      <input type="date" value={form.date_of_birth} onChange={(e) => setForm({ ...form, date_of_birth: e.target.value })} />
+                      {was("date_of_birth")}
+                    </div>
+                    <div className={chg("gender")}>
+                      <label>Gender</label>
+                      <select value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value })}>
+                        <option value="">Select…</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                        <option value="Other">Other</option>
+                      </select>
+                      {was("gender")}
+                    </div>
+                  </div>
+                </section>
+
+                <section className="emp-form-sec">
+                  <h3><span className="emp-step">2</span>Job details</h3>
+                  <div className="hr-form-row">
+                    <div className={chg("employee_code")}>
+                      <label>Employee code <u>*</u></label>
+                      <input value={form.employee_code} onChange={(e) => setForm({ ...form, employee_code: e.target.value })} required />
+                      {!editingEmployee && <span className="emp-form-note">Suggested next code. You can edit it.</span>}
+                      {was("employee_code")}
+                    </div>
+                    <div className={chg("employment_type_id")}>
+                      <label>Employment type <u>*</u></label>
+                      <select value={form.employment_type_id} onChange={(e) => setForm({ ...form, employment_type_id: e.target.value })} required>
+                        <option value="">Select…</option>
+                        {employmentTypes.map((t) => (
+                          <option key={t.employment_type_id} value={t.employment_type_id}>{t.employment_type_name}</option>
+                        ))}
+                      </select>
+                      {was("employment_type_id")}
+                    </div>
+                  </div>
+                  <div className="hr-form-row">
+                    <div className={chg("department_id")}>
+                      <label>Department</label>
+                      <select value={form.department_id} onChange={(e) => setForm({ ...form, department_id: e.target.value })}>
+                        <option value="">Unassigned</option>
+                        {activeDepartments.map((d) => (
+                          <option key={d.department_id} value={d.department_id}>{d.department_name}</option>
+                        ))}
+                      </select>
+                      {was("department_id")}
+                    </div>
+                    <div className={chg("designation_id")}>
+                      <label>Designation <u>*</u></label>
+                      <select value={form.designation_id} onChange={(e) => setForm({ ...form, designation_id: e.target.value })} required>
+                        <option value="">Select…</option>
+                        {activeDesignations.map((d) => (
+                          <option key={d.designation_id} value={d.designation_id}>{d.designation_name}</option>
+                        ))}
+                      </select>
+                      {was("designation_id")}
+                    </div>
+                  </div>
+                  <div className={chg("branch_id")}>
+                    <label>Branch</label>
+                    <select value={form.branch_id} onChange={(e) => setForm({ ...form, branch_id: e.target.value })}>
+                      <option value="">Unassigned (WFH / Intern / Student)</option>
+                      {activeBranches.map((b) => (
+                        <option key={b.branch_id} value={b.branch_id}>{b.branch_name}</option>
+                      ))}
+                    </select>
+                    {was("branch_id")}
+                  </div>
+                </section>
+
+                <section className="emp-form-sec">
+                  <h3><span className="emp-step">3</span>Dates</h3>
+                  <div className="hr-form-row">
+                    <div className={chg("joining_date")}>
+                      <label>Joining date <u>*</u></label>
+                      <input type="date" value={form.joining_date} onChange={(e) => setForm({ ...form, joining_date: e.target.value })} required />
+                      {was("joining_date")}
+                    </div>
+                    <div className={chg("confirmation_date")}>
+                      <label>Confirmation date</label>
+                      <input type="date" value={form.confirmation_date} onChange={(e) => setForm({ ...form, confirmation_date: e.target.value })} />
+                      {was("confirmation_date")}
+                    </div>
+                  </div>
+                </section>
+              </div>
+
+              <aside className="emp-form-side">
+                <div className="emp-form-photo">
+                  {avatarPreview ? (
+                    <img className="hr-avatar hr-avatar-photo" style={{ width: 64, height: 64 }} src={avatarPreview} alt="" />
+                  ) : editingEmployee ? (
+                    <EmployeeAvatar personId={editingEmployee.person_id} size={64} version={avatarVersion} />
+                  ) : (
+                    <div className="hr-avatar hr-avatar-fallback" style={{ width: 64, height: 64 }}>
+                      <CircleUserRound size={44} />
+                    </div>
+                  )}
                 </div>
-              )}
-              <label className="hr-btn-sm hr-avatar-picker-btn">
-                <Camera size={14} />
-                {editingEmployee ? "Change photo" : "Add photo"}
-                <input type="file" accept="image/*" onChange={pickAvatarFile} hidden />
-              </label>
-            </div>
-
-            <div className="hr-form-row">
-              <div>
-                <label>First name</label>
-                <input
-                  value={form.first_name}
-                  onChange={(e) => setForm({ ...form, first_name: e.target.value })}
-                  required
-                />
-              </div>
-              <div>
-                <label>Last name</label>
-                <input
-                  value={form.last_name}
-                  onChange={(e) => setForm({ ...form, last_name: e.target.value })}
-                />
-              </div>
-            </div>
-
-            <label>Email</label>
-            <input
-              type="email"
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-            />
-
-            <label>Phone</label>
-            <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
-
-            <div className="hr-form-row">
-              <div>
-                <label>Date of birth</label>
-                <input
-                  type="date"
-                  value={form.date_of_birth}
-                  onChange={(e) => setForm({ ...form, date_of_birth: e.target.value })}
-                />
-              </div>
-              <div>
-                <label>Gender</label>
-                <select value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value })}>
-                  <option value="">Select…</option>
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-            </div>
-
-            <label>Employee code</label>
-            <input
-              value={form.employee_code}
-              onChange={(e) => setForm({ ...form, employee_code: e.target.value })}
-              required
-            />
-
-            <div className="hr-form-row">
-              <div>
-                <label>Designation</label>
-                <select
-                  value={form.designation_id}
-                  onChange={(e) => setForm({ ...form, designation_id: e.target.value })}
-                  required
-                >
-                  <option value="">Select…</option>
-                  {activeDesignations.map((d) => (
-                    <option key={d.designation_id} value={d.designation_id}>
-                      {d.designation_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label>Employment type</label>
-                <select
-                  value={form.employment_type_id}
-                  onChange={(e) => setForm({ ...form, employment_type_id: e.target.value })}
-                  required
-                >
-                  <option value="">Select…</option>
-                  {employmentTypes.map((t) => (
-                    <option key={t.employment_type_id} value={t.employment_type_id}>
-                      {t.employment_type_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <label>Department</label>
-            <select
-              value={form.department_id}
-              onChange={(e) => setForm({ ...form, department_id: e.target.value })}
-            >
-              <option value="">Unassigned</option>
-              {activeDepartments.map((d) => (
-                <option key={d.department_id} value={d.department_id}>
-                  {d.department_name}
-                </option>
-              ))}
-            </select>
-
-            <label>Branch</label>
-            <select
-              value={form.branch_id}
-              onChange={(e) => setForm({ ...form, branch_id: e.target.value })}
-            >
-              <option value="">Unassigned (WFH / Intern / Student)</option>
-              {activeBranches.map((b) => (
-                <option key={b.branch_id} value={b.branch_id}>
-                  {b.branch_name}
-                </option>
-              ))}
-            </select>
-
-            <div className="hr-form-row">
-              <div>
-                <label>Joining date</label>
-                <input
-                  type="date"
-                  value={form.joining_date}
-                  onChange={(e) => setForm({ ...form, joining_date: e.target.value })}
-                  required
-                />
-              </div>
-              <div>
-                <label>Confirmation date</label>
-                <input
-                  type="date"
-                  value={form.confirmation_date}
-                  onChange={(e) => setForm({ ...form, confirmation_date: e.target.value })}
-                />
-              </div>
+                <label className="hr-btn-sm hr-avatar-picker-btn">
+                  <Camera size={14} />
+                  {avatarPreview || editingEmployee ? "Change photo" : "Add photo"}
+                  <input type="file" accept="image/*" onChange={pickAvatarFile} hidden />
+                </label>
+                <strong>{`${form.first_name} ${form.last_name}`.trim() || "New employee"}</strong>
+                <span className="emp-form-sub">{formDesignation || "Designation not set"}</span>
+                <div className="emp-form-tags">
+                  {formType && <span className="emp-tag-blue">{formType}</span>}
+                  {formDept && <span className="emp-tag-green">{formDept}</span>}
+                </div>
+                <dl>
+                  <dt>Code</dt><dd>{form.employee_code || "-"}</dd>
+                  <dt>Joins</dt><dd>{form.joining_date || "Not set"}</dd>
+                </dl>
+              </aside>
             </div>
 
             {formError && <p className="hr-error">{formError}</p>}
 
-            <div className="hr-modal-actions">
+            <div className="hr-modal-actions emp-form-foot">
+              {editingEmployee ? (
+                <span className="emp-form-changes">{changeCount === 0 ? "No changes yet" : `${changeCount} ${changeCount === 1 ? "change" : "changes"}`}</span>
+              ) : (
+                <span className="emp-form-count">{formDone} of {formRequired.length} required fields done</span>
+              )}
               <button type="button" className="hr-btn-sm" onClick={closeModal}>
                 Cancel
               </button>
               <button type="submit" className="hr-btn-accent" disabled={submitting}>
-                {submitting ? "Saving…" : "Save"}
+                {submitting ? "Saving…" : editingEmployee ? "Save changes" : "Create employee"}
               </button>
             </div>
           </form>
@@ -1420,21 +1559,30 @@ function HRDashboard({ view = "employees" }) {
 
       {viewEmployee && (
         <div className="hr-modal-backdrop" onClick={closeView}>
-          <div className="hr-modal hr-modal-wide" onClick={(e) => e.stopPropagation()}>
-            <button type="button" className="hr-modal-x" onClick={closeView} aria-label="Close">
-              ✕
-            </button>
-            <div className="hr-view-photo-row">
-              <div className="hr-view-photo-wrap">
-                <EmployeeAvatar personId={viewEmployee.person_id} size={64} version={avatarVersion} />
-                <label className="hr-avatar-edit" title="Change photo" aria-label="Change photo">
-                  <Camera size={13} />
+          <div className="hr-modal hr-modal-wide emp-view" onClick={(e) => e.stopPropagation()}>
+            <div className="emp-view-band">
+              <button type="button" className="emp-view-x" onClick={closeView} aria-label="Close">
+                ✕
+              </button>
+            </div>
+            <div className="emp-view-id">
+              <div className="emp-view-photo">
+                <EmployeeAvatar personId={viewEmployee.person_id} size={72} version={avatarVersion} />
+                <label className="emp-view-cam" title="Change photo" aria-label="Change photo">
+                  <Camera size={12} />
                   <input type="file" accept="image/*" onChange={handleAvatarUpload} hidden />
                 </label>
               </div>
-              <div>
+              <div className="emp-view-name">
                 <h2>{viewEmployee.full_name}</h2>
-                <p className="hr-hint">{viewEmployee.employee_code}</p>
+                <p>{[viewEmployee.designation_name, viewEmployee.employee_code].filter(Boolean).join(" · ")}</p>
+              </div>
+              <div className="emp-view-tags">
+                <span className={"emp-vtag " + (viewEmployee.status === "ACTIVE" ? "green" : "grey")}>
+                  {viewEmployee.status === "ACTIVE" ? "Active" : viewEmployee.status}
+                </span>
+                {viewEmployee.employment_type_name && <span className="emp-vtag blue">{viewEmployee.employment_type_name}</span>}
+                <span className={"emp-vtag " + (viewHasLogin ? "amber" : "grey")}>{viewHasLogin ? "Has login" : "No login yet"}</span>
               </div>
             </div>
 
@@ -1445,59 +1593,57 @@ function HRDashboard({ view = "employees" }) {
             {viewLoading ? (
               <p className="hr-empty">Loading…</p>
             ) : (
-              <div className="hr-view-grid">
-                <div>
-                  <span className="hr-view-label">Email</span>
-                  <span className="hr-view-value">{viewEmployee.email || "—"}</span>
+              <>
+                <div className="emp-view-facts">
+                  <div><small>Joined</small><b>{fmtDate(viewEmployee.joining_date) || "Not set"}</b></div>
+                  <div><small>Tenure</small><b>{tenureText(viewEmployee.joining_date) || "Not set"}</b></div>
+                  <div><small>Department</small><b>{viewEmployee.department_name || "Not set"}</b></div>
                 </div>
-                <div>
-                  <span className="hr-view-label">Phone</span>
-                  <span className="hr-view-value">{viewEmployee.phone || "—"}</span>
-                </div>
-                <div>
-                  <span className="hr-view-label">Date of birth</span>
-                  <span className="hr-view-value">{viewEmployee.date_of_birth || "—"}</span>
-                </div>
-                <div>
-                  <span className="hr-view-label">Gender</span>
-                  <span className="hr-view-value">{viewEmployee.gender || "—"}</span>
-                </div>
-                <div>
-                  <span className="hr-view-label">Designation</span>
-                  <span className="hr-view-value">{viewEmployee.designation_name || "—"}</span>
-                </div>
-                <div>
-                  <span className="hr-view-label">Department</span>
-                  <span className="hr-view-value">{viewEmployee.department_name || "—"}</span>
-                </div>
-                <div>
-                  <span className="hr-view-label">Branch</span>
-                  <span className="hr-view-value">{viewEmployee.branch_name || "—"}</span>
-                </div>
-                <div>
-                  <span className="hr-view-label">Employment type</span>
-                  <span className="hr-view-value">{viewEmployee.employment_type_name || "—"}</span>
-                </div>
-                <div>
-                  <span className="hr-view-label">Joining date</span>
-                  <span className="hr-view-value">{viewEmployee.joining_date || "—"}</span>
-                </div>
-                <div>
-                  <span className="hr-view-label">Confirmation date</span>
-                  <span className="hr-view-value">{viewEmployee.confirmation_date || "—"}</span>
-                </div>
-                <div>
-                  <span className="hr-view-label">Status</span>
-                  <span className={"hr-pill " + (viewEmployee.status === "ACTIVE" ? "on" : "off")}>
-                    {viewEmployee.status === "ACTIVE" ? "Active" : viewEmployee.status}
-                  </span>
-                </div>
-              </div>
+
+                <section className="emp-view-sec">
+                  <h3><span className="emp-step">1</span>Personal details</h3>
+                  <div className="emp-view-grid">
+                    <div><small>Email</small><span>{viewEmployee.email || <em>Not set</em>}</span></div>
+                    <div><small>Phone</small><span>{viewEmployee.phone || <em>Not set</em>}</span></div>
+                    <div><small>Date of birth</small><span>{fmtDate(viewEmployee.date_of_birth) || <em>Not set</em>}</span></div>
+                    <div><small>Gender</small><span>{viewEmployee.gender || <em>Not set</em>}</span></div>
+                  </div>
+                </section>
+
+                <section className="emp-view-sec">
+                  <h3><span className="emp-step">2</span>Job details</h3>
+                  <div className="emp-view-grid">
+                    <div><small>Designation</small><span>{viewEmployee.designation_name || <em>Not set</em>}</span></div>
+                    <div><small>Employment type</small><span>{viewEmployee.employment_type_name || <em>Not set</em>}</span></div>
+                    <div><small>Branch</small><span>{viewEmployee.branch_name || <em>Unassigned</em>}</span></div>
+                    <div><small>Employee code</small><span>{viewEmployee.employee_code || <em>Not set</em>}</span></div>
+                  </div>
+                </section>
+
+                <section className="emp-view-sec">
+                  <h3><span className="emp-step">3</span>Dates</h3>
+                  <div className="emp-view-grid">
+                    <div><small>Joining date</small><span>{fmtDate(viewEmployee.joining_date) || <em>Not set</em>}</span></div>
+                    <div><small>Confirmation date</small><span>{fmtDate(viewEmployee.confirmation_date) || <em>Not set</em>}</span></div>
+                  </div>
+                </section>
+              </>
             )}
 
-            <div className="hr-modal-actions">
+            <div className="hr-modal-actions emp-view-foot">
+              <button
+                type="button"
+                className={"hr-btn-sm " + (viewEmployee.status === "ACTIVE" ? "emp-btn-danger" : "")}
+                onClick={() => { const e = viewEmployee; closeView(); requestToggleActive(e); }}
+              >
+                {viewEmployee.status === "ACTIVE" ? "Deactivate" : "Reactivate"}
+              </button>
+              <span className="emp-view-spacer" />
               <button type="button" className="hr-btn-sm" onClick={closeView}>
                 Close
+              </button>
+              <button type="button" className="hr-btn-accent" onClick={() => { const e = viewEmployee; closeView(); openEdit(e); }}>
+                <SquarePen size={14} /> Edit employee
               </button>
             </div>
           </div>
@@ -1536,35 +1682,44 @@ function HRDashboard({ view = "employees" }) {
 
       {deptModalOpen && (
         <div className="hr-modal-backdrop" onClick={closeDeptModal}>
-          <form className="hr-modal" onClick={(e) => e.stopPropagation()} onSubmit={handleDeptSubmit}>
-            <button type="button" className="hr-modal-x" onClick={closeDeptModal} aria-label="Close">
+          <form className="hr-modal org-modal" onClick={(e) => e.stopPropagation()} onSubmit={handleDeptSubmit}>
+            <button type="button" className="hr-modal-x org-modal-x" onClick={closeDeptModal} aria-label="Close">
               ✕
             </button>
-            <h2>{editingDept ? "Edit department" : "New department"}</h2>
+            <div className="org-modal-head">
+              <span className="org-modal-ico"><Building2 size={19} /></span>
+              <div>
+                <h2>{editingDept ? "Edit department" : "New department"}</h2>
+                <p>{editingDept ? `Updating ${editingDept.department_name}` : "Add a team your people can belong to."}</p>
+              </div>
+            </div>
 
-            <label>Department name</label>
-            <input
-              value={deptForm.department_name}
-              onChange={(e) => setDeptForm({ ...deptForm, department_name: e.target.value })}
-              required
-            />
+            <div className="org-modal-body">
+              <label>Department name</label>
+              <input
+                value={deptForm.department_name}
+                onChange={(e) => setDeptForm({ ...deptForm, department_name: e.target.value })}
+                required
+              />
 
-            <label>Description</label>
-            <textarea
-              className="hr-textarea"
-              value={deptForm.description}
-              onChange={(e) => setDeptForm({ ...deptForm, description: e.target.value })}
-              rows={3}
-            />
+              <label>Description</label>
+              <textarea
+                className="hr-textarea"
+                value={deptForm.description}
+                onChange={(e) => setDeptForm({ ...deptForm, description: e.target.value })}
+                placeholder="What does this team do?"
+                rows={3}
+              />
 
-            {deptFormError && <p className="hr-error">{deptFormError}</p>}
+              {deptFormError && <p className="hr-error">{deptFormError}</p>}
+            </div>
 
-            <div className="hr-modal-actions">
+            <div className="hr-modal-actions org-modal-foot">
               <button type="button" className="hr-btn-sm" onClick={closeDeptModal}>
                 Cancel
               </button>
               <button type="submit" className="hr-btn-accent" disabled={deptSubmitting}>
-                {deptSubmitting ? "Saving…" : "Save"}
+                {deptSubmitting ? "Saving…" : editingDept ? "Save changes" : "Create department"}
               </button>
             </div>
           </form>
@@ -1599,55 +1754,64 @@ function HRDashboard({ view = "employees" }) {
 
       {desigModalOpen && (
         <div className="hr-modal-backdrop" onClick={closeDesigModal}>
-          <form className="hr-modal" onClick={(e) => e.stopPropagation()} onSubmit={handleDesigSubmit}>
-            <button type="button" className="hr-modal-x" onClick={closeDesigModal} aria-label="Close">
+          <form className="hr-modal org-modal" onClick={(e) => e.stopPropagation()} onSubmit={handleDesigSubmit}>
+            <button type="button" className="hr-modal-x org-modal-x" onClick={closeDesigModal} aria-label="Close">
               ✕
             </button>
-            <h2>{editingDesig ? "Edit designation" : "New designation"}</h2>
-
-            <div className="hr-form-row">
+            <div className="org-modal-head">
+              <span className="org-modal-ico"><BadgeCheck size={19} /></span>
               <div>
-                <label>Designation code</label>
-                <input
-                  value={desigForm.designation_code}
-                  onChange={(e) => setDesigForm({ ...desigForm, designation_code: e.target.value })}
-                  required
-                />
-              </div>
-              <div>
-                <label>Level number</label>
-                <input
-                  type="number"
-                  min="1"
-                  value={desigForm.level_number}
-                  onChange={(e) => setDesigForm({ ...desigForm, level_number: e.target.value })}
-                />
+                <h2>{editingDesig ? "Edit designation" : "New designation"}</h2>
+                <p>{editingDesig ? `Updating ${editingDesig.designation_name}` : "Add a job title with its level."}</p>
               </div>
             </div>
 
-            <label>Designation name</label>
-            <input
-              value={desigForm.designation_name}
-              onChange={(e) => setDesigForm({ ...desigForm, designation_name: e.target.value })}
-              required
-            />
+            <div className="org-modal-body">
+              <div className="hr-form-row">
+                <div>
+                  <label>Designation code</label>
+                  <input
+                    value={desigForm.designation_code}
+                    onChange={(e) => setDesigForm({ ...desigForm, designation_code: e.target.value })}
+                    required
+                  />
+                </div>
+                <div>
+                  <label>Level number</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={desigForm.level_number}
+                    onChange={(e) => setDesigForm({ ...desigForm, level_number: e.target.value })}
+                  />
+                </div>
+              </div>
 
-            <label>Description</label>
-            <textarea
-              className="hr-textarea"
-              value={desigForm.description}
-              onChange={(e) => setDesigForm({ ...desigForm, description: e.target.value })}
-              rows={3}
-            />
+              <label>Designation name</label>
+              <input
+                value={desigForm.designation_name}
+                onChange={(e) => setDesigForm({ ...desigForm, designation_name: e.target.value })}
+                required
+              />
 
-            {desigFormError && <p className="hr-error">{desigFormError}</p>}
+              <label>Description</label>
+              <textarea
+                className="hr-textarea"
+                value={desigForm.description}
+                onChange={(e) => setDesigForm({ ...desigForm, description: e.target.value })}
+                placeholder="What does this role do?"
+                rows={3}
+              />
 
-            <div className="hr-modal-actions">
+              {desigFormError && <p className="hr-error">{desigFormError}</p>}
+            </div>
+
+            <div className="hr-modal-actions org-modal-foot">
               <button type="button" className="hr-btn-sm" onClick={closeDesigModal}>
                 Cancel
               </button>
               <button type="submit" className="hr-btn-accent" disabled={desigSubmitting}>
-                {desigSubmitting ? "Saving…" : "Save"}
+                {desigSubmitting ? "Saving…" : editingDesig ? "Save changes" : "Create designation"}
               </button>
             </div>
           </form>

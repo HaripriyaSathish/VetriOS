@@ -538,6 +538,22 @@ function App() {
           }
         />
         <Route
+          path="/hr/departments"
+          element={
+            <PermissionGate requirement={{ type: "role", value: ["HR Administrator", "System Administrator"] }}>
+              <HRDashboard view="departments" />
+            </PermissionGate>
+          }
+        />
+        <Route
+          path="/hr/designations"
+          element={
+            <PermissionGate requirement={{ type: "role", value: ["HR Administrator", "System Administrator"] }}>
+              <HRDashboard view="designations" />
+            </PermissionGate>
+          }
+        />
+        <Route
           path="/hr/attendance"
           element={
             <PermissionGate requirement={{ type: "role", value: ["HR Administrator", "System Administrator"] }}>

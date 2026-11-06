@@ -941,8 +941,6 @@ class ClientPaymentViewSet(APIView):
         return Response(serializer.data, status=201)
 
 
-import cloudinary.uploader
-
 class ProjectDocumentUploadView(APIView):
     """Uploads a new document (file) OR registers an external link (e.g.
     a Figma URL) as a document version — links it to a project, and
@@ -1003,13 +1001,10 @@ class ProjectDocumentUploadView(APIView):
                 next_version = 1
 
             if file_obj:
-                upload_result = cloudinary.uploader.upload(
+                storage_name = default_storage.save(
+                    f"project_documents/{project.project_id}/v{next_version}_{file_obj.name}",
                     file_obj,
-                    resource_type="raw",
-                    public_id=f"project_documents/{project.project_id}/v{next_version}_{file_obj.name}",
-                    overwrite=True,
                 )
-                file_url = upload_result["secure_url"]
 
                 version = DocumentVersion.objects.create(
                     document=document,
@@ -1017,8 +1012,8 @@ class ProjectDocumentUploadView(APIView):
                     file_name=file_obj.name,
                     file_extension=os.path.splitext(file_obj.name)[1].lstrip("."),
                     mime_type=file_obj.content_type,
-                    storage_provider="CLOUDINARY",
-                    storage_reference=file_url,
+                    storage_provider="LOCAL",
+                    storage_reference=storage_name,
                     file_size_bytes=file_obj.size,
                     created_by_user=request.user,
                     created_at=timezone.now(),

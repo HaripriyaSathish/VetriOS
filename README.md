@@ -23,7 +23,7 @@ don't edit across the boundary without syncing.
   (no Django admin, no session auth)
 - **Frontend:** React 19 + Vite, Tailwind CSS, `react-router-dom`, `axios`
 - **AI:** Groq (chat assistants + Document Generator)
-- **File storage:** Cloudinary (some uploads) + local disk (others)
+- **File storage:** local disk — every upload goes to `backend/media/` (served at `/media/`)
 
 ## Project layout
 

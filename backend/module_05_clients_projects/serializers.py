@@ -1,3 +1,4 @@
+from django.core.files.storage import default_storage
 from rest_framework import serializers
 from .models import (
     Client, ClientContact, ClientCommunication, ClientMeeting, ClientRequest,
@@ -278,10 +279,7 @@ class DocumentProjectSerializer(serializers.ModelSerializer):
         current = obj.document.versions.filter(is_current=True).first()
         if not current or not current.storage_reference:
             return None
-        if current.storage_provider in ("EXTERNAL_LINK", "CLOUDINARY"):
+        if current.storage_provider == "EXTERNAL_LINK":
             return current.storage_reference
-        request = self.context.get("request")
-        relative_url = f"/media/{current.storage_reference}"
-        if request:
-            return request.build_absolute_uri(relative_url)
-        return relative_url
+        # Uploaded files live in the media folder; MEDIA_URL is absolute.
+        return default_storage.url(current.storage_reference)

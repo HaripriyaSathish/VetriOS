@@ -17,7 +17,7 @@ from module_02_hr.models import EmployeePromotion
 from module_03_training.models import Enrollment
 from module_04_interns.models import Intern
 from module_06_documents.models import Document
-from module_06_documents.views import _raw_cloud_storage
+from module_06_documents.views import _media_storage
 from .models import AiEmail, EmailApproval, EmailBatch, EmailDelivery, EmailTemplate, EmailType
 from .permissions import CanUseEmail
 from .serializers import (
@@ -665,7 +665,7 @@ class BulkSendEmailView(APIView):
                         document = Document.objects.get(pk=attachment_document_id)
                         version = document.versions.filter(is_current=True).first()
                         if version and version.storage_reference:
-                            file_bytes = _raw_cloud_storage.open(version.storage_reference).read()
+                            file_bytes = _media_storage.open(version.storage_reference).read()
                             message.attach(
                                 version.file_name or f"{document.document_title}.pdf",
                                 file_bytes,

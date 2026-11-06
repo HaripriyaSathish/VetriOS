@@ -4,7 +4,6 @@ Django settings for config project.
 
 from pathlib import Path
 from decouple import config
-import cloudinary
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -38,8 +37,6 @@ INSTALLED_APPS = [
 
     'rest_framework',
     'corsheaders',
-    'cloudinary_storage',
-    'cloudinary',
 
     'module_01_identity_access',
     'module_02_hr',
@@ -142,32 +139,29 @@ USE_TZ = True
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
-MEDIA_URL = '/media/'
+# Every upload (photos, attachments, documents, templates) is saved on
+# local disk under backend/media/ and served by Django at /media/.
+# MEDIA_URL is absolute because the React app runs on a different port
+# (5173), so a FileField's .url must point back at this backend.
+BACKEND_URL = config('BACKEND_URL', default='http://localhost:8000').rstrip('/')
+MEDIA_URL = f'{BACKEND_URL}/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-# Cloudinary — used as the default file storage for uploads
-# (certificates, documents, attachments) instead of local disk
 STORAGES = {
     "default": {
-        "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
     },
     "staticfiles": {
         "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
     },
 }
 
-CLOUDINARY_STORAGE = {
-    'CLOUD_NAME': config('CLOUDINARY_CLOUD_NAME'),
-    'API_KEY': config('CLOUDINARY_API_KEY'),
-    'API_SECRET': config('CLOUDINARY_API_SECRET'),
-}
-
-cloudinary.config(
-    cloud_name=config('CLOUDINARY_CLOUD_NAME'),
-    api_key=config('CLOUDINARY_API_KEY'),
-    api_secret=config('CLOUDINARY_API_SECRET'),
-    secure=True,
-)
+# Cloudinary is no longer used for storage. These are read only by the
+# one-time `copy_cloudinary_to_media` command, which pulls files that
+# were uploaded before the switch down into MEDIA_ROOT.
+CLOUDINARY_CLOUD_NAME = config('CLOUDINARY_CLOUD_NAME', default='')
+CLOUDINARY_API_KEY = config('CLOUDINARY_API_KEY', default='')
+CLOUDINARY_API_SECRET = config('CLOUDINARY_API_SECRET', default='')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 

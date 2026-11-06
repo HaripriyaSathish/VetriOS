@@ -53,7 +53,7 @@ class DocumentTemplateSerializer(serializers.ModelSerializer):
         return self._docx_meta(obj).get("hints", {})
 
     def _docx_meta(self, obj):
-        # For DOCX-format templates, template_content is a Cloudinary
+        # For DOCX-format templates, template_content is a media-folder
         # storage path (not text), so placeholders/hints are stashed as
         # JSON in `description` at upload time instead — see
         # TemplateAnalyzeUploadView.

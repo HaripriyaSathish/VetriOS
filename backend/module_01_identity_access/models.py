@@ -275,7 +275,6 @@ class PermissionRequest(models.Model):
         db_table = 'ext_permission_request'
         ordering = ['-created_at']
 
-from cloudinary.models import CloudinaryField
 
 class UserProfilePhoto(models.Model):
     """One row per user, holding just their photo — kept separate from
@@ -285,7 +284,7 @@ class UserProfilePhoto(models.Model):
         UserAccount, on_delete=models.CASCADE, db_column="user_id",
         related_name="profile_photo_row",
     )
-    photo = CloudinaryField("photo", blank=True, null=True)
+    photo = models.ImageField(upload_to="profile_photos/", max_length=255, blank=True, null=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

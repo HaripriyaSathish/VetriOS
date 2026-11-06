@@ -534,3 +534,24 @@
   .sd-chart-row { grid-template-columns: 1fr; }
   .sd-chart-art { display: none; }
 }
+
+/* Admin and HR big stat cards: white, visible border, firm shadow, solid icon tile, coloured underline.
+   Scoped to those pages so the trainee dashboard keeps its own look. */
+:is(.sd-card.sad-kpi, .rp-stats .sd-card, .ua-stats .sd-card, .pa-stats .sd-card) {
+  --k: #2b6fd6;
+  background: #fff;
+  border: 1px solid #d5e0ef;
+  border-bottom: 3px solid var(--k);
+  box-shadow: 0 2px 4px rgba(16, 24, 40, .08), 0 8px 18px rgba(16, 24, 40, .10);
+}
+:is(.sd-card.sad-kpi, .rp-stats .sd-card, .ua-stats .sd-card, .pa-stats .sd-card).sd-card-orange { --k: #e8791f; }
+:is(.sd-card.sad-kpi, .rp-stats .sd-card, .ua-stats .sd-card, .pa-stats .sd-card):hover {
+  box-shadow: 0 3px 6px rgba(16, 24, 40, .10), 0 12px 24px rgba(16, 24, 40, .14);
+}
+:is(.sd-card.sad-kpi, .rp-stats .sd-card, .ua-stats .sd-card, .pa-stats .sd-card) .sd-card-blob {
+  background: color-mix(in srgb, var(--k) 16%, #fff);
+}
+:is(.sd-card.sad-kpi, .rp-stats .sd-card, .ua-stats .sd-card, .pa-stats .sd-card) .sd-card-icon {
+  width: 44px; height: 44px; border-radius: 12px; align-items: center; justify-content: center;
+  background: var(--k) !important; color: #fff !important; box-shadow: none; animation: none;
+}

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Users, UserCheck, CalendarClock, UserX, UserPlus, FileText, Award, Bell, PartyPopper, ArrowRight,
+  Users, UserCheck, GraduationCap, Building2, UserX, CalendarClock, UserPlus, FileText, Award, Bell, PartyPopper, ArrowRight,
 } from "lucide-react";
 import {
   ResponsiveContainer, PieChart, Pie, Cell,
@@ -165,11 +165,16 @@ function HROverview() {
 
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
+  const [employees, setEmployees] = useState([]);
 
   useEffect(() => {
     client.get("/api/hr/dashboard/")
       .then(({ data }) => setData(data))
       .catch(() => setError("Couldn't load the dashboard right now."));
+    // Headcount cards (total / inactive / interns) count from the employee list.
+    client.get("/api/hr/employees/")
+      .then(({ data }) => setEmployees(data))
+      .catch(() => setEmployees([]));
   }, []);
 
   if (error) return <div className="hrd-body"><p className="hrd-error">{error}</p></div>;
@@ -209,11 +214,18 @@ function HROverview() {
     },
   ].filter(Boolean);
 
+  const totalEmployees = employees.length;
+  const inactiveEmployees = employees.filter((e) => e.status !== "ACTIVE").length;
+  const internCount = employees.filter((e) => /intern/i.test(e.employment_type_name || "")).length;
+  const deptCount = headcount_by_department.length;
+  const largestDept = headcount_by_department[0];
+
   const statCards = [
-    { label: "Active employees", value: kpis.total_active_employees, icon: Users, accent: "blue", to: "/hr/employees" },
-    { label: "Present today", value: kpis.present_today, icon: UserCheck, accent: "blue", to: "/hr/attendance", gray: kpis.present_today === 0 },
-    { label: "Pending leave", value: kpis.pending_leave_requests, icon: CalendarClock, accent: "blue", to: "/hr/leave", gray: kpis.pending_leave_requests === 0 },
-    { label: "No login yet", value: kpis.employees_without_login, icon: UserX, accent: "orange", to: "/hr/employees", red: kpis.employees_without_login > 0, gray: kpis.employees_without_login === 0 },
+    { label: "Total employees", value: totalEmployees, sub: "All records", icon: Users, accent: "blue", to: "/hr/employees", gray: totalEmployees === 0 },
+    { label: "Active employees", value: kpis.total_active_employees, sub: `${inactiveEmployees} inactive`, icon: UserCheck, accent: "blue", to: "/hr/employees", gray: kpis.total_active_employees === 0 },
+    { label: "Interns", value: internCount, sub: "On internship", icon: GraduationCap, accent: "blue", to: "/hr/employees", gray: internCount === 0 },
+    { label: "Departments", value: deptCount, sub: largestDept ? `Largest: ${largestDept.department_name} (${largestDept.count})` : "", icon: Building2, accent: "blue", to: "/hr/employees", gray: deptCount === 0 },
+    { label: "No login yet", value: kpis.employees_without_login, sub: "Never signed in", icon: UserX, accent: "orange", to: "/hr/employees", red: kpis.employees_without_login > 0, gray: kpis.employees_without_login === 0 },
   ];
 
   return (
@@ -252,6 +264,7 @@ function HROverview() {
             <span className="sd-card-icon"><k.icon size={20} /></span>
             <p className={`sd-card-value${k.red ? " sd-tone-red" : k.gray ? " sd-tone-gray" : ""}`}>{k.value}</p>
             <p className="sd-card-label">{k.label}</p>
+            {k.sub && <p className="hrd-kpi-sub">{k.sub}</p>}
           </div>
         ))}
       </div>

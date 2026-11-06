@@ -123,3 +123,197 @@
 /* Three cards now: let each take a third of the row. */
 .emp-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 @media (max-width: 760px) { .emp-stats { grid-template-columns: 1fr; } }
+
+/* Compact stat cards (Employees page): white, lightly elevated, each with its own soft tint. */
+.emp-mini-row { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
+.emp-mini {
+  --tint: #eef3f7; --ink: var(--vt-navy);
+  display: inline-flex; align-items: center; gap: 11px;
+  min-width: 168px; padding: 9px 16px 9px 10px;
+  background: #fff; border: 1px solid #eef1f6; border-radius: 14px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, .05), 0 4px 12px rgba(16, 24, 40, .06);
+  font: inherit; text-align: left; cursor: pointer;
+  transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+}
+.emp-mini:hover { transform: translateY(-2px); box-shadow: 0 2px 4px rgba(16, 24, 40, .06), 0 10px 20px rgba(16, 24, 40, .1); }
+.emp-mini:active { transform: translateY(0); }
+.emp-mini:focus-visible { outline: 2px solid var(--vt-orange); outline-offset: 2px; }
+.emp-mini.selected { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink), 0 6px 16px rgba(16, 24, 40, .1); }
+.emp-mini-icon {
+  width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--tint); color: var(--ink);
+}
+.emp-mini-text { display: flex; flex-direction: column; line-height: 1.15; }
+.emp-mini-text b { font-family: var(--vt-font-head); font-size: 18px; font-weight: 800; color: #1b2a41; }
+.emp-mini-text b i { font-style: normal; font-size: 12px; font-weight: 600; color: var(--vt-muted); }
+.emp-mini-text > span { font-size: 11.5px; color: var(--vt-muted); }
+.emp-mini.tone-green  { --tint: #e3f5e9; --ink: #1f6837; }
+.emp-mini.tone-amber  { --tint: #fdf0dc; --ink: #93590c; }
+.emp-mini.tone-blue   { --tint: #e4eefc; --ink: #1d4f91; }
+.emp-mini.tone-violet { --tint: #efe9fb; --ink: #5b3ba6; }
+
+/* New / edit employee form: three numbered sections plus a live preview card. */
+.hr-modal.emp-form { max-width: 760px; width: min(760px, 94vw); }
+.emp-form-bar { height: 3px; background: var(--vt-blue-50); border-radius: 2px; margin: 10px 0 14px; overflow: hidden; }
+.emp-form-bar i { display: block; height: 100%; background: var(--vt-orange); transition: width .2s ease; }
+.emp-form-grid { display: grid; grid-template-columns: minmax(0, 1fr) 190px; gap: 18px; align-items: start; }
+.emp-form-sec { margin-bottom: 14px; }
+.emp-form-sec h3 {
+  display: flex; align-items: center; gap: 8px; margin: 0 0 8px;
+  font-family: var(--vt-font-head); font-size: 13px; font-weight: 700; color: var(--vt-navy);
+}
+.emp-form-sec h3::after { content: ""; flex: 1; height: 1px; background: var(--vt-border); }
+.emp-step {
+  width: 22px; height: 22px; border-radius: 50%; background: var(--vt-navy); color: #fff;
+  display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700;
+}
+.emp-form label u { text-decoration: none; color: #d92d20; }
+.emp-form-note { display: block; margin-top: 3px; font-size: 11px; color: var(--vt-muted); }
+.emp-form-side {
+  position: sticky; top: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center;
+  padding: 16px 12px; background: #fff; border: 1px solid var(--vt-border); border-radius: 14px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, .05), 0 4px 12px rgba(16, 24, 40, .06);
+}
+.emp-form-photo { margin-bottom: 2px; }
+.emp-form-side strong { font-family: var(--vt-font-head); font-size: 14px; color: var(--vt-navy); margin-top: 4px; word-break: break-word; }
+.emp-form-sub { font-size: 12px; color: var(--vt-muted); }
+.emp-form-tags { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; }
+.emp-form-tags span { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 8px; }
+.emp-tag-blue { background: #e4eefc; color: #1d4f91; }
+.emp-tag-green { background: #e3f5e9; color: #1f6837; }
+.emp-form-side dl { margin: 8px 0 0; width: 100%; display: grid; grid-template-columns: auto 1fr; gap: 4px 8px; font-size: 12px; border-top: 1px solid var(--vt-border); padding-top: 8px; }
+.emp-form-side dt { color: var(--vt-muted); text-align: left; }
+.emp-form-side dd { margin: 0; text-align: right; color: var(--vt-text); }
+.emp-form-foot { align-items: center; }
+.emp-form-count { margin-right: auto; font-size: 12px; color: var(--vt-muted); }
+@media (max-width: 720px) { .emp-form-grid { grid-template-columns: 1fr; } .emp-form-side { position: static; } }
+
+.emp-form-sec > label { display: block; margin-top: 10px; }
+
+/* View employee dialog */
+.hr-modal.emp-view { max-width: 680px; width: min(680px, 94vw); padding: 0; max-height: 92vh; overflow-y: auto; overflow-x: hidden; }
+.emp-view-band { height: 72px; background: var(--vt-navy); position: relative; }
+.emp-view-x {
+  position: absolute; top: 12px; right: 12px; width: 28px; height: 28px; border-radius: 8px; border: 0;
+  background: rgba(255, 255, 255, .18); color: #fff; cursor: pointer; font-size: 14px;
+}
+.emp-view-x:hover { background: rgba(255, 255, 255, .3); }
+.emp-view-id { display: flex; align-items: flex-end; gap: 14px; padding: 0 24px; margin-top: -32px; flex-wrap: wrap; }
+.emp-view-photo { position: relative; border: 4px solid #fff; border-radius: 50%; background: #fff; flex-shrink: 0; }
+.emp-view-cam {
+  position: absolute; right: -2px; bottom: 0; width: 24px; height: 24px; border-radius: 50%;
+  background: var(--vt-orange); color: #fff; border: 2px solid #fff; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.emp-view-name { flex: 1; min-width: 160px; padding-bottom: 4px; }
+.emp-view-name h2 { margin: 0; font-family: var(--vt-font-head); font-size: 19px; color: var(--vt-navy); }
+.emp-view-name p { margin: 2px 0 0; font-size: 12.5px; color: var(--vt-muted); }
+.emp-view-tags { display: flex; gap: 6px; padding-bottom: 6px; flex-wrap: wrap; }
+.emp-vtag { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 8px; }
+.emp-vtag.green { background: #e3f5e9; color: #1f6837; }
+.emp-vtag.blue { background: #e4eefc; color: #1d4f91; }
+.emp-vtag.amber { background: #fdf0dc; color: #93590c; }
+.emp-vtag.grey { background: #eef1f6; color: #5b6577; }
+.emp-view-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding: 16px 24px 0; }
+.emp-view-facts div { background: var(--vt-blue-50); border-radius: 10px; padding: 8px 12px; }
+.emp-view-facts small { display: block; font-size: 11px; color: var(--vt-muted); }
+.emp-view-facts b { font-size: 14px; color: var(--vt-navy); }
+.emp-view-sec { padding: 14px 24px 0; }
+.emp-view-sec h3 {
+  display: flex; align-items: center; gap: 8px; margin: 0 0 10px;
+  font-family: var(--vt-font-head); font-size: 13px; font-weight: 700; color: var(--vt-navy);
+}
+.emp-view-sec h3::after { content: ""; flex: 1; height: 1px; background: var(--vt-border); }
+.emp-view-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 20px; }
+.emp-view-grid small { display: block; font-size: 11px; color: var(--vt-muted); margin-bottom: 1px; }
+.emp-view-grid span { font-size: 13.5px; color: var(--vt-text); word-break: break-word; }
+.emp-view-grid em { font-style: normal; color: #9aa3b2; }
+.emp-view-foot { padding: 14px 24px 18px; margin-top: 6px; border-top: 1px solid var(--vt-border); align-items: center; }
+.emp-view-spacer { flex: 1; }
+.emp-btn-danger { color: #d92d20; border-color: #f3b8b3; }
+.emp-btn-danger:hover { background: #fdecea; }
+
+/* Edit form: changed fields */
+.emp-changed input, .emp-changed select { border-color: var(--vt-orange); background: #fff8f0; }
+.emp-form-was { display: block; margin-top: 3px; font-size: 11px; color: #b4500f; }
+.emp-form-changes { margin-right: auto; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #b4500f; }
+.emp-form-changes::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--vt-orange); }
+.emp-view > * { flex-shrink: 0; }
+.emp-view-foot .hr-btn-accent, .emp-view-foot .hr-btn-sm { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+
+/* Organization page (Departments / Designations) */
+.org-name { display: inline-flex; align-items: center; gap: 10px; }
+.org-chip {
+  width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-family: var(--vt-font-head); font-size: 11px; font-weight: 800;
+}
+.org-chip.c0 { background: #e4eefc; color: #1d4f91; }
+.org-chip.c1 { background: #e3f5e9; color: #1f6837; }
+.org-chip.c2 { background: #fdf0dc; color: #93590c; }
+.org-chip.c3 { background: #efe9fb; color: #5b3ba6; }
+.org-chip.c4 { background: #fde8ee; color: #a3274d; }
+.org-nodesc { color: #9aa3b2; font-style: italic; }
+
+/* Organization stat cards: solid colour tile, matching number, coloured underline. */
+.org-stats .emp-mini { border-bottom: 3px solid var(--solid); }
+.org-stats .emp-mini.tone-blue   { --solid: #2b6fd6; }
+.org-stats .emp-mini.tone-green  { --solid: #2f9e5a; }
+.org-stats .emp-mini.tone-amber  { --solid: #e8791f; }
+.org-stats .emp-mini.tone-violet { --solid: #8a4fd8; }
+.org-stats .emp-mini-icon { background: var(--solid); color: #fff; }
+.org-stats .emp-mini-text b { color: var(--solid); }
+.org-stats .emp-mini.selected { border-color: var(--solid); box-shadow: 0 0 0 1px var(--solid), 0 6px 16px rgba(16, 24, 40, .1); }
+
+/* New / edit department dialog */
+.hr-modal.org-modal { max-width: 440px; padding: 0; gap: 0; overflow: hidden; }
+.org-modal-head { display: flex; align-items: center; gap: 12px; padding: 16px 20px; background: var(--vt-navy); color: #fff; }
+.org-modal-ico {
+  width: 38px; height: 38px; border-radius: 11px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; background: var(--vt-orange); color: #fff;
+}
+.hr-modal.org-modal .org-modal-head h2 { margin: 0; font-size: 16px; color: #fff; }
+.org-modal-head p { margin: 2px 0 0; font-size: 12px; color: rgba(255, 255, 255, .8); }
+.hr-modal-x.org-modal-x { top: 14px; right: 14px; background: rgba(255, 255, 255, .18); color: #fff; }
+.hr-modal-x.org-modal-x:hover { background: rgba(255, 255, 255, .3); color: #fff; }
+.org-modal-body { padding: 8px 20px 18px; }
+.hr-modal.org-modal input:focus,
+.hr-modal.org-modal .hr-textarea:focus {
+  outline: none; border-color: var(--vt-orange); box-shadow: 0 0 0 3px rgba(232, 121, 31, .15);
+}
+.hr-modal-actions.org-modal-foot { margin: 0; padding: 12px 20px; background: #f7f9fc; }
+
+/* Organization pages: larger type. */
+.org-page .hr-head h1 { font-size: 28px; }
+.org-page .hr-head p { font-size: 15px; }
+.org-page .hr-tab { font-size: 15.5px; }
+.org-page .hr-tab-count { font-size: 12.5px; }
+.org-page .emp-mini { min-width: 190px; padding: 11px 18px 11px 12px; }
+.org-page .emp-mini-icon { width: 40px; height: 40px; }
+.org-page .emp-mini-text b { font-size: 22px; }
+.org-page .emp-mini-text > span { font-size: 13.5px; }
+.org-page .hr-search input { font-size: 14.5px; }
+.org-page .hr-btn-accent-sm { font-size: 14px; padding: 9px 16px; }
+.org-page .hr-table th { font-size: 12px; padding: 11px 16px; }
+.org-page .hr-table td { padding: 12px 16px; }
+.org-page .hr-name { font-size: 15px; }
+.org-page .hr-sub { font-size: 13.5px; }
+.org-page .hr-mono { font-size: 13.5px; }
+.org-page .hr-pill { font-size: 12.5px; padding: 4px 11px; }
+.org-page .org-chip { width: 34px; height: 34px; font-size: 12px; }
+.org-page .hr-empty { font-size: 14.5px; }
+.hr-modal.org-modal label { font-size: 13.5px; }
+.hr-modal.org-modal input,
+.hr-modal.org-modal .hr-textarea { font-size: 14.5px; }
+.hr-modal.org-modal .org-modal-head h2 { font-size: 18px; }
+.org-modal-head p { font-size: 13px; }
+.hr-modal-actions.org-modal-foot .hr-btn-sm,
+.hr-modal-actions.org-modal-foot .hr-btn-accent { font-size: 14px; }
+
+/* Employees stat cards: same size as the Organization cards. */
+.org-stats .emp-mini { min-width: 190px; padding: 11px 18px 11px 12px; }
+.org-stats .emp-mini-icon { width: 40px; height: 40px; }
+.org-stats .emp-mini-text b { font-size: 22px; }
+.org-stats .emp-mini-text b i { font-size: 14px; }
+.org-stats .emp-mini-text > span { font-size: 13.5px; }

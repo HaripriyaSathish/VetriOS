@@ -558,23 +558,13 @@ function Sidebar() {
               </NavLink>
 
               <NavLink
-                to="/hr/departments"
+                to="/hr/organization"
                 className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
               >
                 <span className="nav-icon">
                   <Building2 size={14} />
                 </span>
-                Departments
-              </NavLink>
-
-              <NavLink
-                to="/hr/designations"
-                className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
-              >
-                <span className="nav-icon">
-                  <BadgeCheck size={14} />
-                </span>
-                Designations
+                Organization
               </NavLink>
 
               <NavLink

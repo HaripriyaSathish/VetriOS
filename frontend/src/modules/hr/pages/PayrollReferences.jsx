@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Plus, Search, SquarePen, Ban, RotateCcw, ExternalLink, Link2Off, Users, CheckCircle2, Clock } from "lucide-react";
+import { Plus, Search, SquarePen, Ban, RotateCcw, ExternalLink, Link2Off, Users, CheckCircle2, Clock, Link2, Lock, CalendarDays, Info } from "lucide-react";
 import client from "../../../api/client";
 import { EmployeeAvatar } from "../components/EmployeeAvatar";
 import Pagination, { paginate } from "../../../components/Pagination";
 import "../styles/HRDashboard.css";
+import "../styles/Employees.css";
 
 const STATUS_LABEL = { ACTIVE: "Active", EXPIRED: "Expired", INACTIVE: "Inactive" };
 const STATUS_CLASS = { ACTIVE: "on", EXPIRED: "warn", INACTIVE: "off" };
+
+const PROVIDERS = ["Gusto", "Deel", "ADP"];
 
 const EMPTY_FORM = {
   employee_id: "",
@@ -38,6 +41,7 @@ function PayrollReferences() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [formError, setFormError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [origForm, setOrigForm] = useState(null); // loaded values while editing, to show what changed
 
   const [confirmTarget, setConfirmTarget] = useState(null);
   const [confirming, setConfirming] = useState(false);
@@ -95,6 +99,7 @@ function PayrollReferences() {
 
   const openCreate = () => {
     setEditingRef(null);
+    setOrigForm(null);
     setForm(EMPTY_FORM);
     setEmployeeQuery("");
     setFormError("");
@@ -103,14 +108,16 @@ function PayrollReferences() {
 
   const openEdit = (ref) => {
     setEditingRef(ref);
-    setForm({
+    const loaded = {
       employee_id: ref.employee_id,
       payroll_provider: ref.payroll_provider,
       external_employee_id: ref.external_employee_id,
       external_reference: ref.external_reference || "",
       effective_from: ref.effective_from,
       effective_to: ref.effective_to || "",
-    });
+    };
+    setForm(loaded);
+    setOrigForm(loaded);
     setEmployeeQuery(`${ref.full_name}${ref.employee_code ? ` (${ref.employee_code})` : ""}`);
     setFormError("");
     setModalOpen(true);
@@ -181,6 +188,25 @@ function PayrollReferences() {
   const expiredCount = references.filter((r) => r.status === "EXPIRED").length;
   const inactiveCount = references.filter((r) => r.status === "INACTIVE").length;
 
+  const requiredDone = [
+    editingRef ? editingRef.employee_id : form.employee_id,
+    form.payroll_provider,
+    form.external_employee_id.trim(),
+    form.effective_from,
+  ].filter(Boolean).length;
+  const isChanged = (k) => !!editingRef && !!origForm && String(form[k] ?? "") !== String(origForm[k] ?? "");
+  const chg = (k) => (isChanged(k) ? "emp-changed" : "");
+  const was = (k) => {
+    if (!isChanged(k)) return null;
+    const v = origForm[k];
+    const shown = v === "" || v == null ? "empty" : k === "effective_from" || k === "effective_to" ? formatDate(v) : v;
+    return <span className="emp-form-was">Was {shown}</span>;
+  };
+  const changeCount = editingRef && origForm ? Object.keys(origForm).filter(isChanged).length : 0;
+  const summaryEmployee = editingRef
+    ? { name: editingRef.full_name }
+    : employees.find((e) => String(e.employee_id) === String(form.employee_id));
+
   return (
     <div className="hr-screen">
       <div className="hr-head">
@@ -191,42 +217,28 @@ function PayrollReferences() {
             {providerCount === 1 ? "provider" : "providers"}
           </p>
         </div>
-        <button type="button" className="hr-btn-accent" onClick={openCreate}>
+        <button type="button" className="hr-btn-accent emp-new-btn" onClick={openCreate}>
           <Plus size={15} /> New reference
         </button>
       </div>
 
       {error && <p className="hr-error">{error}</p>}
 
-      <div className="hr-kpi-row">
-        <div className="hr-kpi-card">
-          <div className="hr-kpi-top">
-            <span className="hr-kpi-label">Total References</span>
-            <span className="hr-kpi-icon blue"><Users size={15} /></span>
+      <div className="emp-mini-row org-stats">
+        {[
+          { label: "Total references", value: references.length, tone: "blue", Icon: Users },
+          { label: "Active", value: activeCount, tone: "green", Icon: CheckCircle2 },
+          { label: "Expired", value: expiredCount, tone: "amber", Icon: Clock },
+          { label: "Inactive", value: inactiveCount, tone: "red", Icon: Ban },
+        ].map(({ label, value, tone, Icon }) => (
+          <div key={label} className={`emp-mini tone-${tone}`}>
+            <span className="emp-mini-icon"><Icon size={15} /></span>
+            <span className="emp-mini-text">
+              <b>{loading ? "-" : value}</b>
+              <span>{label}</span>
+            </span>
           </div>
-          <div className="hr-kpi-value">{references.length}</div>
-        </div>
-        <div className="hr-kpi-card">
-          <div className="hr-kpi-top">
-            <span className="hr-kpi-label">Active</span>
-            <span className="hr-kpi-icon green"><CheckCircle2 size={15} /></span>
-          </div>
-          <div className="hr-kpi-value">{activeCount}</div>
-        </div>
-        <div className="hr-kpi-card">
-          <div className="hr-kpi-top">
-            <span className="hr-kpi-label">Expired</span>
-            <span className="hr-kpi-icon amber"><Clock size={15} /></span>
-          </div>
-          <div className="hr-kpi-value">{expiredCount}</div>
-        </div>
-        <div className="hr-kpi-card">
-          <div className="hr-kpi-top">
-            <span className="hr-kpi-label">Inactive</span>
-            <span className="hr-kpi-icon red"><Ban size={15} /></span>
-          </div>
-          <div className="hr-kpi-value">{inactiveCount}</div>
-        </div>
+        ))}
       </div>
 
       <div className="hr-panel">
@@ -330,101 +342,167 @@ function PayrollReferences() {
 
       {modalOpen && (
         <div className="hr-modal-backdrop" onClick={closeModal}>
-          <form className="hr-modal hr-modal-wide" onClick={(e) => e.stopPropagation()} onSubmit={handleSubmit}>
-            <button type="button" className="hr-modal-x" onClick={closeModal} aria-label="Close">
+          <form className="hr-modal org-modal prf-modal" onClick={(e) => e.stopPropagation()} onSubmit={handleSubmit}>
+            <button type="button" className="hr-modal-x org-modal-x" onClick={closeModal} aria-label="Close">
               ✕
             </button>
-            <h2>{editingRef ? "Edit payroll reference" : "New payroll reference"}</h2>
-
-            <label>Employee</label>
-            {editingRef ? (
-              <input type="text" value={employeeQuery} disabled />
-            ) : (
-              <div className="pr-employee-picker" ref={employeePickerRef}>
-                <input
-                  type="text"
-                  value={employeeQuery}
-                  onChange={(e) => {
-                    setEmployeeQuery(e.target.value);
-                    setForm({ ...form, employee_id: "" });
-                    setEmployeeDropdownOpen(true);
-                  }}
-                  onFocus={() => setEmployeeDropdownOpen(true)}
-                  placeholder="Search employee by name or code…"
-                  autoComplete="off"
-                  required
-                />
-                {employeeDropdownOpen && (
-                  <div className="pr-employee-dropdown">
-                    {filteredEmployeeOptions.length === 0 ? (
-                      <div className="pr-employee-empty">No employees match.</div>
-                    ) : (
-                      filteredEmployeeOptions.map((e) => (
-                        <button
-                          type="button"
-                          key={e.employee_id}
-                          className="pr-employee-option"
-                          onClick={() => selectEmployee(e)}
-                        >
-                          {e.full_name} {e.employee_code ? `(${e.employee_code})` : ""}
-                        </button>
-                      ))
-                    )}
-                  </div>
-                )}
+            <div className="org-modal-head">
+              <span className="org-modal-ico"><Link2 size={19} /></span>
+              <div>
+                <h2>{editingRef ? "Edit payroll reference" : "New payroll reference"}</h2>
+                <p>
+                  {editingRef
+                    ? `Updating ${editingRef.full_name} · ${editingRef.payroll_provider}`
+                    : "Map an employee to their record in a payroll provider."}
+                </p>
+              </div>
+            </div>
+            {!editingRef && (
+              <div className="prf-bar" aria-hidden="true">
+                <i style={{ width: `${(requiredDone / 4) * 100}%` }} />
               </div>
             )}
 
-            <label>Provider</label>
-            <select
-              value={form.payroll_provider}
-              onChange={(e) => setForm({ ...form, payroll_provider: e.target.value })}
-              required
-            >
-              <option value="Gusto">Gusto</option>
-              <option value="Deel">Deel</option>
-              <option value="ADP">ADP</option>
-            </select>
+            <div className="prf-body">
+              <section className="prf-sec">
+                <h3><span className="prf-step">1</span>Employee</h3>
+                <label>Employee</label>
+                {editingRef ? (
+                  <div className="prf-locked">
+                    <input type="text" value={employeeQuery} disabled />
+                    <Lock size={15} />
+                  </div>
+                ) : (
+                  <div className="pr-employee-picker" ref={employeePickerRef}>
+                    <input
+                      type="text"
+                      value={employeeQuery}
+                      onChange={(e) => {
+                        setEmployeeQuery(e.target.value);
+                        setForm({ ...form, employee_id: "" });
+                        setEmployeeDropdownOpen(true);
+                      }}
+                      onFocus={() => setEmployeeDropdownOpen(true)}
+                      placeholder="Search employee by name or code…"
+                      autoComplete="off"
+                      required
+                    />
+                    {employeeDropdownOpen && (
+                      <div className="pr-employee-dropdown">
+                        {filteredEmployeeOptions.length === 0 ? (
+                          <div className="pr-employee-empty">No employees match.</div>
+                        ) : (
+                          filteredEmployeeOptions.map((e) => (
+                            <button
+                              type="button"
+                              key={e.employee_id}
+                              className="pr-employee-option"
+                              onClick={() => selectEmployee(e)}
+                            >
+                              {e.full_name} {e.employee_code ? `(${e.employee_code})` : ""}
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </section>
 
-            <label>External employee ID</label>
-            <input
-              type="text"
-              value={form.external_employee_id}
-              onChange={(e) => setForm({ ...form, external_employee_id: e.target.value })}
-              placeholder="e.g. GST-8834"
-              required
-            />
+              <section className="prf-sec">
+                <h3><span className="prf-step">2</span>Provider details</h3>
+                <div className="hr-form-row">
+                  <div className={chg("payroll_provider")}>
+                    <label>Provider</label>
+                    <select
+                      value={form.payroll_provider}
+                      onChange={(e) => setForm({ ...form, payroll_provider: e.target.value })}
+                      required
+                    >
+                      {PROVIDERS.map((name) => (
+                        <option key={name} value={name}>
+                          {name}
+                        </option>
+                      ))}
+                    </select>
+                    {was("payroll_provider")}
+                  </div>
+                  <div className={chg("external_employee_id")}>
+                    <label>External employee ID</label>
+                    <input
+                      type="text"
+                      value={form.external_employee_id}
+                      onChange={(e) => setForm({ ...form, external_employee_id: e.target.value })}
+                      placeholder="e.g. GST-8834"
+                      required
+                    />
+                    {was("external_employee_id")}
+                  </div>
+                </div>
+                <div className={chg("external_reference")}>
+                  <label>External reference (optional)</label>
+                  <input
+                    type="text"
+                    value={form.external_reference}
+                    onChange={(e) => setForm({ ...form, external_reference: e.target.value })}
+                    placeholder="Link or note from the provider"
+                  />
+                  {was("external_reference")}
+                </div>
+              </section>
 
-            <label>External reference (optional)</label>
-            <input
-              type="text"
-              value={form.external_reference}
-              onChange={(e) => setForm({ ...form, external_reference: e.target.value })}
-            />
+              <section className="prf-sec">
+                <h3><span className="prf-step">3</span>Validity</h3>
+                <div className="hr-form-row">
+                  <div className={chg("effective_from")}>
+                    <label>Effective from</label>
+                    <input
+                      type="date"
+                      value={form.effective_from}
+                      onChange={(e) => setForm({ ...form, effective_from: e.target.value })}
+                      required
+                    />
+                    {was("effective_from")}
+                  </div>
+                  <div className={chg("effective_to")}>
+                    <label>Effective to (optional)</label>
+                    <input
+                      type="date"
+                      min={form.effective_from || undefined}
+                      value={form.effective_to}
+                      onChange={(e) => setForm({ ...form, effective_to: e.target.value })}
+                    />
+                    {was("effective_to")}
+                  </div>
+                </div>
+                <p className="prf-hint"><Info size={14} /> Leave “Effective to” empty to keep it active until you end it.</p>
+              </section>
 
-            <div className="hr-form-row">
-              <div>
-                <label>Effective from</label>
-                <input
-                  type="date"
-                  value={form.effective_from}
-                  onChange={(e) => setForm({ ...form, effective_from: e.target.value })}
-                  required
-                />
-              </div>
-              <div>
-                <label>Effective to (optional)</label>
-                <input
-                  type="date"
-                  value={form.effective_to}
-                  onChange={(e) => setForm({ ...form, effective_to: e.target.value })}
-                />
-              </div>
+              {summaryEmployee && (
+                <div className="prf-summary">
+                  <CalendarDays size={18} />
+                  <div>
+                    <b>
+                      {summaryEmployee.full_name || summaryEmployee.name} → {form.payroll_provider}
+                      {form.external_employee_id.trim() ? ` · ${form.external_employee_id.trim()}` : ""}
+                    </b>
+                    <span>
+                      {form.effective_from ? `From ${formatDate(form.effective_from)}` : "Pick a start date"} ·{" "}
+                      {form.effective_to ? `until ${formatDate(form.effective_to)}` : "open-ended"}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {formError && <p className="hr-error">{formError}</p>}
             </div>
 
-            {formError && <p className="hr-error">{formError}</p>}
-
-            <div className="hr-modal-actions">
+            <div className="hr-modal-actions org-modal-foot prf-foot">
+              {editingRef ? (
+                <span className="emp-form-changes">{changeCount === 0 ? "No changes yet" : `${changeCount} ${changeCount === 1 ? "change" : "changes"}`}</span>
+              ) : (
+                <span className="prf-count">{requiredDone} of 4 required fields done</span>
+              )}
               <button type="button" className="hr-btn-sm" onClick={closeModal}>
                 Cancel
               </button>

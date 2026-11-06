@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { ArrowUpRight, IdCard, KeyRound } from "lucide-react";
+import { ArrowUpRight, IdCard, KeyRound, Users, AlertCircle, Hourglass, CheckCircle2, ClipboardCheck } from "lucide-react";
 import client from "../../../api/client";
 import Pagination, { paginate } from "../../../components/Pagination";
 import "../styles/HRDashboard.css";
 import "../styles/Attendance.css";
+import "../styles/Employees.css";
 
 function formatDate(d) {
   if (!d) return "—";
@@ -231,14 +232,32 @@ function Onboarding() {
     }
   };
 
+  const obCards = [
+    { label: "Interns onboarding", value: interns.length, tone: "blue", Icon: Users },
+    { label: "Needs action", value: interns.filter((i) => i.progress_percent <= 0).length, tone: "red", Icon: AlertCircle },
+    { label: "On track", value: interns.filter((i) => i.progress_percent > 0 && i.progress_percent < 100).length, tone: "amber", Icon: Hourglass },
+    { label: "Completed", value: interns.filter((i) => i.progress_percent >= 100).length, tone: "green", Icon: CheckCircle2 },
+  ];
+
   return (
     <div className="att-screen">
       <div className="att-head">
         <div>
-          <span className="att-eyebrow">HR</span>
           <h1>Onboarding</h1>
           <p>Every newly active intern lands here until onboarding is complete.</p>
         </div>
+      </div>
+
+      <div className="emp-mini-row org-stats ob2-cards">
+        {obCards.map(({ label, value, tone, Icon }) => (
+          <div key={label} className={`emp-mini tone-${tone}`}>
+            <span className="emp-mini-icon"><Icon size={15} /></span>
+            <span className="emp-mini-text">
+              <b>{loading ? "-" : value}</b>
+              <span>{label}</span>
+            </span>
+          </div>
+        ))}
       </div>
 
       <div className="hr-tabs">
@@ -327,17 +346,24 @@ function Onboarding() {
 
       {checklistIntern && (
         <div className="hr-modal-backdrop" onClick={closeChecklist}>
-          <div className="hr-modal hr-modal-wide" onClick={(e) => e.stopPropagation()}>
-            <button type="button" className="hr-modal-x" onClick={closeChecklist} aria-label="Close">
+          <div className="hr-modal org-modal ob2-modal" onClick={(e) => e.stopPropagation()}>
+            <button type="button" className="hr-modal-x org-modal-x" onClick={closeChecklist} aria-label="Close">
               ✕
             </button>
-            <h2>{checklistIntern.full_name} - Onboarding checklist</h2>
-            <p className="hr-hint">Intern ID: {checklistIntern.intern_code}</p>
-            <p className="hr-hint">
+            <div className="org-modal-head">
+              <span className="org-modal-ico"><ClipboardCheck size={19} /></span>
+              <div>
+                <h2>{checklistIntern.full_name} — Onboarding checklist</h2>
+                <p>Intern ID: {checklistIntern.intern_code}</p>
+              </div>
+            </div>
+
+            <div className="org-modal-body">
+            <p className="ob2-note">
               This is a manual checklist — tick each step yourself once it's actually done outside the app.
             </p>
 
-            <div className="ob-checklist-row">
+            <div className="ob-checklist-row ob2-step">
               <input
                 type="checkbox"
                 id="documents_shared"
@@ -351,7 +377,7 @@ function Onboarding() {
                 <span className="ob-step-hint">Terms &amp; Conditions and Employment Agreement</span>
               </label>
             </div>
-            <div className="ob-checklist-row">
+            <div className="ob-checklist-row ob2-step">
               <input
                 type="checkbox"
                 id="signed_documents_received"
@@ -365,7 +391,7 @@ function Onboarding() {
                 <span className="ob-step-hint">Signed printout plus certificates, Aadhar, etc.</span>
               </label>
             </div>
-            <div className="ob-checklist-row">
+            <div className="ob-checklist-row ob2-step">
               <input
                 type="checkbox"
                 id="documents_verified"
@@ -377,7 +403,7 @@ function Onboarding() {
               <label htmlFor="documents_verified">Step 3 · Document verification</label>
             </div>
 
-            <div className="ob-checklist-row">
+            <div className="ob-checklist-row ob2-step">
               <input
                 type="checkbox"
                 id="welcome_email_sent"
@@ -388,7 +414,7 @@ function Onboarding() {
               />
               <label htmlFor="welcome_email_sent">Step 4 · Offer letter sent</label>
             </div>
-            <div className="ob-checklist-row">
+            <div className="ob-checklist-row ob2-step">
               <input
                 type="checkbox"
                 id="offer_letter_acknowledged"
@@ -401,13 +427,14 @@ function Onboarding() {
             </div>
 
             {saveError && <p className="hr-error">{saveError}</p>}
+            </div>
 
-            <div className="hr-modal-actions">
+            <div className="hr-modal-actions org-modal-foot">
               <button type="button" className="hr-btn-sm" onClick={closeChecklist}>
                 Cancel
               </button>
               <button type="button" className="hr-btn-accent" onClick={saveChecklist} disabled={saving}>
-                {saving ? "Saving…" : "Save"}
+                {saving ? "Saving…" : "Save progress"}
               </button>
             </div>
           </div>
@@ -416,13 +443,19 @@ function Onboarding() {
 
       {assignIntern && (
         <div className="hr-modal-backdrop" onClick={closeAssign}>
-          <div className="hr-modal" onClick={(e) => e.stopPropagation()}>
-            <button type="button" className="hr-modal-x" onClick={closeAssign} aria-label="Close">
+          <div className="hr-modal org-modal ob2-assign" onClick={(e) => e.stopPropagation()}>
+            <button type="button" className="hr-modal-x org-modal-x" onClick={closeAssign} aria-label="Close">
               ✕
             </button>
-            <h2>{assignIntern.full_name} - Assign designation &amp; department</h2>
-            <p className="hr-hint">Intern ID: {assignIntern.intern_code}</p>
+            <div className="org-modal-head">
+              <span className="org-modal-ico"><IdCard size={19} /></span>
+              <div>
+                <h2>{assignIntern.full_name} — Assign role</h2>
+                <p>Intern ID: {assignIntern.intern_code}</p>
+              </div>
+            </div>
 
+            <div className="org-modal-body">
             <div className="ob-assign-fields">
               <div>
                 <label>Department</label>
@@ -474,13 +507,14 @@ function Onboarding() {
             </div>
 
             {assignError && <p className="hr-error">{assignError}</p>}
+            </div>
 
-            <div className="hr-modal-actions">
+            <div className="hr-modal-actions org-modal-foot">
               <button type="button" className="hr-btn-sm" onClick={closeAssign}>
                 Cancel
               </button>
               <button type="button" className="hr-btn-accent" onClick={saveAssign} disabled={assigning}>
-                {assigning ? "Saving…" : "Save"}
+                {assigning ? "Saving…" : "Save changes"}
               </button>
             </div>
           </div>

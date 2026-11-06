@@ -126,7 +126,6 @@ function PromotionApprovals() {
     <div className="pa-screen">
       <div className="pa-head">
         <div>
-          <span className="pa-eyebrow">System Administrator</span>
           <h1>Promotion approvals</h1>
           <p>Review and decide on promotion requests submitted by HR.</p>
         </div>

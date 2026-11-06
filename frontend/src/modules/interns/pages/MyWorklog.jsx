@@ -1,5 +1,26 @@
 import { useEffect, useState } from "react";
+import { Timer, Flame, CalendarCheck, ListChecks, Plus, Trash2, Send, CalendarDays, Info } from "lucide-react";
 import client from "../../../api/client";
+import "../../training/styles/BusinessPages.css";
+import "../../training/styles/TrainerDashboard.css";
+import "../styles/InternPages.css";
+
+// "9:30 am" / "18:00" -> minutes since midnight, or null if unparseable.
+function toMinutes(t) {
+  const m = String(t || "").trim().toLowerCase().match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/);
+  if (!m) return null;
+  let h = Number(m[1]);
+  const min = Number(m[2] || 0);
+  if (m[3] === "pm" && h < 12) h += 12;
+  if (m[3] === "am" && h === 12) h = 0;
+  return h * 60 + min;
+}
+
+function hoursOf(log) {
+  const a = toMinutes(log.login_time);
+  const b = toMinutes(log.logout_time);
+  return a != null && b != null && b > a ? Math.round(((b - a) / 60) * 10) / 10 : null;
+}
 
 function MyWorklog() {
   const [logs, setLogs] = useState([]);
@@ -52,76 +73,132 @@ function MyWorklog() {
     }
   };
 
+  const sorted = [...logs].sort((a, b) => (a.work_date < b.work_date ? 1 : -1));
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayLog = sorted.find((l) => l.work_date === todayStr);
+  const todayHours = todayLog ? hoursOf(todayLog) : null;
+  let streak = 0;
+  const cursor = new Date();
+  const dates = new Set(sorted.map((l) => l.work_date));
+  if (!dates.has(todayStr)) cursor.setDate(cursor.getDate() - 1);
+  while (dates.has(cursor.toISOString().slice(0, 10))) {
+    streak += 1;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  const weekAgo = new Date();
+  weekAgo.setDate(weekAgo.getDate() - 6);
+  const weekHours = sorted
+    .filter((l) => new Date(l.work_date) >= new Date(weekAgo.toISOString().slice(0, 10)))
+    .reduce((s, l) => s + (hoursOf(l) || 0), 0);
+  const draftHours = hoursOf({ login_time: loginTime, logout_time: logoutTime });
+
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900 mb-1">Daily Work Report</h1>
-      <p className="text-gray-500 mb-6">Log your login/logout time and what you worked on today.</p>
-
-      {error && <p className="text-red-600 mb-4">{error}</p>}
-      {message && <p className="text-green-600 mb-4">{message}</p>}
-
-      <div className="bg-white border border-gray-200 rounded-xl p-5 mb-6">
-        <div className="flex flex-wrap gap-4 mb-4">
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 mb-1">Date</label>
-            <input type="date" value={workDate} onChange={(e) => setWorkDate(e.target.value)}
-              className="border border-gray-300 rounded-md px-3 py-2 text-sm" />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 mb-1">Login Time</label>
-            <input placeholder="9:30 am" value={loginTime} onChange={(e) => setLoginTime(e.target.value)}
-              className="border border-gray-300 rounded-md px-3 py-2 text-sm w-32" />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 mb-1">Logout Time</label>
-            <input placeholder="6:00 pm" value={logoutTime} onChange={(e) => setLogoutTime(e.target.value)}
-              className="border border-gray-300 rounded-md px-3 py-2 text-sm w-32" />
-          </div>
-        </div>
-
-        <label className="block text-xs font-semibold text-gray-500 mb-2">Work Entries</label>
-        <div className="space-y-2 mb-3">
-          {entries.map((e, idx) => (
-            <div key={idx} className="flex gap-2">
-              <input placeholder="10:00 am" value={e.time} onChange={(ev) => updateEntry(idx, "time", ev.target.value)}
-                className="border border-gray-300 rounded-md px-3 py-2 text-sm w-28" />
-              <input placeholder="What did you work on?" value={e.note} onChange={(ev) => updateEntry(idx, "note", ev.target.value)}
-                className="border border-gray-300 rounded-md px-3 py-2 text-sm flex-1" />
-              {entries.length > 1 && (
-                <button onClick={() => removeEntryRow(idx)} className="text-red-600 text-xs px-2">Remove</button>
-              )}
-            </div>
-          ))}
-        </div>
-        <button onClick={addEntryRow} className="text-blue-600 text-sm font-semibold mb-4">+ Add Entry</button>
-
+    <div className="bp-page tr-page">
+      <div className="bp-head">
         <div>
-          <button onClick={submit} disabled={submitting}
-            className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-semibold disabled:opacity-60">
-            {submitting ? "Saving…" : "Save Worklog"}
-          </button>
+          <p className="bp-crumb">Intern Workspace &gt; <span>Daily Work Report</span></p>
+          <h1 className="bp-title">Daily Work Report &amp; Progress Log</h1>
+          <p className="bp-sub">Log your login and logout time and what you worked on today, for your manager to review.</p>
         </div>
       </div>
 
-      {loading ? (
-        <p className="text-gray-400">Loading past logs…</p>
-      ) : (
-        <div className="flex flex-col gap-3">
-          {logs.map((l) => (
-            <div key={l.worklog_id} className="bg-white border border-gray-200 rounded-xl p-4">
-              <div className="flex justify-between text-sm mb-2">
-                <span className="font-semibold text-gray-900">{l.work_date}</span>
-                <span className="text-gray-500">{l.login_time} – {l.logout_time}</span>
-              </div>
-              <ul className="text-sm text-gray-600 space-y-1">
-                {l.entries.map((e, i) => (
-                  <li key={i}>• {e.time && <span className="font-medium">{e.time}:</span>} {e.note}</li>
-                ))}
-              </ul>
+      {error && <p className="bp-notice in-error">{error}</p>}
+      {message && <p className="bp-notice in-ok">{message}</p>}
+
+      <div className="bp-stats tr-stats">
+        <div className="bp-stat" style={{ "--i": 0 }}>
+          <div className="bp-stat-top"><p className="bp-stat-label in-label">TODAY&apos;S HOURS</p><span className="tb-stat-icon-in navy"><Timer size={20} /></span></div>
+          <p className="bp-stat-value">{todayHours != null ? todayHours : "—"} <small className="in-unit">/ 8.0 hrs</small></p>
+          <div className="bp-meter"><span style={{ width: `${Math.min(100, ((todayHours || 0) / 8) * 100)}%` }} /></div>
+          <p className="in-foot"><span>{todayLog ? "Logged today" : "Not logged yet today"}</span></p>
+        </div>
+        <div className="bp-stat" style={{ "--i": 1 }}>
+          <div className="bp-stat-top"><p className="bp-stat-label in-label">WORKLOG STREAK</p><span className="tb-stat-icon-in orange"><Flame size={20} /></span></div>
+          <p className="bp-stat-value">{streak} <small className="in-unit">Days</small></p>
+          <p className="in-foot"><span>Consecutive days logged</span></p>
+        </div>
+        <div className="bp-stat" style={{ "--i": 2 }}>
+          <div className="bp-stat-top"><p className="bp-stat-label in-label">REPORTS SUBMITTED</p><span className="tb-stat-icon-in green"><CalendarCheck size={20} /></span></div>
+          <p className="bp-stat-value">{logs.length}</p>
+          <p className="in-foot"><span>All daily reports so far</span></p>
+        </div>
+        <div className="bp-stat" style={{ "--i": 3 }}>
+          <div className="bp-stat-top"><p className="bp-stat-label in-label">LAST 7 DAYS</p><span className="tb-stat-icon-in navy"><ListChecks size={20} /></span></div>
+          <p className="bp-stat-value">{Math.round(weekHours * 10) / 10} <small className="in-unit">Hours</small></p>
+          <p className="in-foot"><span>From your login and logout times</span></p>
+        </div>
+      </div>
+
+      <div className="tr-grid">
+        <section className="bp-panel tr-card">
+          <div className="tr-card-head">
+            <div>
+              <p className="in-mini">ACTIVE SUBMISSION</p>
+              <h3>Today&apos;s Work Report</h3>
+            </div>
+            <span className="bp-chip blue"><CalendarDays size={12} /> {new Date(workDate).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</span>
+          </div>
+          <div className="bp-form-grid in-three">
+            <label className="bp-field"><span>Date</span>
+              <input type="date" value={workDate} onChange={(e) => setWorkDate(e.target.value)} />
+            </label>
+            <label className="bp-field"><span>Login Time</span>
+              <input placeholder="9:30 am" value={loginTime} onChange={(e) => setLoginTime(e.target.value)} />
+            </label>
+            <label className="bp-field"><span>Logout Time</span>
+              <input placeholder="6:00 pm" value={logoutTime} onChange={(e) => setLogoutTime(e.target.value)} />
+            </label>
+          </div>
+          {draftHours != null && <p className="in-hours"><Timer size={14} /> {draftHours} hrs for this day</p>}
+
+          <div className="in-entries-head"><b>Work Entries</b><small>One row per time-block</small></div>
+          {entries.map((e, idx) => (
+            <div key={idx} className="in-entry">
+              <input className="in-entry-time" placeholder="10:00 am" value={e.time} onChange={(ev) => updateEntry(idx, "time", ev.target.value)} />
+              <input className="in-entry-note" placeholder="What did you work on?" value={e.note} onChange={(ev) => updateEntry(idx, "note", ev.target.value)} />
+              {entries.length > 1 && (
+                <button type="button" className="in-entry-remove" onClick={() => removeEntryRow(idx)} aria-label="Remove entry"><Trash2 size={14} /></button>
+              )}
             </div>
           ))}
+          <div className="in-send-row">
+            <button type="button" className="bp-btn soft" onClick={addEntryRow}><Plus size={14} /> Add Entry</button>
+            <button type="button" className="bp-btn navy" onClick={submit} disabled={submitting}><Send size={14} /> {submitting ? "Saving…" : "Submit Daily Report"}</button>
+          </div>
+        </section>
+
+        <div className="tr-col">
+          <section className="bp-panel tr-card">
+            <div className="tr-card-head">
+              <h3>Recent Report History</h3>
+              <span className="bp-muted in-small">Last {Math.min(5, sorted.length)} submissions</span>
+            </div>
+            {loading ? <p className="tr-empty">Loading past logs…</p> : sorted.length === 0 ? <p className="tr-empty">No reports yet.</p> : sorted.slice(0, 5).map((l) => (
+              <div key={l.worklog_id} className="in-history">
+                <div className="in-history-top">
+                  <b><CalendarDays size={13} /> {new Date(l.work_date).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" })}</b>
+                  <span className="bp-chip green">Submitted</span>
+                </div>
+                <ul>
+                  {l.entries.slice(0, 3).map((e, i) => (
+                    <li key={i}>{e.time && <b>{e.time}: </b>}{e.note}</li>
+                  ))}
+                  {l.entries.length > 3 && <li className="bp-muted">+{l.entries.length - 3} more</li>}
+                </ul>
+                <p className="in-history-foot"><span>{l.login_time} – {l.logout_time}</span><b>{hoursOf(l) != null ? `${hoursOf(l)} hrs` : ""}</b></p>
+              </div>
+            ))}
+          </section>
+
+          <div className="in-notice">
+            <Info size={16} />
+            <div>
+              <b>Daily Protocol</b>
+              <p>Submit your report before you log off each day so your manager sees what you worked on.</p>
+            </div>
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }

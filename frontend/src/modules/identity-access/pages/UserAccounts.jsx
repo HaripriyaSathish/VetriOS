@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
+import {
+  ArrowDown, ArrowUp, ArrowUpDown, Ban, Check, Copy, Eye, EyeOff, KeyRound, Lock, MailOpen,
+  MoreHorizontal, Pencil, RotateCcw, Search, ShieldCheck, User, UserCheck, UserPlus, UserX,
+  Users, X,
+} from "lucide-react";
 import client from "../../../api/client";
 import Pagination, { paginate } from "../../../components/Pagination";
+import "../../student/styles/StudentDashboard.css";
 import "../styles/UserAccounts.css";
 
 // Exactly 8 characters: at least one capital letter, one digit, one
@@ -201,6 +207,21 @@ const EMPTY_FORM = {
   person_id: "",
 };
 
+// "Today, 10:05 AM" / "Yesterday, ..." / "15 Sep 2026" for the Last login column.
+function formatLastLogin(value) {
+  if (!value) return "Never signed in";
+  const d = new Date(value);
+  const dayStart = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((dayStart(new Date()) - dayStart(d)) / 86400000);
+  const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  if (diff === 0) return `Today, ${time}`;
+  if (diff === 1) return `Yesterday, ${time}`;
+  return d.toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" });
+}
+
+const signedInToday = (value) =>
+  Boolean(value) && new Date(value).toDateString() === new Date().toDateString();
+
 function groupOf(code) {
   return code.split("_")[0];
 }
@@ -235,6 +256,10 @@ function UserAccounts() {
   const [confirming, setConfirming] = useState(false);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [roleFilter, setRoleFilter] = useState("ALL");
+  const [sort, setSort] = useState({ key: "name", dir: "asc" });
+  const [rowMenu, setRowMenu] = useState(null); // { user, top, right }
 
   const [editRoleIds, setEditRoleIds] = useState(new Set());
   const [roleToggleBusyId, setRoleToggleBusyId] = useState(null);
@@ -408,6 +433,20 @@ function UserAccounts() {
     loadData();
     loadLoginRequests();
   }, []);
+
+  // Close the row "..." menu on any outside click, scroll or resize.
+  useEffect(() => {
+    if (!rowMenu) return undefined;
+    const close = () => setRowMenu(null);
+    window.addEventListener("click", close);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      window.removeEventListener("click", close);
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [rowMenu]);
 
   // Debounced live "is this username free" check as it's typed — same
   // rule the actual save enforces, just checked ahead of time. Skips the
@@ -727,7 +766,14 @@ function UserAccounts() {
 
   const permEffectiveCount = permRows.filter(isEffective).length;
 
+  const activeCount = users.filter((u) => u.is_active).length;
+  const inactiveCount = users.length - activeCount;
+  const roleNames = [...new Set(users.flatMap((u) => u.roles || []))].sort();
+
   const filteredUsers = users.filter((user) => {
+    if (statusFilter === "ACTIVE" && !user.is_active) return false;
+    if (statusFilter === "INACTIVE" && user.is_active) return false;
+    if (roleFilter !== "ALL" && !(user.roles || []).includes(roleFilter)) return false;
     const q = search.trim().toLowerCase();
     if (!q) return true;
     return (
@@ -739,66 +785,265 @@ function UserAccounts() {
     );
   });
 
+  const sortedUsers = [...filteredUsers].sort((a, b) => {
+    const dir = sort.dir === "asc" ? 1 : -1;
+    if (sort.key === "login") {
+      const av = a.last_login ? new Date(a.last_login).getTime() : 0;
+      const bv = b.last_login ? new Date(b.last_login).getTime() : 0;
+      return (av - bv) * dir || a.full_name.localeCompare(b.full_name);
+    }
+    // Newer accounts get higher ids, and the list API sends no created date.
+    if (sort.key === "created") return (a.user_id - b.user_id) * dir;
+    // asc = Active first, desc = Inactive first
+    if (sort.key === "status") {
+      return ((b.is_active ? 1 : 0) - (a.is_active ? 1 : 0)) * dir || a.full_name.localeCompare(b.full_name);
+    }
+    if (sort.key === "role") {
+      const ar = [...(a.roles || [])].sort()[0] || "￿";
+      const br = [...(b.roles || [])].sort()[0] || "￿";
+      return ar.localeCompare(br) * dir || a.full_name.localeCompare(b.full_name);
+    }
+    return a.full_name.localeCompare(b.full_name) * dir;
+  });
+
+  const SORT_OPTIONS = [
+    ["name:asc", "Name (A to Z)"],
+    ["name:desc", "Name (Z to A)"],
+    ["login:desc", "Recently signed in"],
+    ["login:asc", "Not signed in the longest"],
+    ["created:desc", "Newest accounts"],
+    ["created:asc", "Oldest accounts"],
+    ["status:asc", "Active first"],
+    ["status:desc", "Inactive first"],
+    ["role:asc", "Role (A to Z)"],
+  ];
+
+  const toggleSort = (key) => {
+    setSort((cur) =>
+      cur.key === key
+        ? { key, dir: cur.dir === "asc" ? "desc" : "asc" }
+        : { key, dir: key === "login" ? "desc" : "asc" }
+    );
+    setPage(1);
+  };
+
+  const sortIcon = (key) => {
+    if (sort.key !== key) return <ArrowUpDown size={12} />;
+    return sort.dir === "asc" ? <ArrowUp size={12} /> : <ArrowDown size={12} />;
+  };
+
+  const openRowMenu = (event, user) => {
+    event.stopPropagation();
+    if (rowMenu?.user.user_id === user.user_id) {
+      setRowMenu(null);
+      return;
+    }
+    const rect = event.currentTarget.getBoundingClientRect();
+    setRowMenu({ user, top: rect.bottom + 6, right: window.innerWidth - rect.right });
+  };
+
+  const copyUsername = async (user) => {
+    try {
+      await navigator.clipboard.writeText(user.username);
+    } catch {
+      // Clipboard can be blocked — nothing to recover, the menu just closes.
+    }
+    setRowMenu(null);
+  };
+
+  const stats = [
+    { label: "Total accounts", value: users.length, accent: "blue", Icon: Users },
+    { label: "Active", value: activeCount, accent: "orange", Icon: UserCheck },
+    { label: "Inactive", value: inactiveCount, accent: "blue", Icon: UserX, red: inactiveCount > 0 },
+    {
+      label: "Login requests waiting",
+      value: loginRequests.length,
+      accent: "orange",
+      Icon: KeyRound,
+      red: loginRequests.length > 0,
+      onClick: () => setLoginRequestsPanelOpen(true),
+    },
+  ];
+
+  const statusChips = [
+    ["ALL", "All", users.length],
+    ["ACTIVE", "Active", activeCount],
+    ["INACTIVE", "Inactive", inactiveCount],
+  ];
+
+  const filtersOn = Boolean(search.trim()) || statusFilter !== "ALL" || roleFilter !== "ALL";
+
   return (
     <div className="ua-screen">
       <div className="ua-head">
         <div>
-          <h1>User accounts</h1>
-          <p>{users.length} accounts · user_account, person</p>
+          <h1>User &amp; Accounts</h1>
+          <p>Create accounts, assign roles and manage who can sign in</p>
         </div>
-        <div style={{ display: "flex", gap: 10 }}>
-          <button
-            className="ua-btn-sm"
-            onClick={() => setLoginRequestsPanelOpen(true)}
-          >
-            Login requests {loginRequests.length > 0 && `(${loginRequests.length})`}
+        <div className="ua-head-actions">
+          <button className="ua-btn-outline" onClick={() => setLoginRequestsPanelOpen(true)}>
+            <MailOpen size={15} /> Login requests
+            {loginRequests.length > 0 && <em className="ua-badge">{loginRequests.length}</em>}
           </button>
           <button className="ua-btn-accent" onClick={openCreate}>
-            + New account
+            <UserPlus size={16} /> New account
           </button>
         </div>
       </div>
 
       {error && <p className="ua-error">{error}</p>}
 
-      <div className="ua-panel">
-        <div className="ua-panel-head">
-          <h3>All accounts</h3>
+      <div className="sd-stats ua-stats">
+        {stats.map(({ label, value, accent, Icon, red, onClick }, i) => (
+          <div
+            key={label}
+            className={`sd-card sd-card-${accent}` + (onClick ? " ua-stat-click" : "")}
+            style={{ "--delay": `${0.05 + i * 0.07}s` }}
+            {...(onClick
+              ? {
+                  role: "button",
+                  tabIndex: 0,
+                  onClick,
+                  onKeyDown: (e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      onClick();
+                    }
+                  },
+                }
+              : {})}
+          >
+            <span className="sd-card-blob" aria-hidden="true" />
+            <span className="sd-card-icon ua-stat-icon"><Icon size={22} /></span>
+            <p className={`sd-card-value sd-tone-${red ? "red" : "gray"}`}>{value}</p>
+            <p className="sd-card-label">{label}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="ua-toolbar">
+        <label className="ua-search-wrap">
+          <span className="ua-search-icon"><Search size={16} /></span>
           <input
             className="ua-search"
-            placeholder="Search by name, username, email, role, designation…"
+            placeholder="Search name, username, email or role"
             value={search}
             onChange={(e) => {
               setSearch(e.target.value);
               setPage(1);
             }}
           />
+          {search && (
+            <button
+              type="button"
+              className="ua-search-clear"
+              aria-label="Clear search"
+              onClick={() => {
+                setSearch("");
+                setPage(1);
+              }}
+            >
+              <X size={12} />
+            </button>
+          )}
+        </label>
+        <select
+          className="ua-role-filter"
+          value={roleFilter}
+          aria-label="Filter by role"
+          onChange={(e) => {
+            setRoleFilter(e.target.value);
+            setPage(1);
+          }}
+        >
+          <option value="ALL">All roles</option>
+          {roleNames.map((name) => (
+            <option key={name} value={name}>{name}</option>
+          ))}
+        </select>
+        <label className="ua-sort">
+          <ArrowUpDown size={14} />
+          <span>Sort by</span>
+          <select
+            className="ua-role-filter"
+            value={`${sort.key}:${sort.dir}`}
+            aria-label="Sort accounts"
+            onChange={(e) => {
+              const [key, dir] = e.target.value.split(":");
+              setSort({ key, dir });
+              setPage(1);
+            }}
+          >
+            {SORT_OPTIONS.map(([value, label]) => (
+              <option key={value} value={value}>{label}</option>
+            ))}
+          </select>
+        </label>
+        <div className="ua-seg">
+          {statusChips.map(([key, label, count]) => (
+            <button
+              key={key}
+              type="button"
+              className={"ua-seg-btn" + (statusFilter === key ? " on" : "")}
+              onClick={() => {
+                setStatusFilter(key);
+                setPage(1);
+              }}
+            >
+              {label} <b>{count}</b>
+            </button>
+          ))}
         </div>
+      </div>
+      {filtersOn && !loading && (
+        <p className="ua-count">
+          Showing <b>{sortedUsers.length}</b> of {users.length} accounts
+        </p>
+      )}
 
+      <div className="ua-panel">
         {loading ? (
           <p className="ua-empty">Loading…</p>
+        ) : sortedUsers.length === 0 ? (
+          <p className="ua-empty">No accounts match your search or filters.</p>
         ) : (
           <>
           <div className="ua-table-scroll">
             <table className="ua-table">
               <thead>
                 <tr>
-                  <th>User</th>
+                  <th>
+                    <button type="button" className={"ua-th-sort" + (sort.key === "name" ? " on" : "")} onClick={() => toggleSort("name")}>
+                      User {sortIcon("name")}
+                    </button>
+                  </th>
                   <th>Roles</th>
                   <th>Status</th>
-                  <th>Last login</th>
-                  <th>Actions</th>
+                  <th>
+                    <button type="button" className={"ua-th-sort" + (sort.key === "login" ? " on" : "")} onClick={() => toggleSort("login")}>
+                      Last login {sortIcon("login")}
+                    </button>
+                  </th>
+                  <th className="ua-th-actions">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {paginate(filteredUsers, page).map((user) => (
-                  <tr key={user.user_id}>
+                {paginate(sortedUsers, page).map((user, i) => (
+                  <tr key={user.user_id} className={user.is_active ? "" : "inactive"}>
                     <td>
                       <div className="ua-cell-user">
-                        <div className="ua-avatar">{initials(user.full_name)}</div>
-                        <div>
+                        <span className="ua-avatar-wrap">
+                          <span className={"ua-avatar" + (i % 2 ? " alt" : "") + (user.is_active ? "" : " off")}>
+                            {initials(user.full_name)}
+                          </span>
+                          {signedInToday(user.last_login) && <span className="ua-online" title="Signed in today" />}
+                        </span>
+                        <div className="ua-cell-text">
                           <div className="ua-name">{user.full_name}</div>
-                          <div className="ua-sub">{user.username}</div>
+                          <div className="ua-sub">
+                            {user.designation ? `${user.designation} · ` : ""}
+                            {user.username}
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -818,38 +1063,93 @@ function UserAccounts() {
                     </td>
                     <td>
                       <span className={"ua-pill " + (user.is_active ? "on" : "off")}>
-                        {user.is_active ? "● Active" : "○ Inactive"}
+                        {user.is_active ? "Active" : "Inactive"}
                       </span>
                     </td>
-                    <td className="ua-mono">{user.last_login ? new Date(user.last_login).toLocaleString() : "—"}</td>
-                    <td className="ua-actions">
-                      <button className="ua-btn-sm" onClick={() => openEdit(user)}>
-                        Edit
-                      </button>
-                      <button className="ua-btn-sm" onClick={() => openPermissions(user)}>
-                        Permissions
-                      </button>
-                      <button className="ua-btn-sm ua-btn-danger" onClick={() => requestToggleActive(user)}>
-                        {user.is_active ? "Deactivate" : "Reactivate"}
-                      </button>
+                    <td>
+                      <div className="ua-login">{formatLastLogin(user.last_login)}</div>
+                      {signedInToday(user.last_login) && <div className="ua-sub">Active today</div>}
+                    </td>
+                    <td>
+                      <div className="ua-actions">
+                        <button className="ua-action-btn" title="Edit" onClick={() => openEdit(user)}>
+                          <Pencil size={13} /> <span className="ua-btn-label">Edit</span>
+                        </button>
+                        <button className="ua-action-btn primary" title="Permissions" onClick={() => openPermissions(user)}>
+                          <KeyRound size={13} /> <span className="ua-btn-label">Permissions</span>
+                        </button>
+                        <button
+                          className={"ua-more-btn" + (rowMenu?.user.user_id === user.user_id ? " open" : "")}
+                          aria-label={`More actions for ${user.full_name}`}
+                          onClick={(e) => openRowMenu(e, user)}
+                        >
+                          <MoreHorizontal size={16} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          <Pagination page={page} totalItems={filteredUsers.length} onPageChange={setPage} />
+          <Pagination page={page} totalItems={sortedUsers.length} onPageChange={setPage} />
           </>
         )}
       </div>
+
+      {rowMenu && (
+        <div
+          className="ua-row-menu"
+          style={{ top: rowMenu.top, right: rowMenu.right }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button type="button" onClick={() => copyUsername(rowMenu.user)}>
+            <Copy size={14} /> Copy username
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const user = rowMenu.user;
+              setRowMenu(null);
+              openEdit(user);
+            }}
+          >
+            <Lock size={14} /> Reset password
+          </button>
+          <button
+            type="button"
+            className={rowMenu.user.is_active ? "danger" : "good"}
+            onClick={() => {
+              const user = rowMenu.user;
+              setRowMenu(null);
+              requestToggleActive(user);
+            }}
+          >
+            {rowMenu.user.is_active ? <Ban size={14} /> : <RotateCcw size={14} />}
+            {rowMenu.user.is_active ? "Deactivate" : "Reactivate"}
+          </button>
+        </div>
+      )}
 
       {modalOpen && (
         <div className="ua-modal-backdrop" onClick={closeModal}>
           <form className="ua-modal" onClick={(e) => e.stopPropagation()} onSubmit={handleSubmit}>
             <button type="button" className="ua-modal-x" onClick={closeModal} aria-label="Close">
-              ✕
+              <X size={14} />
             </button>
-            <h2>{editingUser ? "Edit account" : "New account"}</h2>
+            <div className="ua-form-head">
+              <span className="ua-form-icon">
+                {editingUser ? <Pencil size={21} /> : <UserPlus size={22} />}
+              </span>
+              <div>
+                <h2>{editingUser ? "Edit account" : "New account"}</h2>
+                <p>
+                  {editingUser
+                    ? "Update details, change roles or reset the password"
+                    : "Create a login for someone in your organisation"}
+                </p>
+              </div>
+            </div>
             {editingUser && (
               <p className="ua-modal-identity">
                 <span className="ua-modal-identity-name">{editingUser.full_name}</span>
@@ -857,6 +1157,7 @@ function UserAccounts() {
               </p>
             )}
 
+            <div className="ua-sec first"><User size={13} /> Person</div>
             {!editingUser && (
               <div className="ua-person-mode">
                 <button
@@ -940,42 +1241,6 @@ function UserAccounts() {
               </>
             )}
 
-            <label>Username</label>
-            <input
-              value={form.username}
-              onChange={(e) => setForm({ ...form, username: e.target.value })}
-              required
-            />
-            {usernameStatus !== "idle" && (
-              <p className={"ua-username-status ua-username-status-" + usernameStatus}>
-                {usernameStatus === "available" && <IconCheck />}
-                {usernameStatus === "checking" ? "Checking availability…" : usernameStatusMsg}
-              </p>
-            )}
-
-            <label>{editingUser ? "Reset password (optional)" : "Password"}</label>
-            <div className="ua-password-field">
-              <input
-                type={showPassword ? "text" : "password"}
-                value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
-                required={!editingUser}
-                pattern={form.password ? PASSWORD_PATTERN.source : undefined}
-                title={PASSWORD_HINT}
-                maxLength={8}
-              />
-              <button
-                type="button"
-                className="ua-password-toggle"
-                onClick={() => setShowPassword((prev) => !prev)}
-                tabIndex={-1}
-                title={showPassword ? "Hide password" : "Show password"}
-              >
-                {showPassword ? "🙈" : "👁"}
-              </button>
-            </div>
-            <p className="ua-perm-hint">{PASSWORD_HINT}</p>
-
             {(editingUser || personMode === "new") && (
               <>
                 <div className="ua-form-row">
@@ -1008,7 +1273,44 @@ function UserAccounts() {
               </>
             )}
 
-            <label>Roles</label>
+            <div className="ua-sec"><Lock size={13} /> Sign-in</div>
+            <label>Username</label>
+            <input
+              value={form.username}
+              onChange={(e) => setForm({ ...form, username: e.target.value })}
+              required
+            />
+            {usernameStatus !== "idle" && (
+              <p className={"ua-username-status ua-username-status-" + usernameStatus}>
+                {usernameStatus === "available" && <IconCheck />}
+                {usernameStatus === "checking" ? "Checking availability…" : usernameStatusMsg}
+              </p>
+            )}
+
+            <label>{editingUser ? "Reset password (optional)" : "Password"}</label>
+            <div className="ua-password-field">
+              <input
+                type={showPassword ? "text" : "password"}
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                required={!editingUser}
+                pattern={form.password ? PASSWORD_PATTERN.source : undefined}
+                title={PASSWORD_HINT}
+                maxLength={8}
+              />
+              <button
+                type="button"
+                className="ua-password-toggle"
+                onClick={() => setShowPassword((prev) => !prev)}
+                tabIndex={-1}
+                title={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+            <p className="ua-perm-hint">{PASSWORD_HINT}</p>
+
+            <div className="ua-sec"><ShieldCheck size={13} /> Roles</div>
             <div className="ua-role-checks">
               {roles.map((role) => {
                 const checked = editingUser
@@ -1035,13 +1337,17 @@ function UserAccounts() {
               A user can hold more than one role{editingUser ? " — changes apply immediately." : "."}
             </p>
 
-            <label className="ua-checkbox">
+            <label className="ua-toggle-row">
+              <span>
+                <b>Active</b>
+                <small>Can sign in right away</small>
+              </span>
               <input
                 type="checkbox"
+                className="ua-switch"
                 checked={form.is_active}
                 onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
               />
-              Active
             </label>
 
             {formError && <p className="ua-error">{formError}</p>}
@@ -1055,7 +1361,8 @@ function UserAccounts() {
                 className="ua-btn-accent"
                 disabled={submitting || usernameStatus === "taken" || usernameStatus === "invalid"}
               >
-                {submitting ? "Saving…" : "Save"}
+                <Check size={16} />
+                {submitting ? "Saving…" : editingUser ? "Save changes" : "Create account"}
               </button>
             </div>
           </form>
@@ -1066,7 +1373,7 @@ function UserAccounts() {
         <div className="ua-modal-backdrop" onClick={cancelToggleActive}>
           <div className="ua-modal ua-confirm" onClick={(e) => e.stopPropagation()}>
             <button type="button" className="ua-modal-x" onClick={cancelToggleActive} aria-label="Close">
-              ✕
+              <X size={14} />
             </button>
             <h2>{confirmTarget.is_active ? "Deactivate account?" : "Reactivate account?"}</h2>
             <p>
@@ -1095,7 +1402,7 @@ function UserAccounts() {
         <div className="ua-modal-backdrop" onClick={closePermissions}>
           <div className="ua-modal ua-perm-modal" onClick={(e) => e.stopPropagation()}>
             <button type="button" className="ua-modal-x" onClick={closePermissions} aria-label="Close">
-              ✕
+              <X size={14} />
             </button>
             <div className="ua-perm-modal-head">
               <span className="ua-perm-modal-icon">
@@ -1209,7 +1516,7 @@ function UserAccounts() {
               onClick={() => setLoginRequestsPanelOpen(false)}
               aria-label="Close"
             >
-              ✕
+              <X size={14} />
             </button>
             <h2>Login requests</h2>
             <p className="ua-hint">

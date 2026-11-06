@@ -1,8 +1,11 @@
 import calendar
 import datetime
+import io
 import uuid
 
-import cloudinary.uploader
+from PIL import Image, ImageOps, UnidentifiedImageError
+from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
 from django.db import transaction
 from django.db.models import Count
 from django.db.models.functions import TruncDate
@@ -121,11 +124,53 @@ class EmployeeDetailView(generics.RetrieveUpdateDestroyAPIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-# Uploads a profile photo to Cloudinary under a public_id derived from
-# person_id — deterministic, so the frontend can build the display URL
-# itself and nothing needs to be stored anywhere: no DB column (person
-# is DA-owned, no ALTER privilege), no new table. A second upload for
-# the same person just overwrites the same public_id.
+AVATAR_SIZE = 256
+
+
+def avatar_storage_name(person_id):
+    return f"person_avatars/person_{person_id}.jpg"
+
+
+def make_avatar_jpeg(fileobj):
+    """Centre-crops any image to an AVATAR_SIZE square JPEG and returns
+    its bytes. Raises ValueError if the file isn't a readable image."""
+    try:
+        image = Image.open(fileobj)
+        image = ImageOps.exif_transpose(image)
+    except (UnidentifiedImageError, OSError) as exc:
+        raise ValueError("not an image") from exc
+
+    if image.mode in ("RGBA", "LA", "P"):
+        # JPEG has no transparency — flatten onto white.
+        image = image.convert("RGBA")
+        background = Image.new("RGB", image.size, (255, 255, 255))
+        background.paste(image, mask=image.getchannel("A"))
+        image = background
+    else:
+        image = image.convert("RGB")
+    image = ImageOps.fit(image, (AVATAR_SIZE, AVATAR_SIZE), Image.Resampling.LANCZOS)
+
+    buffer = io.BytesIO()
+    image.save(buffer, format="JPEG", quality=88)
+    return buffer.getvalue()
+
+
+def save_avatar(person_id, jpeg_bytes):
+    """Writes (or replaces) the person's avatar and returns its storage name."""
+    name = avatar_storage_name(person_id)
+    if default_storage.exists(name):
+        default_storage.delete(name)
+    default_storage.save(name, ContentFile(jpeg_bytes))
+    return name
+
+
+# Saves a profile photo in the media folder at a path derived from
+# person_id (media/person_avatars/person_<id>.jpg) — deterministic, so the
+# frontend can build the display URL itself and nothing needs to be
+# stored anywhere: no DB column (person is DA-owned, no ALTER privilege),
+# no new table. A second upload for the same person replaces the file.
+# Every upload is centre-cropped to a square JPEG so the path never
+# depends on what format was uploaded.
 class EmployeeAvatarUploadView(APIView):
     permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
     parser_classes = [MultiPartParser]
@@ -140,13 +185,13 @@ class EmployeeAvatarUploadView(APIView):
         if not upload:
             return Response({"file": ["This field is required."]}, status=status.HTTP_400_BAD_REQUEST)
 
-        result = cloudinary.uploader.upload(
-            upload,
-            public_id=f"person_avatars/person_{employee.person_id}",
-            overwrite=True,
-            invalidate=True,
-        )
-        return Response({"avatar_url": result["secure_url"]})
+        try:
+            jpeg_bytes = make_avatar_jpeg(upload)
+        except ValueError:
+            return Response({"file": ["Upload a valid image file."]}, status=status.HTTP_400_BAD_REQUEST)
+
+        name = save_avatar(employee.person_id, jpeg_bytes)
+        return Response({"avatar_url": default_storage.url(name)})
 
 
 # Feeds both the "+ New Employee" designation dropdown and the

@@ -173,6 +173,9 @@ function Sidebar() {
     hasAccess(trainerRequirement, user) &&
     !(user?.roles || []).some((r) => ["Manager", "Business Team"].includes(r));
 
+  // Intern workspace gets the flat, sectioned menu from the Intern Figma.
+  const isInternView = !isSystemAdministrator && inWorkspace("intern") && isIntern && !isConvertedEmployee;
+
   const isOnSysAdminPage = SYSADMIN_PATHS.some((path) => location.pathname.startsWith(path));
   const [sysAdminOpen, setSysAdminOpen] = useState(isOnSysAdminPage);
 
@@ -353,7 +356,7 @@ function Sidebar() {
       {/* Unconditional — every role (Employee, Trainer, any admin) can
           ask a specific admin for a permission, so this sits above every
           role-gated group rather than living inside one of them. */}
-      {!isTraineeView && !isBusinessView && (
+      {!isTraineeView && !isBusinessView && !isInternView && (
         <NavLink
           to="/request-access"
           className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
@@ -379,7 +382,7 @@ function Sidebar() {
         </NavLink>
       )}
 
-      {!isSystemAdministrator && !isTraineeView && !isBusinessView && !isTrainerView && (
+      {!isSystemAdministrator && !isTraineeView && !isBusinessView && !isTrainerView && !isInternView && (
         <NavLink
           to="/dashboard"
           className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
@@ -648,7 +651,7 @@ function Sidebar() {
         </>
       )}
 
-      {canSeeDocuments && !isBusinessView && !isTrainerView && (
+      {canSeeDocuments && !isBusinessView && !isTrainerView && !isInternView && (
         <>
           <button
             type="button"
@@ -703,7 +706,7 @@ function Sidebar() {
         </>
       )}
 
-      {canSeeEmail && !isTraineeView && !isBusinessView && !isTrainerView && (
+      {canSeeEmail && !isTraineeView && !isBusinessView && !isTrainerView && !isInternView && (
         <>
           <button
             type="button"
@@ -947,34 +950,56 @@ function Sidebar() {
         </>
       )}
 
-      {inWorkspace("intern") && isIntern && !isConvertedEmployee && (
+      {isInternView && (
         <>
+          <p className="nav-section-label">Self Service &amp; Workflow</p>
+          <NavLink to="/intern/dashboard" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+            <span className="nav-icon"><MsIcon name="space_dashboard" /></span> My Dashboard
+          </NavLink>
           <NavLink to="/intern/my-internship" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
-            <span className="nav-icon">🎓</span> My Internship
+            <span className="nav-icon"><MsIcon name="badge" /></span> My Internship
           </NavLink>
           <NavLink to="/intern/attendance" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
-            <span className="nav-icon">📅</span> My Attendance
+            <span className="nav-icon"><MsIcon name="event_available" /></span> My Attendance
           </NavLink>
           <NavLink to="/intern/tasks" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
-            <span className="nav-icon">📝</span> My Tasks
+            <span className="nav-icon"><MsIcon name="checklist" /></span> My Tasks
           </NavLink>
           <NavLink to="/intern/testing-reports" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
-            <span className="nav-icon">🧪</span> Testing Reports
+            <span className="nav-icon"><MsIcon name="bug_report" /></span> Testing Reports
           </NavLink>
           <NavLink to="/intern/worklog" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
-            <span className="nav-icon">🕒</span> Daily Work Report
+            <span className="nav-icon"><MsIcon name="assignment_turned_in" /></span> Daily Work Report
           </NavLink>
           <NavLink to="/intern/leave" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
-            <span className="nav-icon">🌴</span> Apply Leave
+            <span className="nav-icon"><MsIcon name="event_busy" /></span> Apply Leave
           </NavLink>
+
+          <p className="nav-section-label">Development &amp; Growth</p>
           <NavLink to="/intern/ask-lead" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
-            <span className="nav-icon">💬</span> Ask Project Lead
+            <span className="nav-icon"><MsIcon name="support_agent" /></span> Ask Project Lead
           </NavLink>
           <NavLink to="/intern/performance" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
-            <span className="nav-icon">📊</span> My Performance
+            <span className="nav-icon"><MsIcon name="monitoring" /></span> My Performance
           </NavLink>
           <NavLink to="/intern/project" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
-            <span className="nav-icon">📁</span> My Project
+            <span className="nav-icon"><MsIcon name="rocket_launch" /></span> My Project
+          </NavLink>
+
+          <p className="nav-section-label">Resources &amp; Communication</p>
+          {canSeeDocuments && (
+            <NavLink to="/documents" end className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+              <span className="nav-icon"><MsIcon name="folder_shared" /></span> Document Library
+            </NavLink>
+          )}
+          {canSeeEmail && (
+            <NavLink to="/email" end className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+              <span className="nav-icon"><MsIcon name="mail" /></span> Email
+            </NavLink>
+          )}
+          <NavLink to="/request-access" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+            <span className="nav-icon"><MsIcon name="key" /></span> Request Access
+            {pendingRequestCount > 0 && <span className="nav-count-badge">{pendingRequestCount}</span>}
           </NavLink>
         </>
       )}
@@ -1130,7 +1155,7 @@ function Sidebar() {
           <LoginIllustration />
         </div>
       )}
-      {isBusinessView && (
+      {(isBusinessView || isInternView) && (
         <div className="sidebar-art team" aria-hidden="true">
           <TeamIllustration />
         </div>

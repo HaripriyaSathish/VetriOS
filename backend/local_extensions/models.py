@@ -1,7 +1,6 @@
 from django.db import models
 from module_03_training.models import Batch, Enrollment
 from module_01_identity_access.models import UserAccount
-from cloudinary.models import CloudinaryField
 
 
 class Enquiry(models.Model):
@@ -313,7 +312,7 @@ class SubmissionAttachment(models.Model):
     submission_detail = models.ForeignKey(
         TaskSubmissionDetail, on_delete=models.CASCADE, db_column="submission_detail_id", related_name="attachments"
     )
-    file = CloudinaryField("attachment", resource_type="auto")
+    file = models.FileField(upload_to="submission_attachments/", max_length=255)
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

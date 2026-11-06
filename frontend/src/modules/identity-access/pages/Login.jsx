@@ -34,7 +34,7 @@ import "../styles/Login.css";
 // have training duties (a TrainerProfile / assigned batches).
 const ROLE_WORKSPACE_MAP = {
   "Student": { key: "student", label: "Student Portal", path: "/student/dashboard" },
-  "Intern": { key: "intern", label: "Intern Portal", path: "/intern/my-internship" },
+  "Intern": { key: "intern", label: "Intern Portal", path: "/intern/dashboard" },
   "Business Team": { key: "training", label: "Training Management", path: "/training" },
   "HR Administrator": { key: "hr", label: "HR Management", path: "/hr" },
   "Project Manager": { key: "project", label: "Project Management", path: "/project/dashboard" },

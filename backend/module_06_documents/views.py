@@ -6,9 +6,8 @@ import re
 import tempfile
 import zipfile
 from html.parser import HTMLParser
-import cloudinary.utils
 import pypdf
-from cloudinary_storage.storage import RawMediaCloudinaryStorage
+from django.core.files.storage import FileSystemStorage
 from docx import Document as DocxDocument
 from docx.oxml.ns import qn
 from docx2pdf import convert as docx2pdf_convert
@@ -18,7 +17,7 @@ from django.core.files.base import ContentFile
 from django.db import transaction
 from django.db.models import Count, Q
 from django.db.models.functions import TruncDate
-from django.http import FileResponse, HttpResponse, HttpResponseRedirect
+from django.http import FileResponse, HttpResponse
 from django.utils import timezone
 from rest_framework import generics, status
 from rest_framework.views import APIView
@@ -257,7 +256,7 @@ def _generate_docx_document(template, employee, data, request_user):
     stored .docx's formatted runs (no AI drafting) and immediately saves
     the result as a real Document — there's nothing to "review" the way
     there is with AI-drafted prose, since it's an exact merge."""
-    docx_bytes = _raw_cloud_storage.open(template.template_content).read()
+    docx_bytes = _media_storage.open(template.template_content).read()
     doc = DocxDocument(io.BytesIO(docx_bytes))
 
     all_text = "\n".join(p.text for p in doc.paragraphs)
@@ -323,7 +322,7 @@ def _generate_docx_document(template, employee, data, request_user):
             file_name=filename,
             file_extension="pdf",
             mime_type=PDF_MIME_TYPE,
-            storage_provider="CLOUDINARY",
+            storage_provider="LOCAL",
             storage_reference=storage_name,
             file_size_bytes=len(pdf_bytes),
             created_by_user=request_user,
@@ -610,7 +609,7 @@ def _merge_intern_offer_pdf(template, intern, field_values):
     if template.template_format == "HTML":
         return _merge_canvas_pdf(template, intern, field_values)
 
-    docx_bytes = _raw_cloud_storage.open(template.template_content).read()
+    docx_bytes = _media_storage.open(template.template_content).read()
     doc = DocxDocument(io.BytesIO(docx_bytes))
 
     # doc.paragraphs only returns the body's direct paragraphs — table
@@ -752,7 +751,7 @@ def _generate_intern_offer_document(template, intern, field_values, request_user
             file_name=filename,
             file_extension="pdf",
             mime_type=PDF_MIME_TYPE,
-            storage_provider="CLOUDINARY",
+            storage_provider="LOCAL",
             storage_reference=storage_name,
             file_size_bytes=len(pdf_bytes),
             created_by_user=request_user,
@@ -885,7 +884,7 @@ def _save_markdown_document(generation, employee, final_html, request_user):
             file_name=filename,
             file_extension="pdf",
             mime_type=PDF_MIME_TYPE,
-            storage_provider="CLOUDINARY",
+            storage_provider="LOCAL",
             storage_reference=storage_name,
             file_size_bytes=len(pdf_bytes),
             extracted_text=extracted_text,
@@ -1233,18 +1232,20 @@ class GenerationLogListView(generics.ListAPIView):
 
 STATUS_CHOICES = ["DRAFT", "ACTIVE", "UNDER_REVIEW", "APPROVED", "ARCHIVED", "RETIRED", "DELETED"]
 
-# Cloudinary is shared across every machine on the team (unlike local disk),
-# so new Library/Vetri-Tool uploads go here instead of MEDIA_ROOT. Existing
-# certificate uploads (storage_provider='LOCAL') are left as-is — that's a
-# separate migration, not something to silently rewrite here.
-_raw_cloud_storage = RawMediaCloudinaryStorage()
+# Library/Vetri-Tool uploads, generated documents and DOCX templates are
+# all saved on local disk under MEDIA_ROOT (backend/media/). Storage names
+# are paths relative to MEDIA_ROOT, the same convention the certificate
+# uploads (storage_provider='LOCAL') already use. Files uploaded to
+# Cloudinary before the switch are copied over by the one-time
+# `copy_cloudinary_to_media` command.
+_media_storage = FileSystemStorage()
 
 
 def save_document_file(document_id, version_number, filename, content_bytes):
-    """Uploads to Cloudinary and returns the storage name (stored as
-    DocumentVersion.storage_reference)."""
+    """Saves the file under MEDIA_ROOT and returns the storage name (stored
+    as DocumentVersion.storage_reference)."""
     path = f"documents/{document_id}/v{version_number}/{filename}"
-    return _raw_cloud_storage.save(path, ContentFile(content_bytes))
+    return _media_storage.save(path, ContentFile(content_bytes))
 
 
 PDF_MIME_TYPE = "application/pdf"
@@ -1596,7 +1597,7 @@ class DocumentUploadView(APIView):
                 file_name=file_obj.name,
                 file_extension=os.path.splitext(file_obj.name)[1].lstrip("."),
                 mime_type=file_obj.content_type,
-                storage_provider="CLOUDINARY",
+                storage_provider="LOCAL",
                 storage_reference=storage_name,
                 file_size_bytes=file_obj.size,
                 created_by_user=request.user,
@@ -1628,17 +1629,13 @@ class DocumentFileView(APIView):
         inline = request.query_params.get("inline") == "1"
 
         if version.storage_provider == "CLOUDINARY":
-            url, _ = cloudinary.utils.cloudinary_url(
-                version.storage_reference, resource_type="raw",
-                flags=None if inline else "attachment",
-            )
-            return HttpResponseRedirect(url)
+            return Response({"detail": "This file is still on Cloudinary. Run `python manage.py copy_cloudinary_to_media` to move it into the media folder."}, status=404)
 
-        # Legacy LOCAL uploads (e.g. Haripriya's certificate feature) — only
-        # reachable from whichever machine originally received the file.
+        # Files live under MEDIA_ROOT — only reachable from whichever
+        # machine's backend/media/ folder received the upload.
         file_path = os.path.join(settings.MEDIA_ROOT, version.storage_reference)
         if not os.path.exists(file_path):
-            return Response({"detail": "File missing on disk. This document was uploaded on a different machine — Cloudinary migration pending."}, status=404)
+            return Response({"detail": "File missing from the media folder on this machine. It was probably uploaded on a different machine."}, status=404)
 
         return FileResponse(
             open(file_path, "rb"),
@@ -1665,17 +1662,10 @@ class DocumentBulkExportView(APIView):
                     continue
                 arcname = version.file_name or f"{doc.document_code}.bin"
 
-                if version.storage_provider == "CLOUDINARY":
-                    try:
-                        content = _raw_cloud_storage.open(version.storage_reference).read()
-                    except Exception:
-                        continue
-                    zf.writestr(arcname, content)
-                else:
-                    file_path = os.path.join(settings.MEDIA_ROOT, version.storage_reference)
-                    if not os.path.exists(file_path):
-                        continue
-                    zf.write(file_path, arcname=arcname)
+                file_path = os.path.join(settings.MEDIA_ROOT, version.storage_reference)
+                if version.storage_provider == "CLOUDINARY" or not os.path.exists(file_path):
+                    continue
+                zf.write(file_path, arcname=arcname)
 
         buffer.seek(0)
         response = FileResponse(buffer, as_attachment=True, filename="documents.zip", content_type="application/zip")
@@ -1790,7 +1780,7 @@ def analyze_docx_upload(file_obj):
     buffer = io.BytesIO()
     doc.save(buffer)
     buffer.seek(0)
-    storage_name = _raw_cloud_storage.save(
+    storage_name = _media_storage.save(
         f"templates/{file_obj.name}", ContentFile(buffer.read()),
     )
 
@@ -1816,7 +1806,7 @@ def build_plain_docx(text):
     doc.save(buffer)
     buffer.seek(0)
     filename = f"templates/converted-{int(timezone.now().timestamp())}.docx"
-    return _raw_cloud_storage.save(filename, ContentFile(buffer.read()))
+    return _media_storage.save(filename, ContentFile(buffer.read()))
 
 
 class TemplateAnalyzeUploadView(APIView):
@@ -1904,7 +1894,7 @@ class TemplatePreviewView(APIView):
             return Response({"detail": "content is required."}, status=400)
 
         try:
-            docx_bytes = _raw_cloud_storage.open(storage_name).read()
+            docx_bytes = _media_storage.open(storage_name).read()
             pdf_bytes = convert_docx_to_pdf_bytes(docx_bytes)
         except Exception as exc:
             return Response({"detail": f"Preview failed: {exc}"}, status=502)
@@ -1942,7 +1932,7 @@ class DocumentTemplateCreateView(APIView):
 class DocumentTemplateDetailView(APIView):
     """GET/PUT a single template — powers the view-and-edit page reached
     by clicking a template card. DOCX-format templates keep their design
-    (template_content is a Cloudinary path, not editable text here) —
+    (template_content is a media-folder path, not editable text here) —
     only the name/code/type can change; MARKDOWN templates can also have
     their body text edited. System Administrator/HR Administrator
     only — see DocumentTemplateListView."""
@@ -2005,7 +1995,7 @@ class DocumentTemplateDownloadView(APIView):
 
         if template.template_format == "DOCX":
             try:
-                docx_bytes = _raw_cloud_storage.open(template.template_content).read()
+                docx_bytes = _media_storage.open(template.template_content).read()
             except Exception as exc:
                 return Response({"detail": f"Download failed: {exc}"}, status=502)
         else:

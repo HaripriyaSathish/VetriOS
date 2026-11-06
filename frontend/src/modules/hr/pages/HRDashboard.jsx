@@ -283,7 +283,7 @@ function HRDashboard({ view = "employees" }) {
   const [desigFilter, setDesigFilter] = useState("ALL");
 
   // Bumped after every successful avatar upload — folded into the
-  // Cloudinary URL as ?v= so the browser re-fetches instead of showing
+  // avatar URL as ?v= so the browser re-fetches instead of showing
   // its cached copy of the old photo for this person_id.
   const [avatarVersion, setAvatarVersion] = useState(0);
   const [avatarUploading, setAvatarUploading] = useState(false);

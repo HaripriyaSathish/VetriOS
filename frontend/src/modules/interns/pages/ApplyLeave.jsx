@@ -1,5 +1,11 @@
 import { useEffect, useState } from "react";
+import { CalendarClock, CircleCheck, Hourglass, CircleX, Send, History, Info, CalendarDays } from "lucide-react";
 import client from "../../../api/client";
+import "../../training/styles/BusinessPages.css";
+import "../../training/styles/TrainerDashboard.css";
+import "../styles/InternPages.css";
+
+const TONE = { APPROVED: "green", REJECTED: "red", CANCELLED: "gray", PENDING: "orange" };
 
 function ApplyLeave() {
   const [leaveTypes, setLeaveTypes] = useState([]);
@@ -48,79 +54,115 @@ function ApplyLeave() {
     }
   };
 
-  if (loading) return <p className="p-6 text-gray-400">Loading…</p>;
+  if (loading) return <p className="bp-loading">Loading…</p>;
+
+  const by = (s) => leaves.filter((l) => l.status === s);
+  const approvedDays = by("APPROVED").reduce((s, l) => s + Number(l.total_days || 0), 0);
+  const spanDays = startDate && endDate && endDate >= startDate
+    ? Math.round((new Date(endDate) - new Date(startDate)) / 86400000) + 1
+    : null;
+  const fmt = (d) => new Date(d).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900 mb-1">Apply Leave</h1>
-      <p className="text-gray-500 mb-6">Submit a leave request and track its status.</p>
+    <div className="bp-page tr-page">
+      <div className="bp-head">
+        <div>
+          <p className="bp-crumb">Intern Workspace / <span>Apply Leave</span></p>
+          <h1 className="bp-title">Leave Management &amp; Time-Off</h1>
+          <p className="bp-sub">Request time off and track the status of your applications.</p>
+        </div>
+      </div>
 
-      {error && <p className="text-red-600 mb-4">{error}</p>}
-      {message && <p className="text-green-600 mb-4">{message}</p>}
+      {error && <p className="bp-notice in-error">{error}</p>}
+      {message && <p className="bp-notice in-ok">{message}</p>}
 
-      <div className="bg-white border border-gray-200 rounded-xl p-5 mb-6">
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 mb-1">Leave Type</label>
-            <select value={leaveTypeId} onChange={(e) => setLeaveTypeId(e.target.value)}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm">
+      <div className="bp-stats tr-stats">
+        <div className="bp-stat" style={{ "--i": 0 }}>
+          <div className="bp-stat-top"><p className="bp-stat-label in-label">APPROVED LEAVE</p><span className="tr-stat-icon green"><CircleCheck size={20} /></span></div>
+          <p className="bp-stat-value">{approvedDays} <small className="in-unit">Days</small></p>
+          <p className="in-foot"><span>{by("APPROVED").length} approved applications</span></p>
+        </div>
+        <div className="bp-stat" style={{ "--i": 1 }}>
+          <div className="bp-stat-top"><p className="bp-stat-label in-label">PENDING</p><span className="tr-stat-icon orange"><Hourglass size={20} /></span></div>
+          <p className="bp-stat-value">{by("PENDING").length}</p>
+          <p className="in-foot"><span>Waiting for approval</span></p>
+        </div>
+        <div className="bp-stat" style={{ "--i": 2 }}>
+          <div className="bp-stat-top"><p className="bp-stat-label in-label">REJECTED</p><span className="tr-stat-icon orange"><CircleX size={20} /></span></div>
+          <p className="bp-stat-value">{by("REJECTED").length}</p>
+          <p className="in-foot"><span>Not approved</span></p>
+        </div>
+        <div className="bp-stat" style={{ "--i": 3 }}>
+          <div className="bp-stat-top"><p className="bp-stat-label in-label">LEAVE TYPES</p><span className="tr-stat-icon blue"><CalendarClock size={20} /></span></div>
+          <p className="bp-stat-value">{leaveTypes.length}</p>
+          <p className="in-foot"><span>{leaveTypes.filter((t) => !t.is_paid).length} unpaid</span></p>
+        </div>
+      </div>
+
+      <div className="tr-grid">
+        <section className="bp-panel tr-card">
+          <div className="tr-card-head">
+            <div>
+              <h3><Send size={18} /> Submit Leave Request</h3>
+              <p>Sent to your reporting manager for approval</p>
+            </div>
+            <span className="bp-chip blue">Draft</span>
+          </div>
+          <label className="bp-field">
+            <span>Leave Category</span>
+            <select value={leaveTypeId} onChange={(e) => setLeaveTypeId(e.target.value)}>
               <option value="">Select…</option>
               {leaveTypes.map((t) => (
                 <option key={t.leave_type_id} value={t.leave_type_id}>{t.name}{t.is_paid ? "" : " (Unpaid)"}</option>
               ))}
             </select>
+          </label>
+          <div className="bp-form-grid">
+            <label className="bp-field"><span>From Date</span>
+              <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+            </label>
+            <label className="bp-field"><span>To Date</span>
+              <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+            </label>
           </div>
-          <div />
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 mb-1">Start Date</label>
-            <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm" />
+          {spanDays != null && (
+            <div className="in-span"><CalendarDays size={15} /> <span>Calendar span</span><b>{spanDays} {spanDays === 1 ? "day" : "days"}</b></div>
+          )}
+          <label className="bp-field">
+            <span>Detailed Justification</span>
+            <textarea rows={4} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why do you need this leave?" />
+          </label>
+          <div className="bp-modal-actions">
+            <button type="button" className="bp-btn navy" onClick={submit} disabled={submitting}><Send size={14} /> {submitting ? "Submitting…" : "Submit Application"}</button>
           </div>
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 mb-1">End Date</label>
-            <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm" />
+        </section>
+
+        <div className="tr-col">
+          <section className="bp-panel tr-card">
+            <div className="tr-card-head">
+              <h3><History size={18} /> Recent Requests</h3>
+              <span className="bp-muted in-small">{leaves.length} recorded</span>
+            </div>
+            {leaves.length === 0 ? <p className="tr-empty">No leave applications yet.</p> : leaves.slice(0, 6).map((l) => (
+              <div key={l.leave_id} className="in-leave">
+                <div className="in-leave-top">
+                  <b>{l.leave_type || "Leave"}</b>
+                  <span className={`bp-chip ${TONE[l.status] || "gray"}`}>{l.status.charAt(0) + l.status.slice(1).toLowerCase()}</span>
+                </div>
+                <p>{fmt(l.start_date)} – {fmt(l.end_date)}{l.total_days != null ? ` · ${l.total_days} day${Number(l.total_days) === 1 ? "" : "s"}` : ""}</p>
+                {l.reason && <small>{l.reason}</small>}
+              </div>
+            ))}
+          </section>
+
+          <div className="in-notice">
+            <Info size={16} />
+            <div>
+              <b>Leave Policy</b>
+              <p>Apply ahead of time where you can, and let your project lead know who covers your tasks while you're away.</p>
+            </div>
           </div>
         </div>
-        <label className="block text-xs font-semibold text-gray-500 mb-1">Reason</label>
-        <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3}
-          className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm mb-4" />
-        <button onClick={submit} disabled={submitting}
-          className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-semibold disabled:opacity-60">
-          {submitting ? "Submitting…" : "Submit Application"}
-        </button>
-      </div>
-
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
-            <tr>
-              <th className="px-4 py-2 text-left">Type</th>
-              <th className="px-4 py-2 text-left">Dates</th>
-              <th className="px-4 py-2 text-left">Days</th>
-              <th className="px-4 py-2 text-left">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {leaves.length === 0 ? (
-              <tr><td colSpan={4} className="px-4 py-6 text-center text-gray-400">No leave applications yet.</td></tr>
-            ) : leaves.map((l) => (
-              <tr key={l.leave_id} className="border-t border-gray-100">
-                <td className="px-4 py-3 text-gray-900">{l.leave_type}</td>
-                <td className="px-4 py-3 text-gray-500">{l.start_date} – {l.end_date}</td>
-                <td className="px-4 py-3 text-gray-500">{l.total_days ?? "—"}</td>
-                <td className="px-4 py-3">
-                  <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                    l.status === "APPROVED" ? "bg-green-100 text-green-700" :
-                    l.status === "REJECTED" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"
-                  }`}>
-                    {l.status}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
       </div>
     </div>
   );

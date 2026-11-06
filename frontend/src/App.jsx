@@ -56,6 +56,7 @@ import StudentDetail from "./modules/training/pages/StudentDetail";
 import InternshipApprovals from "./modules/training/pages/InternshipApprovals";
 import CompletionExtensionApprovals from "./modules/training/pages/CompletionExtensionApprovals";
 import MyInternship from "./modules/interns/pages/MyInternship";
+import InternDashboard from "./modules/interns/pages/InternDashboard";
 import MyInternAttendance from "./modules/interns/pages/MyAttendance";
 import MyTasks from "./modules/interns/pages/MyTasks";
 import MyInternWorklog from "./modules/interns/pages/MyWorklog";
@@ -365,6 +366,11 @@ function App() {
         <Route path="/student/assignments" element={<PermissionGate requirement={{ type: "role", value: "Student" }}><StudentAssignments /></PermissionGate>} />
         <Route path="/student/recordings" element={<PermissionGate requirement={{ type: "role", value: "Student" }}><StudentRecordings /></PermissionGate>} />
         <Route path="/student/reports" element={<PermissionGate requirement={{ type: "role", value: "Student" }}><StudentReports /></PermissionGate>} />
+         <Route path="/intern/dashboard" element={
+  <PermissionGate requirement={{ type: "role", value: "Intern" }}>
+    <InternDashboard />
+  </PermissionGate>
+} />
          <Route path="/intern/my-internship" element={
   <PermissionGate requirement={{ type: "role", value: "Intern" }}>
     <MyInternship />

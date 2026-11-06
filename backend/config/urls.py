@@ -14,7 +14,9 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
-from django.urls import include, path
+from django.conf import settings
+from django.urls import include, path, re_path
+from django.views.static import serve
 
 # django.contrib.admin is not installed (see settings.py) — login is fully
 # custom against user_account/role/user_role, so there's no admin/ route.
@@ -31,4 +33,9 @@ urlpatterns = [
     path("api/projects/", include("module_05_clients_projects.urls")),
     path("api/email/", include("module_07_email.urls")),
     path("api/audit/", include("module_08_audit.urls")),
+
+    # Uploaded files in backend/media/ (photos, attachments, documents).
+    # django.conf.urls.static.static() skips absolute MEDIA_URLs, so the
+    # route is written out here.
+    re_path(r"^media/(?P<path>.*)$", serve, {"document_root": settings.MEDIA_ROOT}),
 ]

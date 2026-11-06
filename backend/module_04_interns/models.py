@@ -2,7 +2,6 @@ from django.db import models
 from module_03_training.models import Student
 from module_01_identity_access.models import UserAccount
 from local_extensions.models import Task
-from cloudinary.models import CloudinaryField
 
 # ---------------------------------------------------------------------------
 # Official table — student → intern conversion record. managed=False:
@@ -161,7 +160,7 @@ class InternTestingReport(models.Model):
         db_constraint=False, related_name="testing_reports",
     )
     report_text = models.TextField()
-    attachment = CloudinaryField("attachment", resource_type="auto", blank=True, null=True)
+    attachment = models.FileField(upload_to="intern_testing_reports/", max_length=255, blank=True, null=True)
     status = models.CharField(max_length=20, choices=REPORT_STATUS_CHOICES)
     created_by = models.ForeignKey(
         "module_01_identity_access.UserAccount", on_delete=models.SET_NULL,
@@ -256,7 +255,7 @@ class InternTestingReport(models.Model):
         null=True, blank=True,
     )
     report_text = models.TextField()
-    attachment = CloudinaryField("attachment", resource_type="auto", blank=True, null=True)
+    attachment = models.FileField(upload_to="intern_testing_reports/", max_length=255, blank=True, null=True)
     status = models.CharField(max_length=20, choices=REPORT_STATUS_CHOICES)
     created_by = models.ForeignKey(
         "module_01_identity_access.UserAccount", on_delete=models.SET_NULL,

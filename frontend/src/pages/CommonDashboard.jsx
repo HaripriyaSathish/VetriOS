@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  CalendarCheck, Palmtree, Briefcase, FileText, Mail, TrendingUp, FolderKanban, LogIn, Activity, KeyRound,
+  CalendarCheck, Palmtree, Briefcase, FileText, Mail, TrendingUp, FolderKanban, Activity, KeyRound,
 } from "lucide-react";
 import client from "../api/client";
 import { groupPermissions } from "../components/PermissionsPanel";
@@ -61,8 +61,9 @@ function CommonDashboard({ user }) {
   const firstName = (user.full_name || "").split(" ")[0];
 
   const quickLinks = [
-    user.employee_code && { to: "/my/attendance", label: "Check in", icon: LogIn, primary: true },
+    user.employee_code && { to: "/my/attendance", label: "Attendance", icon: CalendarCheck, primary: true },
     user.employee_code && { to: "/my/leave", label: "Apply leave", icon: Palmtree },
+    hasProjects && { to: "/project/dashboard", label: "Projects", icon: FolderKanban },
     roles.includes("HR Administrator") && { to: "/hr", label: "HR", icon: Briefcase },
     permissions.includes("DOCUMENT_VIEW") && { to: "/documents", label: "Documents", icon: FileText },
     { to: "/email", label: "Email", icon: Mail },

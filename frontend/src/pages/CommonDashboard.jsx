@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   CalendarCheck, Palmtree, Briefcase, FileText, Mail, TrendingUp, FolderKanban, Activity, KeyRound,
+  Eye, Plus, Pencil, Trash2, Check, Download,
 } from "lucide-react";
 import client from "../api/client";
 import { groupPermissions } from "../components/PermissionsPanel";
@@ -17,6 +18,25 @@ const PROJECT_STATUS_META = {
   Archived: { color: "#51607a", bg: "#eef2f8" },
 };
 const DEFAULT_STATUS_META = { color: "#51607a", bg: "#eef2f8" };
+
+// Permission codes read PREFIX_ACTION (e.g. DOCUMENT_CREATE) — show the
+// action part in plain words with a matching icon.
+const ACTION_META = {
+  VIEW: { label: "View", Icon: Eye },
+  CREATE: { label: "Create", Icon: Plus },
+  UPDATE: { label: "Update", Icon: Pencil },
+  EDIT: { label: "Edit", Icon: Pencil },
+  DELETE: { label: "Delete", Icon: Trash2 },
+  APPROVE: { label: "Approve", Icon: Check },
+  EXPORT: { label: "Export", Icon: Download },
+};
+
+function actionOf(code, prefix) {
+  const rest = code.startsWith(`${prefix}_`) ? code.slice(prefix.length + 1) : code;
+  if (ACTION_META[rest]) return ACTION_META[rest];
+  const words = rest.toLowerCase().replace(/_/g, " ");
+  return { label: words.charAt(0).toUpperCase() + words.slice(1), Icon: Check };
+}
 
 function formatTime(iso) {
   const d = new Date(iso);
@@ -142,17 +162,28 @@ function CommonDashboard({ user }) {
 
           <div className="cmn2-panel">
             <div className="cmn2-head">
-              <b>Your permissions</b>
-              <span>{permissions.length} across {permissionGroups.length} modules</span>
+              <b>What you can do</b>
+              <span>{permissions.length} {permissions.length === 1 ? "permission" : "permissions"}</span>
             </div>
             {permissionGroups.length === 0 ? (
               <p className="cmnd-loading">No permissions yet.</p>
             ) : (
               permissionGroups.map((g) => (
-                <div className="cmn2-perm" key={g.prefix} style={{ "--k": g.from }} title={g.items.join(", ")}>
-                  <g.icon size={16} />
-                  <b>{g.label}</b>
-                  <span className="cmn2-count">{g.items.length}</span>
+                <div className="cmn2-perm" key={g.prefix} style={{ "--k": g.from }}>
+                  <div className="cmn2-perm-top">
+                    <g.icon size={16} />
+                    <b>{g.label === "Users" ? "User accounts" : g.label}</b>
+                  </div>
+                  <div className="cmn2-actions">
+                    {g.items.map((code) => {
+                      const { label, Icon } = actionOf(code, g.prefix);
+                      return (
+                        <span className="cmn2-action" key={code} title={code}>
+                          <Icon size={12} /> {label}
+                        </span>
+                      );
+                    })}
+                  </div>
                 </div>
               ))
             )}

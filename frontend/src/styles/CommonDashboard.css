@@ -197,3 +197,8 @@ a.cmn2-row:hover { background: #f7f9fc; }
 .cmn2-perm b { flex: 1; font-size: 14.5px; font-weight: 600; color: var(--vt-navy); }
 .cmn2-count { font-size: 12.5px; font-weight: 600; background: #eef2f8; color: #51607a; border-radius: 999px; padding: 2px 10px; }
 @media (max-width: 860px) { .cmn2-grid { grid-template-columns: 1fr; } }
+.cmn2-perm { display: block; }
+.cmn2-perm-top { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; color: var(--k); }
+.cmn2-perm-top b { font-size: 14.5px; font-weight: 600; color: var(--vt-navy); }
+.cmn2-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.cmn2-action { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 600; padding: 3px 11px; border-radius: 999px; background: color-mix(in srgb, var(--k) 12%, #fff); color: var(--k); }

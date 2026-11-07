@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  Plus, Megaphone, SquarePen, Inbox, Send, FileText, Hourglass, BadgeCheck, CircleX, Layers,
-  Search, Reply, Printer, Copy, Clock3, CheckCircle2, AlertTriangle, MailOpen, RotateCw,
+  Megaphone, SquarePen, Inbox, Send, FileText, Hourglass, BadgeCheck, CircleX, Layers,
+  Search, Copy, Clock3, CheckCircle2, AlertTriangle, MailOpen, RotateCw,
 } from "lucide-react";
 import client from "../../../api/client";
 import "../../training/styles/BusinessPages.css";
 import "../styles/EmailMailbox.css";
+import "../../documents/styles/DocumentLibrary.css";
+import "../styles/EmailPremium.css";
 
 // Mailbox folders map onto AiEmail.generation_status; "campaigns" lists
 // EmailBatch rows instead of individual emails.
@@ -14,9 +16,9 @@ const FOLDERS = [
   { key: "all", label: "All mail", Icon: Inbox, match: () => true },
   { key: "SENT", label: "Sent", Icon: Send, match: (e) => e.generation_status === "SENT" },
   { key: "DRAFT", label: "Drafts", Icon: FileText, match: (e) => e.generation_status === "DRAFT" },
-  { key: "PENDING_APPROVAL", label: "Pending approval", Icon: Hourglass, match: (e) => e.generation_status === "PENDING_APPROVAL", tone: "orange" },
+  { key: "PENDING_APPROVAL", label: "Pending", Icon: Hourglass, match: (e) => e.generation_status === "PENDING_APPROVAL", tone: "orange" },
   { key: "APPROVED", label: "Approved", Icon: BadgeCheck, match: (e) => e.generation_status === "APPROVED" },
-  { key: "FAILED", label: "Failed / Rejected", Icon: CircleX, match: (e) => ["FAILED", "REJECTED"].includes(e.generation_status) },
+  { key: "FAILED", label: "Failed", Icon: CircleX, match: (e) => ["FAILED", "REJECTED"].includes(e.generation_status) },
 ];
 
 const STATUS_META = {
@@ -149,35 +151,32 @@ export default function EmailDashboard() {
   };
 
   return (
-    <div className="bp-page mbx-page">
-      <div className="bp-head">
-        <div>
-          <p className="bp-crumb">Business Operations &gt; <span>Email &amp; Communications</span></p>
-          <div className="mbx-title-row">
-            <h1 className="bp-title">Business Communications &amp; Mailbox</h1>
-            <span className="mbx-sync">
-              {health != null && <span className="bp-chip green">{health}% delivered</span>}
-              <span>Synced {syncedLabel}</span>
-              <button type="button" className="mbx-icon-btn" onClick={() => setReloadKey((k) => k + 1)} aria-label="Refresh">
-                <RotateCw size={14} />
+    <div className="bp-page mbx-page dl2 em2">
+      <div className="dl2-ban">
+        <div className="dl2-ban-top">
+          <div>
+            <h1>Mailbox</h1>
+            <p className="em2-sync">
+              Everything you have sent, drafted or queued · synced {syncedLabel}
+              <button type="button" className="em2-refresh" onClick={() => setReloadKey((k) => k + 1)} aria-label="Refresh">
+                <RotateCw size={13} />
               </button>
-            </span>
+            </p>
           </div>
-        </div>
-        <div className="bp-actions">
-          <Link to="/email/batches" className="bp-btn outline"><Megaphone size={16} /> New Bulk Campaign</Link>
-          <Link to="/email/compose" className="bp-btn navy"><SquarePen size={16} /> Compose Email</Link>
+          <div className="dl2-ban-actions">
+            <Link to="/email/batches" className="dl2-ghost"><Megaphone size={15} /> Bulk email</Link>
+            <Link to="/email/compose" className="dl2-new"><SquarePen size={15} /> Compose</Link>
+          </div>
         </div>
       </div>
 
+      <div className="dl2-body">
       {error && <p className="bp-notice mbx-error">{error}</p>}
       {notice && <p className="bp-notice">{notice}</p>}
 
       <div className="mbx-grid">
         {/* ---------- Folders ---------- */}
         <aside className="bp-panel mbx-folders">
-          <Link to="/email/compose" className="bp-btn navy mbx-compose"><Plus size={16} /> Compose Thread</Link>
-
           <p className="mbx-group-label">Mailboxes</p>
           {FOLDERS.map((f) => (
             <button
@@ -195,7 +194,7 @@ export default function EmailDashboard() {
             className={`mbx-folder ${isCampaigns ? "active" : ""}`}
             onClick={() => { setFolder("campaigns"); setSelectedId(null); }}
           >
-            <Layers size={16} /> <span>Sent Campaigns</span> <b>{batches.length}</b>
+            <Layers size={16} /> <span>Campaigns</span> <b>{batches.length}</b>
           </button>
 
           {tags.length > 0 && (
@@ -280,7 +279,7 @@ export default function EmailDashboard() {
                 <button
                   key={e.ai_email_id}
                   type="button"
-                  className={`mbx-item ${selected?.ai_email_id === e.ai_email_id ? "active" : ""}`}
+                  className={`mbx-item mbx-tone-${meta.tone} ${selected?.ai_email_id === e.ai_email_id ? "active" : ""}`}
                   onClick={() => setSelectedId(e.ai_email_id)}
                 >
                   <div className="mbx-item-top">
@@ -311,12 +310,9 @@ export default function EmailDashboard() {
           ) : (
             <>
               <div className="mbx-toolbar">
-                <div>
-                  <Link to="/email/compose" className="mbx-icon-btn" title="Reply"><Reply size={16} /></Link>
-                </div>
+                <div />
                 <div>
                   <button type="button" className="mbx-icon-btn" title="Copy body" onClick={() => copyBody(selected)}><Copy size={16} /></button>
-                  <button type="button" className="mbx-icon-btn" title="Print" onClick={() => window.print()}><Printer size={16} /></button>
                 </div>
               </div>
 
@@ -372,6 +368,7 @@ export default function EmailDashboard() {
             </>
           )}
         </section>
+      </div>
       </div>
     </div>
   );

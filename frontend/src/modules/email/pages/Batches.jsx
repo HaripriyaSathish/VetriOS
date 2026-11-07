@@ -3,6 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { UserPlus, Briefcase, ArrowUpRight } from "lucide-react";
 import client from "../../../api/client";
 import "../styles/Email.css";
+import "../../documents/styles/DocumentLibrary.css";
+import "../styles/EmailPremium.css";
+
+const TONES = ["blue", "green", "amber"];
 
 const BULK_TYPES = [
   {
@@ -40,36 +44,37 @@ function Batches() {
   }, []);
 
   return (
-    <div className="mail-screen">
-      <div className="mail-head">
-        <div>
-          <span className="mail-eyebrow">Email</span>
-          <h1>Bulk</h1>
-          <p>Bulk sends, tracked from queue to delivery.</p>
+    <div className="mail-screen dl2 em2">
+      <div className="dl2-ban">
+        <div className="dl2-ban-top">
+          <div>
+            <h1>Bulk email</h1>
+            <p>Send to many people at once and track every batch.</p>
+          </div>
         </div>
       </div>
 
+      <div className="dl2-body">
       {error && <div className="mail-error">{error}</div>}
 
-      <p className="mail-type-label">Bulk email types</p>
-      <div className="mail-type-grid">
-        {BULK_TYPES.map((type) => (
+      <div className="em2-types">
+        {BULK_TYPES.map((type, i) => (
           <button
             key={type.label}
             type="button"
-            className="mail-type-card"
+            className={`em2-type tone-${TONES[i % TONES.length]}`}
             onClick={() => navigate(type.route || "/email/compose")}
           >
-            <span className="mail-type-card-icon">
-              <type.icon size={20} />
+            <span className="em2-type-icon">
+              <type.icon size={18} />
             </span>
-            <h4 className="mail-type-card-title">{type.label}</h4>
-            <p className="mail-type-card-desc">{type.description}</p>
+            <b>{type.label}</b>
+            <small>{type.description}</small>
           </button>
         ))}
       </div>
 
-      <div className="mail-panel">
+      <div className="mail-panel em2-card">
         <div className="mail-panel-body" style={{ padding: 0 }}>
           {batches.length === 0 ? (
             <p className="mail-empty">No batches yet.</p>
@@ -106,6 +111,7 @@ function Batches() {
             </div>
           )}
         </div>
+      </div>
       </div>
     </div>
   );

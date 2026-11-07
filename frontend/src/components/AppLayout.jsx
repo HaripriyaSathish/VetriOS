@@ -44,6 +44,7 @@ function AppLayout() {
   const location = useLocation();
   const user = JSON.parse(localStorage.getItem("user") || "null");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [logoutOpen, setLogoutOpen] = useState(false);
   const menuRef = useRef(null);
   const [photoUrl, setPhotoUrl] = useState(null);
   const [search, setSearch] = useState("");
@@ -64,8 +65,15 @@ function AppLayout() {
     const handleClickOutside = (event) => {
       if (menuRef.current && !menuRef.current.contains(event.target)) setMenuOpen(false);
     };
+    const handleEscape = (event) => {
+      if (event.key === "Escape") setLogoutOpen(false);
+    };
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
   }, []);
 
   // Lightweight fetch just for the avatar — login's cached "user" object
@@ -153,12 +161,26 @@ function AppLayout() {
               )}
             </div>
 
-            <button className="app-logout" onClick={handleLogout}>
+            <button className="app-logout" onClick={() => setLogoutOpen(true)}>
               <LogOut size={15} />
               Log out
             </button>
           </div>
         </header>
+
+        {logoutOpen && (
+          <div className="app-confirm-backdrop" onClick={() => setLogoutOpen(false)}>
+            <div className="app-confirm" role="dialog" aria-modal="true" aria-labelledby="app-logout-title" onClick={(e) => e.stopPropagation()}>
+              <span className="app-confirm-icon"><LogOut size={20} /></span>
+              <h2 id="app-logout-title">Log out of VetriOS?</h2>
+              <p>You'll need to sign in again to continue.</p>
+              <div className="app-confirm-actions">
+                <button type="button" className="app-confirm-cancel" autoFocus onClick={() => setLogoutOpen(false)}>Stay signed in</button>
+                <button type="button" className="app-confirm-ok" onClick={handleLogout}>Log out</button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className={"app-content" + (location.pathname.startsWith("/student") ? " student-theme" : "")}>
           <Outlet context={{ user }} />

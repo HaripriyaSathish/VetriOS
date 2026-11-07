@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useOutletContext } from "react-router-dom";
-import { Clock, Search, SlidersHorizontal, Columns3, CalendarCheck, Timer, Plane } from "lucide-react";
+import { Clock, Search, CalendarCheck, Timer, Plane } from "lucide-react";
 import client from "../../../api/client";
-import "../../training/styles/BusinessPages.css";
 import "../styles/HRDashboard.css";
 import "../styles/Attendance.css";
+import "../../documents/styles/DocumentLibrary.css";
+import "../styles/EmployeePages.css";
 
 const STATUS_LABEL = {
   PRESENT: "Present",
@@ -20,8 +21,13 @@ const STATUS_CLASS = {
   ABSENT: "absent",
 };
 
-const EMPTY_FILTERS = { status: "" };
-const DEFAULT_COLUMNS = { check_in: true, check_out: true };
+const STATUS_FILTERS = [
+  ["", "All"],
+  ["PRESENT", "Present"],
+  ["HALF_DAY", "Half day"],
+  ["ON_LEAVE", "Leave"],
+  ["ABSENT", "Absent"],
+];
 
 function formatTime(value) {
   if (!value) return "—";
@@ -47,8 +53,8 @@ function greetingPrefix() {
 }
 
 // Employee-facing Attendance page — self check-in/out plus a personal
-// history table with search/filter/columns, same toolbar pattern as the
-// HR Attendance/Employees screens. Not HR-gated: self-service only.
+// history table with search and a status filter. Not HR-gated:
+// self-service only.
 function MyAttendance() {
   const { user } = useOutletContext();
   const [data, setData] = useState(null);
@@ -58,14 +64,7 @@ function MyAttendance() {
   const [punchError, setPunchError] = useState("");
   const [now, setNow] = useState(new Date());
   const [search, setSearch] = useState("");
-
-  const [filters, setFilters] = useState(EMPTY_FILTERS);
-  const [filtersOpen, setFiltersOpen] = useState(false);
-  const filtersRef = useRef(null);
-
-  const [columns, setColumns] = useState(DEFAULT_COLUMNS);
-  const [columnsOpen, setColumnsOpen] = useState(false);
-  const columnsRef = useRef(null);
+  const [statusFilter, setStatusFilter] = useState("");
 
   const firstName = user?.full_name ? user.full_name.split(" ")[0] : "";
 
@@ -91,15 +90,6 @@ function MyAttendance() {
     return () => clearInterval(timer);
   }, []);
 
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (filtersRef.current && !filtersRef.current.contains(event.target)) setFiltersOpen(false);
-      if (columnsRef.current && !columnsRef.current.contains(event.target)) setColumnsOpen(false);
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
   const handlePunch = async () => {
     setPunching(true);
     setPunchError("");
@@ -117,9 +107,6 @@ function MyAttendance() {
     }
   };
 
-  const activeFilterCount = Object.values(filters).filter(Boolean).length;
-  const clearFilters = () => setFilters(EMPTY_FILTERS);
-
   const filteredHistory = useMemo(() => {
     if (!data) return [];
     const q = search.trim().toLowerCase();
@@ -127,10 +114,10 @@ function MyAttendance() {
       if (q && !formatDate(day.date).toLowerCase().includes(q) && !(STATUS_LABEL[day.status] || "").toLowerCase().includes(q)) {
         return false;
       }
-      if (filters.status && day.status !== filters.status) return false;
+      if (statusFilter && day.status !== statusFilter) return false;
       return true;
     });
-  }, [data, search, filters]);
+  }, [data, search, statusFilter]);
 
   const today = data?.today;
   const bannerMessage = !data?.employee_id
@@ -141,200 +128,139 @@ function MyAttendance() {
     ? `You checked in at ${formatTime(today.check_in_time)}`
     : "Your workday hasn't started yet";
 
+  const hist = data?.history || [];
+  const present = hist.filter((d) => d.status === "PRESENT").length;
+  const half = hist.filter((d) => d.status === "HALF_DAY").length;
+  const leave = hist.filter((d) => d.status === "ON_LEAVE").length;
+  const absent = hist.filter((d) => d.status === "ABSENT").length;
+  const counted = present + half + absent;
+  const rate = counted ? Math.round(((present + half * 0.5) / counted) * 1000) / 10 : null;
+  const hrs = hist.map((d) => Number(d.hours)).filter((h) => h > 0);
+  const avgHrs = hrs.length ? Math.round((hrs.reduce((s, h) => s + h, 0) / hrs.length) * 10) / 10 : null;
+
   return (
-    <div className="att-screen">
-      <div className="att-head">
-        <div>
-          <span className="att-eyebrow">My workspace</span>
-          <h1>My Attendance</h1>
-          <p>Check in when you start, check out when you're done.</p>
-        </div>
-        <button
-          type="button"
-          className="att-btn-accent"
-          onClick={handlePunch}
-          disabled={punching || !data?.employee_id || today?.checked_out}
-        >
-          <Clock size={15} />
-          {punching ? "Working…" : today?.checked_in ? "Check out" : "Check in"}
-        </button>
-      </div>
-
-      {punchError && <p className="att-error">{punchError}</p>}
-      {error && <p className="att-error">{error}</p>}
-
-      {data?.employee_id && (() => {
-        const hist = data.history || [];
-        const present = hist.filter((d) => d.status === "PRESENT").length;
-        const half = hist.filter((d) => d.status === "HALF_DAY").length;
-        const leave = hist.filter((d) => d.status === "ON_LEAVE").length;
-        const absent = hist.filter((d) => d.status === "ABSENT").length;
-        const counted = present + half + absent;
-        const rate = counted ? Math.round(((present + half * 0.5) / counted) * 1000) / 10 : null;
-        const hrs = hist.map((d) => Number(d.hours)).filter((h) => h > 0);
-        const avgHrs = hrs.length ? Math.round((hrs.reduce((s, h) => s + h, 0) / hrs.length) * 10) / 10 : null;
-        return (
-          <div className="bp-stats att-stats">
-            <div className="bp-stat" style={{ "--i": 0 }}>
-              <div className="bp-stat-top"><p className="bp-stat-label">Attendance Rate</p><span className="bp-stat-icon green"><CalendarCheck size={17} /></span></div>
-              <p className="bp-stat-value">{rate != null ? `${rate}%` : "—"}</p>
-              <p className="bp-person-sub">{present} present · {absent} absent · {half} half day</p>
-            </div>
-            <div className="bp-stat" style={{ "--i": 1 }}>
-              <div className="bp-stat-top"><p className="bp-stat-label">Average Hours</p><span className="bp-stat-icon"><Timer size={17} /></span></div>
-              <p className="bp-stat-value">{avgHrs != null ? avgHrs : "—"} <small className="att-unit">hrs/day</small></p>
-              <p className="bp-person-sub">Across days with a check-out</p>
-            </div>
-            <div className="bp-stat" style={{ "--i": 2 }}>
-              <div className="bp-stat-top"><p className="bp-stat-label">Today</p><span className="bp-stat-icon orange"><Clock size={17} /></span></div>
-              <p className="bp-stat-value att-today">{today?.checked_out ? "Checked out" : today?.checked_in ? "On duty" : "Not in"}</p>
-              <p className="bp-person-sub">{today?.check_in_time ? `In at ${formatTime(today.check_in_time)}` : "Check in to start your day"}</p>
-            </div>
-            <div className="bp-stat" style={{ "--i": 3 }}>
-              <div className="bp-stat-top"><p className="bp-stat-label">On Leave</p><span className="bp-stat-icon"><Plane size={17} /></span></div>
-              <p className="bp-stat-value">{leave} <small className="att-unit">days</small></p>
-              <p className="bp-person-sub">Approved leave in the last 14 days</p>
-            </div>
-          </div>
-        );
-      })()}
-
-      <div className="att-banner">
-        <div className="att-banner-left">
-          <Clock size={16} />
-          <span>
-            <strong>
-              {greetingPrefix()}
-              {firstName ? `, ${firstName}` : ""}
-            </strong>{" "}
-            · {bannerMessage}
-          </span>
-        </div>
-        <span className="att-banner-time">
-          {now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-        </span>
-      </div>
-
-      <div className="att-panel">
-        <div className="att-panel-head">
+    <div className="att-screen emp2 dl2">
+      <div className="dl2-ban">
+        <div className="dl2-ban-top">
           <div>
-            <h3>My attendance</h3>
-            <p>Last 14 days</p>
+            <h1>My attendance</h1>
+            <p>Check in when you start, check out when you're done.</p>
           </div>
-          <div className="att-toolbar-right">
-            <div className="att-search">
-              <Search size={15} />
-              <input placeholder="Search…" value={search} onChange={(e) => setSearch(e.target.value)} />
-            </div>
-
-            <div className="hr-popover-anchor" ref={filtersRef}>
-              <button
-                type="button"
-                className={"hr-btn-sm" + (activeFilterCount ? " hr-btn-sm-active" : "")}
-                onClick={() => {
-                  setFiltersOpen((v) => !v);
-                  setColumnsOpen(false);
-                }}
-              >
-                <SlidersHorizontal size={14} /> Filters
-                {activeFilterCount > 0 && <span className="hr-tab-count">{activeFilterCount}</span>}
-              </button>
-              {filtersOpen && (
-                <div className="hr-popover hr-popover-right">
-                  <div className="hr-popover-head">
-                    <span>Filters</span>
-                    {activeFilterCount > 0 && (
-                      <button type="button" className="hr-popover-clear" onClick={clearFilters}>
-                        Clear all
-                      </button>
-                    )}
-                  </div>
-                  <label>Status</label>
-                  <select value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}>
-                    <option value="">All</option>
-                    {Object.entries(STATUS_LABEL).map(([value, label]) => (
-                      <option key={value} value={value}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-            </div>
-
-            <div className="hr-popover-anchor" ref={columnsRef}>
-              <button
-                type="button"
-                className="hr-btn-sm"
-                onClick={() => {
-                  setColumnsOpen((v) => !v);
-                  setFiltersOpen(false);
-                }}
-              >
-                <Columns3 size={14} /> Columns
-              </button>
-              {columnsOpen && (
-                <div className="hr-popover hr-popover-right hr-popover-narrow">
-                  <div className="hr-popover-head">
-                    <span>Columns</span>
-                  </div>
-                  {[
-                    ["check_in", "Check in"],
-                    ["check_out", "Check out"],
-                  ].map(([key, label]) => (
-                    <label key={key} className="hr-checkbox-row">
-                      <input
-                        type="checkbox"
-                        checked={columns[key]}
-                        onChange={(e) => setColumns({ ...columns, [key]: e.target.checked })}
-                      />
-                      {label}
-                    </label>
-                  ))}
-                </div>
-              )}
-            </div>
+          <div className="dl2-ban-actions">
+            <button
+              type="button"
+              className="dl2-new"
+              onClick={handlePunch}
+              disabled={punching || !data?.employee_id || today?.checked_out}
+            >
+              <Clock size={15} />
+              {punching ? "Working…" : today?.checked_in ? "Check out" : "Check in"}
+            </button>
           </div>
         </div>
+      </div>
 
-        {loading ? (
-          <p className="hr-empty">Loading…</p>
-        ) : !data?.employee_id ? (
-          <p className="hr-empty">No employee record is linked to your account.</p>
-        ) : filteredHistory.length === 0 ? (
-          <p className="hr-empty">
-            {data.history.length === 0 ? "No attendance recorded yet." : "No records match your search/filters."}
-          </p>
-        ) : (
-          <div className="hr-table-scroll">
-            <table className="hr-table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  {columns.check_in && <th>Check in</th>}
-                  {columns.check_out && <th>Check out</th>}
-                  <th>Hours</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredHistory.map((day) => (
-                  <tr key={day.date}>
-                    <td className="hr-mono">{formatDate(day.date)}</td>
-                    {columns.check_in && <td className="hr-mono">{formatTime(day.check_in_time)}</td>}
-                    {columns.check_out && <td className="hr-mono">{formatTime(day.check_out_time)}</td>}
-                    <td className="hr-mono">{formatHours(day.hours)}</td>
-                    <td>
-                      <span className={"att-pill " + (STATUS_CLASS[day.status] || "absent")}>
-                        {STATUS_LABEL[day.status] || day.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      <div className="dl2-body">
+        {punchError && <p className="att-error">{punchError}</p>}
+        {error && <p className="att-error">{error}</p>}
+
+        {data?.employee_id && (
+          <div className="att2-cards att2-four">
+            <div className="att2-card tone-green">
+              <span className="att2-card-top"><span className="att2-card-icon"><CalendarCheck size={16} /></span><b>{rate != null ? `${rate}%` : "—"}</b></span>
+              <span className="att2-card-label"><span>Attendance rate</span><em>{present} present</em></span>
+            </div>
+            <div className="att2-card tone-blue">
+              <span className="att2-card-top"><span className="att2-card-icon"><Timer size={16} /></span><b>{avgHrs != null ? avgHrs : "—"}</b></span>
+              <span className="att2-card-label"><span>Average hours a day</span></span>
+            </div>
+            <div className="att2-card tone-amber">
+              <span className="att2-card-top">
+                <span className="att2-card-icon"><Clock size={16} /></span>
+                <b className="txt">{today?.checked_out ? "Checked out" : today?.checked_in ? "On duty" : "Not in"}</b>
+              </span>
+              <span className="att2-card-label">
+                <span>Today</span>
+                <em>{today?.check_in_time ? `in ${formatTime(today.check_in_time)}` : ""}</em>
+              </span>
+            </div>
+            <div className="att2-card tone-violet">
+              <span className="att2-card-top"><span className="att2-card-icon"><Plane size={16} /></span><b>{leave}</b></span>
+              <span className="att2-card-label"><span>Days on leave</span></span>
+            </div>
           </div>
         )}
+
+        <div className="emp2-strip">
+          <span>
+            <b>
+              {greetingPrefix()}
+              {firstName ? `, ${firstName}` : ""}
+            </b>{" "}
+            · {bannerMessage}
+          </span>
+          <time>{now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time>
+        </div>
+
+        <div className="emp2-panel">
+          <div className="emp2-panel-head">
+            <div>
+              <h3>Last 14 days</h3>
+            </div>
+            <div className="emp2-tools">
+              <label className="dl2-search">
+                <Search size={15} />
+                <input placeholder="Search" value={search} onChange={(e) => setSearch(e.target.value)} />
+              </label>
+              <div className="dl2-seg">
+                {STATUS_FILTERS.map(([value, label]) => (
+                  <button key={value || "all"} type="button" className={statusFilter === value ? "on" : ""} onClick={() => setStatusFilter(value)}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {loading ? (
+            <p className="hr-empty">Loading…</p>
+          ) : !data?.employee_id ? (
+            <p className="hr-empty">No employee record is linked to your account.</p>
+          ) : filteredHistory.length === 0 ? (
+            <p className="hr-empty">
+              {data.history.length === 0 ? "No attendance recorded yet." : "No records match your search or filter."}
+            </p>
+          ) : (
+            <div className="hr-table-scroll">
+              <table className="hr-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Check in</th>
+                    <th>Check out</th>
+                    <th>Hours</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredHistory.map((day) => (
+                    <tr key={day.date}>
+                      <td className="hr-mono">{formatDate(day.date)}</td>
+                      <td className="hr-mono">{formatTime(day.check_in_time)}</td>
+                      <td className="hr-mono">{formatTime(day.check_out_time)}</td>
+                      <td className="hr-mono">{formatHours(day.hours)}</td>
+                      <td>
+                        <span className={"att-pill " + (STATUS_CLASS[day.status] || "absent")}>
+                          {STATUS_LABEL[day.status] || day.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

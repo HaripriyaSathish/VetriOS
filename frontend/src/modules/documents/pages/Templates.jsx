@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Search, FileText, Power, Eye, Plus, Download, Trash2 } from "lucide-react";
+import { Search, FileText, Power, Eye, Plus, Download, Trash2, LayoutTemplate, CircleCheck, CircleOff } from "lucide-react";
 import client from "../../../api/client";
+import "../../training/styles/BusinessPages.css";
 import "../styles/Documents.css";
+import "../styles/DocumentLibrary.css";
 
 const canHardDelete = (JSON.parse(localStorage.getItem("user") || "null")?.roles || []).some(
   (r) => r === "System Administrator" || r === "HR Administrator"
@@ -14,6 +16,7 @@ function Templates() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [togglingId, setTogglingId] = useState(null);
   const [downloadingId, setDownloadingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
@@ -26,8 +29,13 @@ function Templates() {
       .finally(() => setLoading(false));
   }, []);
 
+  const activeCount = templates.filter((t) => t.is_active).length;
+  const inactiveCount = templates.length - activeCount;
+
   const visibleTemplates = templates.filter((t) => {
     const q = search.toLowerCase();
+    if (statusFilter === "active" && !t.is_active) return false;
+    if (statusFilter === "inactive" && t.is_active) return false;
     return t.template_name.toLowerCase().includes(q) || t.template_code.toLowerCase().includes(q);
   });
 
@@ -85,126 +93,156 @@ function Templates() {
     }
   };
 
+  const cards = [
+    { key: "all", label: "All templates", value: templates.length, tone: "blue", Icon: LayoutTemplate },
+    { key: "active", label: "Active", value: activeCount, tone: "green", Icon: CircleCheck },
+    { key: "inactive", label: "Inactive", value: inactiveCount, tone: "grey", Icon: CircleOff },
+  ];
+
   return (
-    <div className="doc-screen">
-      <div className="doc-head">
-        <div>
-          <span className="doc-eyebrow">Document Generator</span>
-          <h1>Template Manager</h1>
-          <p>Reusable letterhead designs used by the AI Document Generator.</p>
-        </div>
-        <div className="doc-toolbar">
-          <Link to="/documents/templates/new" className="doc-btn-accent">
-            <Plus size={14} />
-            New Template
-          </Link>
+    <div className="bp-page dl-page dl2 tpl2">
+      <div className="dl2-ban">
+        <div className="dl2-ban-top">
+          <div>
+            <h1>Template manager</h1>
+            <p>Reusable letterhead designs used by the document generator.</p>
+          </div>
+          <div className="dl2-ban-actions">
+            <Link to="/documents/templates/new" className="dl2-new">
+              <Plus size={15} /> New template
+            </Link>
+          </div>
         </div>
       </div>
 
-      {error && <div className="doc-error">{error}</div>}
+      <div className="dl2-body">
+        {error && <div className="doc-error">{error}</div>}
 
-      <div className="doc-panel">
-        <div className="doc-filter-bar">
-          <div style={{ position: "relative", flex: 1, minWidth: 180 }}>
-            <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#8a93a6" }} />
-            <input
-              type="text"
-              placeholder="Search by name or code…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              style={{ width: "100%", boxSizing: "border-box", paddingLeft: 30 }}
-            />
-          </div>
+        <div className="dl2-cards">
+          {cards.map(({ key, label, value, tone, Icon }) => (
+            <button
+              key={key}
+              type="button"
+              className={`dl2-card tone-${tone}${statusFilter === key ? " selected" : ""}`}
+              onClick={() => setStatusFilter(key)}
+            >
+              <span className="dl2-card-top">
+                <span className="dl2-card-icon"><Icon size={17} /></span>
+                <b>{loading ? "-" : value}</b>
+              </span>
+              <span className="dl2-card-label"><span>{label}</span></span>
+            </button>
+          ))}
         </div>
 
-        {loading ? (
-          <p className="doc-empty">Loading…</p>
-        ) : visibleTemplates.length === 0 ? (
-          <p className="doc-empty">No templates match your search.</p>
-        ) : (
-          <div className="doc-table-wrap">
-            <table className="doc-table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Code</th>
-                  <th>Type</th>
-                  <th>Format</th>
-                  <th>Status</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visibleTemplates.map((t) => (
-                  <tr
-                    key={t.document_template_id}
-                    onClick={() => navigate(`/documents/templates/${t.document_template_id}`)}
-                    style={{ cursor: "pointer" }}
-                  >
-                    <td>
-                      <div className="doc-table-title">
-                        <FileText size={15} color="#8a93a6" />
-                        {t.template_name}
-                      </div>
-                    </td>
-                    <td>{t.template_code}</td>
-                    <td>{t.document_type_name || "—"}</td>
-                    <td>{t.template_format}</td>
-                    <td>
-                      <span className={`doc-badge ${t.is_active ? "approved" : "draft"}`}>
-                        {t.is_active ? "Active" : "Inactive"}
-                      </span>
-                    </td>
-                    <td>
-                      <div style={{ display: "flex", gap: 8 }}>
-                        <button
-                          type="button"
-                          className="doc-icon-btn"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`/documents/templates/${t.document_template_id}`);
-                          }}
-                          data-tooltip="View"
-                        >
-                          <Eye size={14} />
-                        </button>
-                        <button
-                          type="button"
-                          className="doc-icon-btn"
-                          onClick={(e) => handleToggle(e, t)}
-                          disabled={togglingId === t.document_template_id}
-                          data-tooltip={t.is_active ? "Deactivate" : "Activate"}
-                        >
-                          <Power size={14} />
-                        </button>
-                        <button
-                          type="button"
-                          className="doc-icon-btn"
-                          onClick={(e) => handleDownload(e, t)}
-                          disabled={downloadingId === t.document_template_id}
-                          data-tooltip="Download as DOCX"
-                        >
-                          <Download size={14} />
-                        </button>
-                        {canHardDelete && (
+        <div className="dl2-panel dl2-table">
+          <div className="dl2-bar">
+            <label className="dl2-search">
+              <Search size={15} />
+              <input
+                type="text"
+                placeholder="Search by name or code"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </label>
+            <div className="dl2-seg">
+              {[["all", "All"], ["active", "Active"], ["inactive", "Inactive"]].map(([key, label]) => (
+                <button key={key} type="button" className={statusFilter === key ? "on" : ""} onClick={() => setStatusFilter(key)}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {loading ? (
+            <p className="doc-empty">Loading…</p>
+          ) : visibleTemplates.length === 0 ? (
+            <p className="doc-empty">No templates match your search.</p>
+          ) : (
+            <div className="bp-table-wrap">
+              <table className="bp-table">
+                <thead>
+                  <tr>
+                    <th>Template</th>
+                    <th>Type</th>
+                    <th>Format</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleTemplates.map((t) => (
+                    <tr
+                      key={t.document_template_id}
+                      onClick={() => navigate(`/documents/templates/${t.document_template_id}`)}
+                      style={{ cursor: "pointer" }}
+                    >
+                      <td>
+                        <div className="dl2-title">
+                          <span className="dl2-ficon"><FileText size={17} /></span>
+                          <div>
+                            <b title={t.template_name}><span>{t.template_name}</span></b>
+                            <small>{t.template_code}</small>
+                          </div>
+                        </div>
+                      </td>
+                      <td>{t.document_type_name ? <span className="dl-tag orange">{t.document_type_name}</span> : "—"}</td>
+                      <td><span className="tpl2-fmt">{t.template_format}</span></td>
+                      <td>
+                        <span className={`dl2-pill ${t.is_active ? "green" : "gray"}`}>{t.is_active ? "Active" : "Inactive"}</span>
+                      </td>
+                      <td>
+                        <div className="tpl2-actions">
                           <button
                             type="button"
-                            className="doc-icon-btn danger"
-                            onClick={(e) => handleHardDelete(e, t)}
-                            disabled={deletingId === t.document_template_id}
-                            data-tooltip="Hard delete"
+                            className="view"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/documents/templates/${t.document_template_id}`);
+                            }}
+                            title="View"
                           >
-                            <Trash2 size={14} />
+                            <Eye size={15} />
                           </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                          <button
+                            type="button"
+                            className="power"
+                            onClick={(e) => handleToggle(e, t)}
+                            disabled={togglingId === t.document_template_id}
+                            title={t.is_active ? "Deactivate" : "Activate"}
+                          >
+                            <Power size={15} />
+                          </button>
+                          <button
+                            type="button"
+                            className="dl"
+                            onClick={(e) => handleDownload(e, t)}
+                            disabled={downloadingId === t.document_template_id}
+                            title="Download as DOCX"
+                          >
+                            <Download size={15} />
+                          </button>
+                          {canHardDelete && (
+                            <button
+                              type="button"
+                              className="del"
+                              onClick={(e) => handleHardDelete(e, t)}
+                              disabled={deletingId === t.document_template_id}
+                              title="Delete permanently"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

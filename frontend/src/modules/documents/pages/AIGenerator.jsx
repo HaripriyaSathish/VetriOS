@@ -1,14 +1,16 @@
 import { useRef, useState } from "react";
 import { Link, useNavigate, useOutletContext } from "react-router-dom";
 import {
-  Paperclip, Sparkles, FileSignature, X, XCircle, SlidersHorizontal, ChevronDown, Printer, Copy,
+  Paperclip, Sparkles, FileSignature, X, XCircle, ChevronDown, Printer, Copy,
   Download, ShieldCheck, Lock, ArrowRight, FileText, BadgeCheck,
 } from "lucide-react";
 import client from "../../../api/client";
 import "../../training/styles/BusinessPages.css";
 import "../styles/GenerateDocuments.css";
+import "../styles/DocumentLibrary.css";
 
 const MAX_LEN = 500;
+const GENERAL = "general";
 
 // A type with a `route` skips the general-purpose prompt entirely and
 // opens its own dedicated page instead (real data auto-loaded there,
@@ -32,8 +34,6 @@ const DOCUMENT_TYPES = [
     adminOrHrOnly: true,
   },
 ];
-
-const GENERAL = "general";
 
 // AI Document Generator — a single free-text prompt, no template or
 // employee picked first. Groq drafts straight from the description.
@@ -126,56 +126,37 @@ function AIGenerator() {
   const issued = (generatedAt || new Date()).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 
   return (
-    <div className="bp-page gen-page">
-      <div className="bp-head">
-        <div>
-          <p className="gen-kicker"><span className="bp-chip blue">Credential Engine</span> · AI Drafting</p>
-          <h1 className="bp-title gen-title">Generate Documents</h1>
-          <p className="bp-sub">Draft offer letters, internship agreements, bonafide letters and completion certificates on demand.</p>
+    <div className="bp-page gen-page dl2 gen2">
+      <div className="dl2-ban">
+        <div className="dl2-ban-top">
+          <div>
+            <h1>Generate documents</h1>
+            <p>Draft offer letters, internship agreements and certificates on demand.</p>
+          </div>
         </div>
       </div>
 
+      <div className="dl2-body">
       {error && <p className="bp-notice gen-error">{error}</p>}
       {notice && <p className="bp-notice">{notice}</p>}
 
       <div className="gen-grid">
         <div className="gen-left">
           <section className="bp-panel gen-config">
-            <div className="gen-config-head">
-              <h2><SlidersHorizontal size={18} /> Configuration</h2>
-              <span className="bp-chip blue">{draftText ? "Step 2 of 2" : "Step 1 of 2"}</span>
-            </div>
-
-            <label className="bp-field">
-              <span>Select Document Type</span>
-              <span className="gen-select">
-                <select value={GENERAL} onChange={(e) => chooseType(e.target.value)}>
-                  <option value={GENERAL}>General document (AI prompt)</option>
-                  {visibleDocumentTypes.map((type) => (
-                    <option key={type.route} value={type.route}>{type.label}</option>
-                  ))}
-                </select>
-                <ChevronDown size={14} />
-              </span>
+            <div className="gen2-step"><span className="gen2-num">1</span><b>Choose a document type</b></div>
+            <label className="gen2-select">
+              <select value={GENERAL} onChange={(e) => chooseType(e.target.value)} aria-label="Document type">
+                <option value={GENERAL}>General document (AI prompt)</option>
+                {visibleDocumentTypes.map((type) => (
+                  <option key={type.route} value={type.route}>{type.label}</option>
+                ))}
+              </select>
+              <ChevronDown size={15} />
             </label>
 
-            {visibleDocumentTypes.length > 0 && (
-              <div className="gen-types">
-                {visibleDocumentTypes.map((type) => (
-                  <button key={type.label} type="button" className="gen-type" onClick={() => navigate(type.route)}>
-                    <type.icon size={16} />
-                    <span>
-                      <b>{type.label}</b>
-                      <small>{type.description}</small>
-                    </span>
-                    <ArrowRight size={14} />
-                  </button>
-                ))}
-              </div>
-            )}
-
+            <div className="gen2-step"><span className="gen2-num">2</span><b>Describe the document</b></div>
             <label className="bp-field">
-              <span>Describe the document</span>
+              <span className="gen2-sr">Describe the document</span>
               <textarea
                 className="gen-prompt"
                 value={description}
@@ -227,14 +208,14 @@ function AIGenerator() {
         <section className="gen-right">
           <div className="bp-panel gen-preview-bar">
             <div className="gen-preview-status">
-              <span className="bp-chip blue">LIVE PREVIEW</span>
-              <span>A4 Standard Format</span>
+              <span className="gen2-live">Live preview</span>
+              <span>A4 standard format</span>
               {draftText && <span className="gen-sync"><i /> Ready</span>}
             </div>
-            <div className="gen-preview-actions">
-              <button type="button" className="bp-btn outline small" onClick={() => window.print()} disabled={!draftText}><Printer size={14} /> Print</button>
-              <button type="button" className="bp-btn outline small" onClick={copyDraft} disabled={!draftText}><Copy size={14} /> Copy</button>
-              <button type="button" className="bp-btn navy small" onClick={downloadDraft} disabled={!draftText}><Download size={14} /> Download</button>
+            <div className="gen-preview-actions gen2-acts">
+              <button type="button" className="print" onClick={() => window.print()} disabled={!draftText}><Printer size={14} /> Print</button>
+              <button type="button" className="copy" onClick={copyDraft} disabled={!draftText}><Copy size={14} /> Copy</button>
+              <button type="button" className="dl" onClick={downloadDraft} disabled={!draftText}><Download size={14} /> Download</button>
             </div>
           </div>
 
@@ -295,6 +276,7 @@ function AIGenerator() {
           <p>Issued documents are stored in the Document Library with confidentiality and access controls.</p>
         </div>
         <Link to="/documents" className="gen-strip-link">Go to Document Library <ArrowRight size={14} /></Link>
+      </div>
       </div>
     </div>
   );

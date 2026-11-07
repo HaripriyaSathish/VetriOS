@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import {
-  Search, CloudUpload, History, Eye, Download, Archive, Copy, PenLine, FileWarning,
+  Search, CloudUpload, History, Eye, Download, Archive,
   LayoutGrid, List, RefreshCw, ChevronDown, FileText, ShieldCheck, Plus, Lock, ShieldAlert,
-  ScrollText, GraduationCap, BookOpen, Handshake, FileBadge,
+  ScrollText, GraduationCap, BookOpen, Handshake, FileBadge, SlidersHorizontal, Hourglass, CircleCheck, Files,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import client from "../../../api/client";
+import Pagination, { paginate } from "../../../components/Pagination";
 import "../../training/styles/BusinessPages.css";
 import "../styles/DocumentLibrary.css";
 
@@ -68,7 +69,9 @@ function Library() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [stats, setStats] = useState(null);
-  const [view, setView] = useState(() => (isTrainerView() ? "list" : "grid"));
+  const [view, setView] = useState("list");
+  const [page, setPage] = useState(1);
+  const [moreOpen, setMoreOpen] = useState(false);
 
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
@@ -100,6 +103,7 @@ function Library() {
       if (ownerFilter) params.owner = ownerFilter;
       const { data } = await client.get("/api/documents/library/", { params });
       setDocuments(data);
+      setPage(1);
       setSelected(new Set());
     } catch (err) {
       setError("Couldn't load the document library.");
@@ -217,108 +221,115 @@ function Library() {
     return TAG_TONES[(idx < 0 ? 0 : idx) % TAG_TONES.length];
   };
   const fmtDate = (iso) => new Date(iso).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" });
+  const isLocked = (d) => ["RESTRICTED", "CONFIDENTIAL", "HIGHLY_CONFIDENTIAL"].includes(d.confidentiality_code);
 
   return (
-    <div className="bp-page dl-page">
-      <div className="bp-head">
-        <div>
-          <p className="dl-kicker"><span className="bp-chip blue">{trainer ? "Trainer Workspace" : "Document Control"}</span> / {trainer ? "Document Library" : "Business Operations"}</p>
-          <h1 className="bp-title dl-title">{trainer ? "Course Materials & Academic Assets" : "Document Library"}</h1>
-          <p className="bp-sub">
-            {trainer
-              ? "Curated lecture presentations, project briefs, sample rubrics and trainer lesson blueprints."
-              : "Centralized repository for corporate agreements, trainee certificates, offer letters, and institutional compliance standards."}
-          </p>
-        </div>
-        <div className="bp-actions">
-          <Link to="/audit" className="bp-btn outline"><History size={16} /> Audit Trail</Link>
-          <button type="button" className="bp-btn navy" onClick={openUpload}><CloudUpload size={16} /> {trainer ? "Upload New Material" : "Upload Document"}</button>
+    <div className="bp-page dl-page dl2">
+      <div className="dl2-ban">
+        <div className="dl2-ban-top">
+          <div>
+            <h1>{trainer ? "Course materials" : "Document library"}</h1>
+            <p>
+              {trainer
+                ? "Lecture presentations, project briefs, sample rubrics and lesson blueprints."
+                : `${stats?.total ?? 0} documents across offer letters, certificates and agreements.`}
+            </p>
+          </div>
+          <div className="dl2-ban-actions">
+            <Link to="/audit" className="dl2-ghost"><History size={15} /> Audit trail</Link>
+            <button type="button" className="dl2-new" onClick={openUpload}><CloudUpload size={15} /> {trainer ? "Upload material" : "Upload document"}</button>
+          </div>
         </div>
       </div>
 
-      {error && <p className="bp-notice dl-error">{error}</p>}
+      <div className="dl2-body">
+        {error && <p className="bp-notice dl-error">{error}</p>}
 
-      {stats && (
-        <div className="bp-stats">
-          <div className="bp-stat" style={{ "--i": 0 }}>
-            <div className="bp-stat-top">
-              <p className="bp-stat-label dl-stat-label">TOTAL REPOSITORY</p>
-              <span className="bp-stat-icon"><Copy size={17} /></span>
-            </div>
-            <p className="bp-stat-value">{stats.total} <small className="dl-unit">archived items</small></p>
-            <p className="dl-stat-foot"><i className="dl-dot navy" /> {stats.by_category.length} categories in use</p>
+        {stats && (
+          <div className="dl2-cards">
+            <button type="button" className={`dl2-card tone-blue${!statusFilter ? " selected" : ""}`} onClick={() => setStatusFilter("")}>
+              <span className="dl2-card-top"><span className="dl2-card-icon"><Files size={17} /></span><b>{stats.total}</b></span>
+              <span className="dl2-card-label"><span>All documents</span><em>{stats.by_category.length} categories</em></span>
+            </button>
+            <button type="button" className={`dl2-card tone-green${statusFilter === "ACTIVE" ? " selected" : ""}`} onClick={() => setStatusFilter(statusFilter === "ACTIVE" ? "" : "ACTIVE")}>
+              <span className="dl2-card-top"><span className="dl2-card-icon"><CircleCheck size={17} /></span><b>{stats.active}</b></span>
+              <span className="dl2-card-label"><span>Active and executed</span><em>{activeRate}%</em></span>
+            </button>
+            <button type="button" className={`dl2-card tone-amber${statusFilter === "UNDER_REVIEW" ? " selected" : ""}`} onClick={() => setStatusFilter(statusFilter === "UNDER_REVIEW" ? "" : "UNDER_REVIEW")}>
+              <span className="dl2-card-top"><span className="dl2-card-icon"><Hourglass size={17} /></span><b>{stats.pending_review}</b></span>
+              <span className="dl2-card-label"><span>Pending review</span><em>{stats.pending_review > 0 ? "Needs follow-up" : "All clear"}</em></span>
+            </button>
           </div>
-          <div className="bp-stat" style={{ "--i": 1 }}>
-            <div className="bp-stat-top">
-              <p className="bp-stat-label dl-stat-label">ACTIVE &amp; EXECUTED</p>
-              <span className="bp-stat-icon green"><PenLine size={17} /></span>
-            </div>
-            <p className="bp-stat-value">{stats.active} <span className="bp-chip green">{activeRate}% rate</span></p>
-            <p className="dl-stat-foot"><Lock size={13} /> {stats.confidential} marked confidential</p>
-          </div>
-          <div className="bp-stat" style={{ "--i": 2 }}>
-            <div className="bp-stat-top">
-              <p className="bp-stat-label dl-stat-label">PENDING REVIEW</p>
-              <span className="bp-stat-icon orange"><FileWarning size={17} /></span>
-            </div>
-            <p className="bp-stat-value dl-orange">
-              {stats.pending_review}
-              {stats.pending_review > 0 && <span className="bp-chip orange">Needs follow-up</span>}
-            </p>
-            <p className="dl-stat-foot">
-              <span>Awaiting approval</span>
-              <Link to="/documents/approvals" className="dl-foot-link">Open approvals</Link>
-            </p>
-          </div>
-        </div>
-      )}
+        )}
 
-      <div className="bp-panel dl-filters">
-        <label className="bp-search">
-          <Search size={15} />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Filter by document name…" />
-        </label>
-        <label className="bp-select">
-          <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
-            <option value="">All Categories</option>
-            {filterOptions.categories.map((c) => <option key={c.document_category_id} value={c.document_category_id}>{c.category_name}</option>)}
-          </select>
-          <ChevronDown size={14} />
-        </label>
-        <label className="bp-select">
-          <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
-            <option value="">All Types</option>
-            {filterOptions.types.map((t) => <option key={t.document_type_id} value={t.document_type_id}>{t.type_name}</option>)}
-          </select>
-          <ChevronDown size={14} />
-        </label>
-        <label className="bp-select">
-          <select value={confFilter} onChange={(e) => setConfFilter(e.target.value)}>
-            <option value="">Confidentiality</option>
-            {filterOptions.confidentiality_levels.map((c) => <option key={c.confidentiality_level_id} value={c.confidentiality_level_id}>{c.level_name}</option>)}
-          </select>
-          <ChevronDown size={14} />
-        </label>
-        <label className="bp-select">
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-            <option value="">Status</option>
-            {filterOptions.statuses.map((s) => <option key={s} value={s}>{STATUS_LABEL[s] || s}</option>)}
-          </select>
-          <ChevronDown size={14} />
-        </label>
-        <label className="bp-select">
-          <select value={ownerFilter} onChange={(e) => setOwnerFilter(e.target.value)}>
-            <option value="">Owner</option>
-            {filterOptions.owners.map((o) => <option key={o.user_id} value={o.user_id}>{o.name}</option>)}
-          </select>
-          <ChevronDown size={14} />
-        </label>
-        <div className="dl-view-toggle">
-          <button type="button" className={view === "grid" ? "active" : ""} onClick={() => setView("grid")} aria-label="Grid view"><LayoutGrid size={15} /></button>
-          <button type="button" className={view === "list" ? "active" : ""} onClick={() => setView("list")} aria-label="List view"><List size={15} /></button>
+        <div className="dl2-panel">
+          <div className="dl2-bar">
+            <label className="dl2-search">
+              <Search size={15} />
+              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name, owner or code" />
+            </label>
+            <div className="dl2-seg">
+              <button type="button" className={!categoryFilter ? "on" : ""} onClick={() => setCategoryFilter("")}>All</button>
+              {filterOptions.categories.slice(0, 3).map((c) => (
+                <button
+                  key={c.document_category_id}
+                  type="button"
+                  className={String(categoryFilter) === String(c.document_category_id) ? "on" : ""}
+                  onClick={() => setCategoryFilter(c.document_category_id)}
+                >
+                  {c.category_name}
+                </button>
+              ))}
+            </div>
+            <button type="button" className={`dl2-filter-btn${moreOpen ? " on" : ""}`} onClick={() => setMoreOpen((v) => !v)}>
+              <SlidersHorizontal size={14} /> Filters
+            </button>
+            <div className="dl-view-toggle">
+              <button type="button" className={view === "list" ? "active" : ""} onClick={() => setView("list")} aria-label="List view"><List size={15} /></button>
+              <button type="button" className={view === "grid" ? "active" : ""} onClick={() => setView("grid")} aria-label="Grid view"><LayoutGrid size={15} /></button>
+            </div>
+            <button type="button" className="dl-refresh" onClick={() => { loadDocuments(); loadStats(); }} aria-label="Refresh"><RefreshCw size={15} /></button>
+          </div>
+          {moreOpen && (
+            <div className="dl2-more">
+              <label className="bp-select">
+                <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
+                  <option value="">All categories</option>
+                  {filterOptions.categories.map((c) => <option key={c.document_category_id} value={c.document_category_id}>{c.category_name}</option>)}
+                </select>
+                <ChevronDown size={14} />
+              </label>
+              <label className="bp-select">
+                <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
+                  <option value="">All types</option>
+                  {filterOptions.types.map((t) => <option key={t.document_type_id} value={t.document_type_id}>{t.type_name}</option>)}
+                </select>
+                <ChevronDown size={14} />
+              </label>
+              <label className="bp-select">
+                <select value={confFilter} onChange={(e) => setConfFilter(e.target.value)}>
+                  <option value="">Confidentiality</option>
+                  {filterOptions.confidentiality_levels.map((c) => <option key={c.confidentiality_level_id} value={c.confidentiality_level_id}>{c.level_name}</option>)}
+                </select>
+                <ChevronDown size={14} />
+              </label>
+              <label className="bp-select">
+                <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+                  <option value="">Status</option>
+                  {filterOptions.statuses.map((st) => <option key={st} value={st}>{STATUS_LABEL[st] || st}</option>)}
+                </select>
+                <ChevronDown size={14} />
+              </label>
+              <label className="bp-select">
+                <select value={ownerFilter} onChange={(e) => setOwnerFilter(e.target.value)}>
+                  <option value="">Owner</option>
+                  {filterOptions.owners.map((o) => <option key={o.user_id} value={o.user_id}>{o.name}</option>)}
+                </select>
+                <ChevronDown size={14} />
+              </label>
+            </div>
+          )}
         </div>
-        <button type="button" className="dl-refresh" onClick={() => { loadDocuments(); loadStats(); }} aria-label="Refresh"><RefreshCw size={15} /></button>
-      </div>
 
       {selected.size > 0 && (
         <div className="dl-bulk">
@@ -369,52 +380,60 @@ function Library() {
           </button>
         </div>
       ) : (
-        <div className="bp-panel">
+        <div className="dl2-panel dl2-table">
           <div className="bp-table-wrap">
             <table className="bp-table">
               <thead>
                 <tr>
-                  <th><input type="checkbox" checked={allSelected} onChange={toggleAll} /></th>
-                  <th>Title</th>
-                  <th>Type</th>
+                  <th style={{ width: 34 }}><input type="checkbox" checked={allSelected} onChange={toggleAll} aria-label="Select all" /></th>
+                  <th>Document</th>
                   <th>Category</th>
-                  <th>Confidentiality</th>
-                  <th>Status</th>
                   <th>Owner</th>
-                  <th>Last Updated</th>
+                  <th>Updated</th>
+                  <th>Status</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {documents.length === 0 ? (
-                  <tr className="bp-empty-row"><td colSpan={9}>No documents match your filters.</td></tr>
-                ) : documents.map((d) => (
-                  <tr key={d.document_id}>
-                    <td><input type="checkbox" checked={selected.has(d.document_id)} onChange={() => toggleOne(d.document_id)} /></td>
-                    <td className="bp-strong">{d.title}</td>
-                    <td>{d.type_name}</td>
-                    <td>{d.category_name || "—"}</td>
-                    <td><span className={`bp-chip ${CONF_TONE[d.confidentiality_code] || "blue"}`}>{d.confidentiality_name}</span></td>
-                    <td><span className={`bp-chip ${STATUS_TONE[d.status] || "gray"}`}>{STATUS_LABEL[d.status] || d.status}</span></td>
-                    <td>
-                      <div className="bp-person">
-                        <span className="bp-avatar">{initials(d.owner_name)}</span>
-                        <p className="bp-person-name">{d.owner_name || "—"}</p>
-                      </div>
-                    </td>
-                    <td>{fmtDate(d.updated_at)}</td>
-                    <td>
-                      <div className="dl-row-actions">
-                        <button type="button" className="dl-icon-btn" title="View" onClick={() => handleView(d)}><Eye size={15} /></button>
-                        <button type="button" className="dl-icon-btn" title="Download" onClick={() => handleDownload(d)}><Download size={15} /></button>
-                        <Link to={`/documents/governance?documentId=${d.document_id}`} className="dl-icon-btn" title="Manage access"><ShieldAlert size={15} /></Link>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                  <tr className="bp-empty-row"><td colSpan={7}>No documents match your filters.</td></tr>
+                ) : paginate(documents, page).map((d) => {
+                  const Icon = iconFor(d);
+                  return (
+                    <tr key={d.document_id} className={d.status === "UNDER_REVIEW" ? "dl2-pending" : ""}>
+                      <td><input type="checkbox" checked={selected.has(d.document_id)} onChange={() => toggleOne(d.document_id)} aria-label={`Select ${d.title}`} /></td>
+                      <td>
+                        <div className="dl2-title">
+                          <span className={`dl2-ficon ${categoryTone(d.category_name)}`}><Icon size={17} /></span>
+                          <div>
+                            <b title={d.title}><span>{d.title}</span>{isLocked(d) &&<Lock size={12} className="dl2-lock" title={d.confidentiality_name} />}</b>
+                            <small>{d.type_name}</small>
+                          </div>
+                        </div>
+                      </td>
+                      <td>{d.category_name ? <span className={`dl-tag ${categoryTone(d.category_name)}`}>{d.category_name}</span> : "—"}</td>
+                      <td>
+                        <div className="bp-person">
+                          <span className="bp-avatar">{initials(d.owner_name)}</span>
+                          <p className="bp-person-name">{d.owner_name || "—"}</p>
+                        </div>
+                      </td>
+                      <td>{fmtDate(d.updated_at)}</td>
+                      <td><span className={`dl2-pill ${STATUS_TONE[d.status] || "gray"}`}>{STATUS_LABEL[d.status] || d.status}</span></td>
+                      <td>
+                        <div className="dl-row-actions">
+                          <button type="button" className="dl-icon-btn" title="View" onClick={() => handleView(d)}><Eye size={15} /></button>
+                          <button type="button" className="dl-icon-btn" title="Download" onClick={() => handleDownload(d)}><Download size={15} /></button>
+                          <Link to={`/documents/governance?documentId=${d.document_id}`} className="dl-icon-btn" title="Manage access"><ShieldAlert size={15} /></Link>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
+          <Pagination page={page} totalItems={documents.length} onPageChange={setPage} />
         </div>
       )}
 
@@ -444,6 +463,8 @@ function Library() {
           <p>Every document carries a confidentiality level and access rules. Manage who can open each file from Governance.</p>
           <Link to="/documents/governance" className="dl-ready-btn">Open Governance</Link>
         </div>
+      </div>
+
       </div>
 
       {uploadOpen && (

@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Send, X } from "lucide-react";
+import { Send, X, Paperclip } from "lucide-react";
 import client from "../../../api/client";
 import RichTextEditor from "../components/RichTextEditor";
 import "../styles/Email.css";
+import "../../documents/styles/DocumentLibrary.css";
+import "../styles/EmailPremium.css";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -121,7 +123,7 @@ function Compose() {
           }
         : {};
       await client.post(`/api/email/emails/${data.ai_email_id}/send/`, attachment);
-      setSentMessage(`Sent to ${recipientEmail} (via the console email backend in this environment).`);
+      setSentMessage(`Sent to ${recipientEmail}.`);
       resetForm();
     } catch (err) {
       setError(err.response?.data?.detail || "Couldn't send that email.");
@@ -131,25 +133,24 @@ function Compose() {
   };
 
   return (
-    <div className="mail-screen">
-      <div className="mail-head">
-        <div>
-          <span className="mail-eyebrow">Email</span>
-          <h1>Compose</h1>
-          <p>Write an email and send it.</p>
+    <div className="mail-screen dl2 em2 em2-compose">
+      <div className="dl2-ban">
+        <div className="dl2-ban-top">
+          <div>
+            <h1>Compose</h1>
+            <p>Write an email and send it.</p>
+          </div>
         </div>
-        <span className="mail-provider-badge">Gmail only</span>
       </div>
 
+      <div className="dl2-body">
       {error && <div className="mail-error">{error}</div>}
-      {sentMessage && (
-        <p style={{ fontSize: 12.5, color: "#16a34a", fontWeight: 600, marginBottom: 16 }}>{sentMessage}</p>
-      )}
+      {sentMessage && <p className="em2-sent">{sentMessage}</p>}
 
-      <div className="mail-panel">
+      <div className="mail-panel em2-card">
         <div className="mail-panel-body">
           <form className="mail-form" onSubmit={handleSend}>
-            <label>Recipients</label>
+            <label>To</label>
             <div className="mail-recipient-box" onClick={() => inputRef.current?.focus()}>
               {recipients.map((r) => (
                 <span className="mail-recipient-chip" key={r.email}>
@@ -183,50 +184,50 @@ function Compose() {
               )}
             </div>
 
-            <label>CC (optional)</label>
-            <input value={ccEmails} onChange={(e) => setCcEmails(e.target.value)} placeholder="cc1@example.com, cc2@example.com" />
-
-            <label>Subject</label>
-            <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="e.g. Your interview is confirmed" required />
-
-            <label>Attachment (optional)</label>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <button type="button" className="mail-btn-sm" onClick={() => fileInputRef.current?.click()}>
-                Choose File
-              </button>
-              <span>
-                : {attachmentFile ? attachmentFile.name : "No file chosen"}
-              </span>
-              {attachmentFile && (
-                <X
-                  size={12}
-                  onClick={() => setAttachmentFile(null)}
-                  style={{ cursor: "pointer" }}
-                />
-              )}
-              <input
-                ref={fileInputRef}
-                type="file"
-                style={{ display: "none" }}
-                onChange={(e) => setAttachmentFile(e.target.files?.[0] || null)}
-              />
+            <div className="em2-row">
+              <div>
+                <label>Cc</label>
+                <input value={ccEmails} onChange={(e) => setCcEmails(e.target.value)} placeholder="cc1@example.com, cc2@example.com" />
+              </div>
+              <div>
+                <label>Subject</label>
+                <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="e.g. Your interview is confirmed" required />
+              </div>
             </div>
 
-            <label>Body</label>
+            <label>Message</label>
             <RichTextEditor content={body} onChange={setBody} />
 
-            <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-              <button type="submit" className="mail-btn-accent" disabled={sending}>
+            <button type="button" className="em2-attach" onClick={() => fileInputRef.current?.click()}>
+              <Paperclip size={15} />
+              <span>{attachmentFile ? attachmentFile.name : "Attach a file (optional)"}</span>
+              {attachmentFile && (
+                <X
+                  size={14}
+                  onClick={(e) => { e.stopPropagation(); setAttachmentFile(null); }}
+                  aria-label="Remove file"
+                />
+              )}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              style={{ display: "none" }}
+              onChange={(e) => setAttachmentFile(e.target.files?.[0] || null)}
+            />
+
+            <div className="em2-actions">
+              <button type="submit" className="em2-send" disabled={sending}>
                 <Send size={14} />
                 {sending ? "Sending…" : "Send"}
               </button>
-              <button type="button" className="mail-btn-sm" onClick={handleCancel} disabled={sending}>
-                <X size={14} />
+              <button type="button" className="em2-cancel" onClick={handleCancel} disabled={sending}>
                 Cancel
               </button>
             </div>
           </form>
         </div>
+      </div>
       </div>
     </div>
   );

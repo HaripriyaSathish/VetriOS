@@ -317,3 +317,16 @@
 .org-stats .emp-mini-text b { font-size: 22px; }
 .org-stats .emp-mini-text b i { font-size: 14px; }
 .org-stats .emp-mini-text > span { font-size: 13.5px; }
+
+/* HR admin pages: stat cards use the Attendance card size — icon and number on
+   top, label underneath, equal-width cards in one row. */
+.emp-mini-row.org-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.emp-mini-row.org-stats .emp-mini {
+  display: grid; grid-template-columns: auto 1fr; align-items: center; column-gap: 10px; row-gap: 10px;
+  min-width: 0; padding: 12px 14px; border-radius: 14px;
+}
+.emp-mini-row.org-stats .emp-mini-icon { width: 34px; height: 34px; border-radius: 10px; }
+.emp-mini-row.org-stats .emp-mini-text { display: contents; }
+.emp-mini-row.org-stats .emp-mini-text b { grid-column: 2; grid-row: 1; font-size: 26px; line-height: 1; }
+.emp-mini-row.org-stats .emp-mini-text b i { font-size: 13px; }
+.emp-mini-row.org-stats .emp-mini-text > span { grid-column: 1 / -1; grid-row: 2; font-size: 13.5px; line-height: 1.2; }

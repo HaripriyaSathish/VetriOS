@@ -299,7 +299,6 @@ function RequestAccess() {
           Privileges); everything below is the Request access redesign. */}
       <div className="bp-head reqa-figma-head">
         <div>
-          <p className="reqa-eyebrow"><ShieldCheck size={14} /> Access Control &amp; Provisioning</p>
           <h1 className="bp-title">Request Access &amp; Privileges</h1>
           <p className="bp-sub">Ask an admin for a permission or a document. They'll review it and let you know.</p>
         </div>

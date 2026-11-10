@@ -49,3 +49,9 @@
 @media (max-width: 900px) {
   .att2-cards.att2-three { grid-template-columns: 1fr; }
 }
+
+/* Leave balance cards: fill the row for any number of leave types */
+.emp2 .att2-cards.emp2-balance { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.emp2-balance .att2-card-label { flex-direction: column; justify-content: flex-start; gap: 2px; }
+.emp2-balance .att2-card-label span { font-weight: 600; color: var(--vt-navy); }
+.emp2-balance .att2-card-label em { font-size: 12.5px; }

@@ -95,7 +95,7 @@ function MyLeave() {
   };
 
   const requests = data?.requests || [];
-  const balances = data?.my_balances || [];
+  const balances = (data?.my_balances || []).filter((b) => !/maternity/i.test(b.leave_type_name));
 
   return (
     <div className="att-screen emp2 dl2">
@@ -120,7 +120,7 @@ function MyLeave() {
         )}
 
         {balances.length > 0 && (
-          <div className={`att2-cards emp2-balance ${balances.length === 3 ? "att2-three" : ""}`}>
+          <div className="att2-cards emp2-balance">
             {balances.map((b, i) => {
               const pct = b.allocated_days > 0 ? Math.min(100, (b.used_days / b.allocated_days) * 100) : 0;
               const Icon = BALANCE_ICONS[i % BALANCE_ICONS.length];
@@ -131,8 +131,8 @@ function MyLeave() {
                     <b>{b.remaining_days}</b>
                   </span>
                   <span className="att2-card-label">
-                    <span>{b.leave_type_name}, days left</span>
-                    <em>{b.used_days} of {b.allocated_days} used</em>
+                    <span>{b.leave_type_name}</span>
+                    <em>{b.used_days} of {b.allocated_days} used · days left</em>
                   </span>
                   <span className="emp2-bar"><span style={{ width: `${pct}%` }} /></span>
                 </div>

@@ -183,7 +183,7 @@ function Leave() {
       <div className="lv2-group lv2-group-bal">
         <p className="lv2-label">My leave balance</p>
         <div className="lv2-row lv2-row-3">
-        {(summary?.my_balances || []).map((b, i) => {
+        {(summary?.my_balances || []).filter((b) => !/maternity/i.test(b.leave_type_name)).map((b, i) => {
           const pct = b.allocated_days > 0 ? Math.min(100, (b.used_days / b.allocated_days) * 100) : 0;
           const Icon = leaveIcon(b.leave_type_name);
           return (

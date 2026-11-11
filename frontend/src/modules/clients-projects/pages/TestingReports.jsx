@@ -1,40 +1,56 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { Bug, CircleCheck, Wrench, Paperclip, ExternalLink, UserRound, Clock3, Send } from "lucide-react";
 import client from "../../../api/client";
+import PmHeader from "../components/PmHeader";
+import "../../training/styles/BusinessPages.css";
+import "../../training/styles/TrainerDashboard.css";
+import "../styles/PmPages.css";
+
+const hasFix = (r) => !!(r.resolution_link || r.resolution_notes);
+const TABS = [
+  { key: "ALL", label: "All" },
+  { key: "TODO", label: "Needs My Fix" },
+  { key: "FIXED", label: "Fix Submitted" },
+  { key: "APPROVED", label: "Approved" },
+];
+const bucket = (r) => (r.status === "APPROVED" ? "APPROVED" : hasFix(r) ? "FIXED" : "TODO");
 
 function TestingReports() {
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
   const [fixDrafts, setFixDrafts] = useState({});
   const [submitting, setSubmitting] = useState(null);
+  const [tab, setTab] = useState("ALL");
 
-  const load = () => {
+  const fetchReports = () =>
     client.get("/api/projects/my-testing-reports/")
       .then(({ data }) => setReports(data))
       .catch((err) => setError(err.response?.data?.detail || "Couldn't load testing reports."))
       .finally(() => setLoading(false));
-  };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { fetchReports(); }, []);
 
   const updateDraft = (reportId, field, value) => {
-    setFixDrafts((prev) => ({
-      ...prev,
-      [reportId]: { ...prev[reportId], [field]: value },
-    }));
+    setFixDrafts((prev) => ({ ...prev, [reportId]: { ...prev[reportId], [field]: value } }));
   };
 
   const submitFix = async (reportId) => {
     const draft = fixDrafts[reportId] || {};
-    if (!draft.resolution_link && !draft.resolution_notes) return;
+    if (!draft.resolution_link && !draft.resolution_notes) {
+      setError("Add a link or a note describing the fix.");
+      return;
+    }
     setSubmitting(reportId);
+    setError("");
     try {
       await client.post(`/api/interns/testing-report/${reportId}/resolve/`, {
         resolution_link: draft.resolution_link || "",
         resolution_notes: draft.resolution_notes || "",
       });
-      load();
+      setMessage("Fix submitted to your lead.");
+      fetchReports();
     } catch (err) {
       setError(err.response?.data?.detail || "Couldn't submit fix.");
     } finally {
@@ -42,84 +58,95 @@ function TestingReports() {
     }
   };
 
-  if (loading) return <p className="p-6 text-gray-400">Loading…</p>;
-  if (error) return <p className="p-6 text-red-600">{error}</p>;
+  const counts = useMemo(() => {
+    const c = { ALL: reports.length, TODO: 0, FIXED: 0, APPROVED: 0 };
+    reports.forEach((r) => { c[bucket(r)] += 1; });
+    return c;
+  }, [reports]);
+  const visible = reports.filter((r) => tab === "ALL" || bucket(r) === tab);
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
-      <Link to="/project/dashboard" className="text-sm text-blue-600 hover:underline">
-        ← Back to Projects
-      </Link>
+    <div className="bp-page tr-page pm-page">
+      <PmHeader section="Testing Reports" title="Testing Reports" subtitle="Feedback from your lead on task submissions. Submit a fix for anything that needs changes." />
 
-      <h1 className="text-2xl font-bold text-gray-900 mt-3 mb-1">Testing Reports</h1>
-      <p className="text-gray-500 mb-6">Feedback from your lead on task submissions.</p>
+      {error && <p className="bp-panel bp-error">{error}</p>}
+      {message && <p className="bp-panel pm-notice-ok">{message}</p>}
 
-      {reports.length === 0 ? (
-        <div className="bg-white border border-gray-200 rounded-xl p-8 text-center text-gray-400">
-          No testing reports yet.
+      <div className="bp-stats tr-stats">
+        <div className="bp-stat" style={{ "--i": 0 }}>
+          <div className="bp-stat-top"><p className="bp-stat-label pm-label">REPORTS</p><span className="pm-ico navy"><Bug size={20} /></span></div>
+          <p className="bp-stat-value">{counts.ALL}</p>
+          <p className="pm-foot"><span>Filed on your tasks</span></p>
         </div>
-      ) : (
-        <div className="flex flex-col gap-4">
-          {reports.map((r) => (
-            <div key={r.report_id} className="bg-white border border-gray-200 rounded-xl p-5">
-              <div className="flex justify-between items-start mb-2">
-                <p className="font-semibold text-gray-900">{r.task_title}</p>
-                <span className={`px-2 py-1 rounded-full text-xs font-semibold ${r.status === "APPROVED" ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
-                  {r.status === "APPROVED" ? "Approved" : "Needs Fixes"}
-                </span>
-              </div>
-              <p className="text-sm text-gray-600 mb-3">{r.report_text}</p>
-              {r.attachment_url && (
-                <a href={r.attachment_url} target="_blank" rel="noreferrer" className="text-blue-600 text-sm hover:underline block mb-2">
-                  View Attachment
-                </a>
-              )}
-              <p className="text-xs text-gray-400 mb-3">
-                {r.created_by} — {new Date(r.created_at).toLocaleString()}
-              </p>
+        <div className="bp-stat" style={{ "--i": 1 }}>
+          <div className="bp-stat-top"><p className="bp-stat-label pm-label">NEEDS MY FIX</p><span className="pm-ico orange"><Wrench size={20} /></span></div>
+          <p className={`bp-stat-value ${counts.TODO ? "tr-orange" : ""}`}>{counts.TODO}</p>
+          <p className="pm-foot"><span>{counts.FIXED} fixes submitted</span></p>
+        </div>
+        <div className="bp-stat" style={{ "--i": 2 }}>
+          <div className="bp-stat-top"><p className="bp-stat-label pm-label">APPROVED</p><span className="pm-ico green"><CircleCheck size={20} /></span></div>
+          <p className="bp-stat-value">{counts.APPROVED}</p>
+          <p className="pm-foot"><span className="pm-ok">{counts.ALL ? Math.round((counts.APPROVED * 100) / counts.ALL) : 0}% pass rate</span></p>
+        </div>
+      </div>
 
-              {r.resolution_link || r.resolution_notes ? (
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mt-2">
-                  <p className="text-xs font-semibold text-gray-500 mb-1">Fix submitted</p>
-                  {r.resolution_link && (
-                    <a href={r.resolution_link} target="_blank" rel="noreferrer" className="text-blue-600 text-sm hover:underline block">
-                      {r.resolution_link}
-                    </a>
-                  )}
-                  {r.resolution_notes && (
-                    <p className="text-sm text-gray-600 mt-1">{r.resolution_notes}</p>
-                  )}
-                  <p className="text-xs text-gray-400 mt-1">
-                    {new Date(r.resolved_at).toLocaleString()}
+      <div className="bp-panel pm-toolbar">
+        <div className="bp-tabs">
+          {TABS.map((t) => (
+            <button key={t.key} type="button" className={`bp-tab ${tab === t.key ? "active" : ""}`} onClick={() => setTab(t.key)}>
+              {t.label}<small>({counts[t.key]})</small>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {loading ? (
+        <p className="bp-loading">Loading testing reports…</p>
+      ) : visible.length === 0 ? (
+        <p className="bp-panel pm-empty-panel">{reports.length ? "No reports in this view." : "No testing reports yet."}</p>
+      ) : (
+        <div className="pm-list">
+          {visible.map((r, idx) => (
+            <article key={r.report_id} className="bp-panel pm-item" style={{ "--i": idx }}>
+              <div className="pm-item-top">
+                <div>
+                  <h3 className="pm-item-title">{r.task_title}</h3>
+                  <p className="pm-item-meta">
+                    <span><UserRound size={12} /> {r.created_by}</span>
+                    <span><Clock3 size={12} /> {new Date(r.created_at).toLocaleString()}</span>
                   </p>
                 </div>
+                <span className={`bp-chip ${r.status === "APPROVED" ? "green" : "orange"}`}>{r.status === "APPROVED" ? "Approved" : "Needs Fixes"}</span>
+              </div>
+              <p className="pm-item-text">{r.report_text}</p>
+              {r.attachment_url && (
+                <a className="bp-btn outline small pm-fit" href={r.attachment_url} target="_blank" rel="noreferrer"><Paperclip size={12} /> View Attachment</a>
+              )}
+
+              {hasFix(r) ? (
+                <div className="pm-fix">
+                  <b>Fix submitted</b>
+                  {r.resolution_link && <a href={r.resolution_link} target="_blank" rel="noreferrer"><ExternalLink size={12} /> {r.resolution_link}</a>}
+                  {r.resolution_notes && <p>{r.resolution_notes}</p>}
+                  {r.resolved_at && <small>{new Date(r.resolved_at).toLocaleString()}</small>}
+                </div>
               ) : r.status === "NEEDS_FIXES" ? (
-                <div className="border-t border-gray-100 pt-3 mt-2">
-                  <p className="text-xs font-semibold text-gray-500 mb-2">Submit your fix</p>
-                  <input
-                    type="text"
-                    placeholder="Live link or PR URL"
-                    value={fixDrafts[r.report_id]?.resolution_link || ""}
-                    onChange={(e) => updateDraft(r.report_id, "resolution_link", e.target.value)}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm mb-2"
-                  />
-                  <textarea
-                    placeholder="Notes (optional)"
-                    value={fixDrafts[r.report_id]?.resolution_notes || ""}
-                    onChange={(e) => updateDraft(r.report_id, "resolution_notes", e.target.value)}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm mb-2"
-                    rows={2}
-                  />
-                  <button
-                    onClick={() => submitFix(r.report_id)}
-                    disabled={submitting === r.report_id}
-                    className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-semibold disabled:opacity-60"
-                  >
-                    {submitting === r.report_id ? "Submitting…" : "Submit Fix"}
+                <div className="pm-fix-form">
+                  <p className="pm-section-label">Submit your fix</p>
+                  <div className="bp-form-grid">
+                    <label className="bp-field full"><span>Live link or PR URL</span>
+                      <input value={fixDrafts[r.report_id]?.resolution_link || ""} onChange={(e) => updateDraft(r.report_id, "resolution_link", e.target.value)} />
+                    </label>
+                    <label className="bp-field full"><span>Notes (optional)</span>
+                      <textarea rows={2} value={fixDrafts[r.report_id]?.resolution_notes || ""} onChange={(e) => updateDraft(r.report_id, "resolution_notes", e.target.value)} />
+                    </label>
+                  </div>
+                  <button type="button" className="bp-btn navy small pm-fit" onClick={() => submitFix(r.report_id)} disabled={submitting === r.report_id}>
+                    <Send size={12} /> {submitting === r.report_id ? "Submitting…" : "Submit Fix"}
                   </button>
                 </div>
               ) : null}
-            </div>
+            </article>
           ))}
         </div>
       )}

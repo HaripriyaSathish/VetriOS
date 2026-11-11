@@ -1,20 +1,31 @@
 import { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams } from "react-router-dom";
+import { Upload, FileCheck2, Hourglass, BadgeCheck, Handshake, ExternalLink, Check, X } from "lucide-react";
 import client from "../../../api/client";
+import PmHeader from "../components/PmHeader";
+import "../../training/styles/BusinessPages.css";
+import "../../training/styles/TrainerDashboard.css";
+import "../styles/PmPages.css";
 
-const STATUS_STYLES = {
-  PENDING: "bg-amber-100 text-amber-700",
-  APPROVED: "bg-green-100 text-green-700",
-  REJECTED: "bg-red-100 text-red-700",
-};
+const APPROVAL_CHIP = { PENDING: "orange", APPROVED: "green", REJECTED: "red" };
+const TYPES = [
+  { value: "DESIGN_APPROVAL", label: "Design Approval" },
+  { value: "CONTRACT", label: "Contract" },
+  { value: "UAT_SIGNOFF", label: "UAT Sign-off" },
+  { value: "OTHER", label: "Other" },
+];
+const typeLabel = (v) => TYPES.find((t) => t.value === v)?.label || (v || "").replace(/_/g, " ");
 
 function ApprovalDocuments() {
   const { projectId } = useParams();
   const [documents, setDocuments] = useState([]);
   const [teamMembers, setTeamMembers] = useState([]);
+  const [project, setProject] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(null);
+  const currentUser = JSON.parse(localStorage.getItem("user") || "null");
 
   const [showForm, setShowForm] = useState(false);
   const [file, setFile] = useState(null);
@@ -22,197 +33,195 @@ function ApprovalDocuments() {
   const [relationshipType, setRelationshipType] = useState("OTHER");
   const [approver, setApprover] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [formError, setFormError] = useState("");
 
-  const load = () => {
-    setLoading(true);
+  const fetchDocuments = () =>
     client.get(`/api/projects/${projectId}/documents/`)
       .then(({ data }) => setDocuments(data))
       .catch((err) => setError(err.response?.data?.detail || "Couldn't load documents."))
       .finally(() => setLoading(false));
-  };
 
   useEffect(() => {
-    load();
-    client.get(`/api/projects/${projectId}/team/`)
-      .then(({ data }) => setTeamMembers(data))
-      .catch(() => {});
+    fetchDocuments();
+    client.get(`/api/projects/${projectId}/team/`).then(({ data }) => setTeamMembers(data)).catch(() => {});
+    client.get("/api/projects/me/").then(({ data }) => setProject(data.find((p) => String(p.project_id) === String(projectId)) || null)).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
   const uploadDocument = async () => {
     if (!file || !title.trim()) {
-      setError("A file and a title are required.");
+      setFormError("A file and a title are required.");
       return;
     }
     setUploading(true);
-    setError("");
+    setFormError("");
     try {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("document_title", title);
       formData.append("relationship_type", relationshipType);
+      // The upload API expects the approver's user_id (DocumentApproval.approver_user).
       if (approver) formData.append("approver_user_id", approver);
-
       await client.post(`/api/projects/${projectId}/documents/upload/`, formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
       setMessage("Document uploaded.");
       setFile(null); setTitle(""); setRelationshipType("OTHER"); setApprover("");
       setShowForm(false);
-      load();
+      fetchDocuments();
     } catch (err) {
-      setError(err.response?.data?.detail || "Couldn't upload document.");
+      setFormError(err.response?.data?.detail || "Couldn't upload document.");
     } finally {
       setUploading(false);
     }
   };
 
   const actOnApproval = async (approvalId, status) => {
+    setBusy(`a${approvalId}`);
+    setError("");
     try {
-      await client.patch(`/api/projects/document-approvals/${approvalId}/`, {
-        approval_status: status,
-      });
-      load();
+      await client.patch(`/api/projects/document-approvals/${approvalId}/`, { approval_status: status });
+      setMessage(status === "APPROVED" ? "Approved." : "Rejected.");
+      fetchDocuments();
     } catch (err) {
       setError(err.response?.data?.detail || "Couldn't update approval.");
+    } finally {
+      setBusy(null);
     }
   };
 
   const markClientApproved = async (documentId) => {
+    setBusy(`c${documentId}`);
+    setError("");
     try {
       await client.post(`/api/projects/documents/${documentId}/client-approve/`);
       setMessage("Marked as approved by client.");
-      load();
+      fetchDocuments();
     } catch (err) {
       setError(err.response?.data?.detail || "Couldn't mark as approved by client.");
+    } finally {
+      setBusy(null);
     }
   };
 
-  if (loading) return <p className="p-6 text-gray-400">Loading…</p>;
+  const approvals = documents.flatMap((d) => d.approvals || []);
+  const pendingInternal = approvals.filter((a) => a.approval_status === "PENDING").length;
+  const clientSigned = documents.filter((d) => d.client_approved).length;
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <Link to="/clients/approval-documents" className="text-sm text-blue-600 hover:underline">
-        ← Back to Projects
-      </Link>
+    <div className="bp-page tr-page pm-page">
+      <PmHeader
+        eyebrow="Client Management"
+        section="Approval Documents"
+        title={project ? `${project.project_name} Approvals` : "Approval Documents"}
+        subtitle="Internal sign-off from the team, then client sign-off once you've shown it to them."
+        back="/clients/approval-documents"
+        backLabel="All projects"
+      >
+        <button type="button" className="bp-btn navy" onClick={() => { setShowForm(true); setFormError(""); }}><Upload size={16} /> Upload Document</button>
+      </PmHeader>
 
-      <div className="flex justify-between items-center mt-3 mb-6">
-        <h1 className="text-xl font-bold text-gray-900">Approval Documents</h1>
-        <button
-          onClick={() => setShowForm((prev) => !prev)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-semibold"
-        >
-          {showForm ? "Cancel" : "+ Upload Document"}
-        </button>
+      {error && <p className="bp-panel bp-error">{error}</p>}
+      {message && <p className="bp-panel pm-notice-ok">{message}</p>}
+
+      <div className="bp-stats tr-stats">
+        <div className="bp-stat" style={{ "--i": 0 }}>
+          <div className="bp-stat-top"><p className="bp-stat-label pm-label">DOCUMENTS</p><span className="pm-ico navy"><FileCheck2 size={20} /></span></div>
+          <p className="bp-stat-value">{documents.length}</p>
+          <p className="pm-foot"><span>On this project</span></p>
+        </div>
+        <div className="bp-stat" style={{ "--i": 1 }}>
+          <div className="bp-stat-top"><p className="bp-stat-label pm-label">INTERNAL PENDING</p><span className="pm-ico orange"><Hourglass size={20} /></span></div>
+          <p className="bp-stat-value tr-orange">{pendingInternal}</p>
+          <p className="pm-foot"><span>{approvals.length} approvals requested</span></p>
+        </div>
+        <div className="bp-stat" style={{ "--i": 2 }}>
+          <div className="bp-stat-top"><p className="bp-stat-label pm-label">CLIENT SIGNED</p><span className="pm-ico green"><Handshake size={20} /></span></div>
+          <p className="bp-stat-value">{clientSigned}</p>
+          <p className="pm-foot"><span>{documents.length - clientSigned} awaiting client</span></p>
+        </div>
       </div>
 
-      {error && <p className="text-red-600 mb-4">{error}</p>}
-      {message && <p className="text-green-600 mb-4">{message}</p>}
+      {loading ? (
+        <p className="bp-loading">Loading documents…</p>
+      ) : documents.length === 0 ? (
+        <p className="bp-panel pm-empty-panel">No documents uploaded yet.</p>
+      ) : (
+        <div className="pm-list">
+          {documents.map((d, idx) => (
+            <article key={d.document_project_id} className="bp-panel pm-item" style={{ "--i": idx }}>
+              <div className="pm-item-top">
+                <div className="pm-spec">
+                  <span className="pm-spec-ico"><FileCheck2 size={16} /></span>
+                  <div><b>{d.document_title}</b><small>{typeLabel(d.relationship_type)}</small></div>
+                </div>
+                {d.current_version_url && <a className="bp-btn outline small" href={d.current_version_url} target="_blank" rel="noreferrer"><ExternalLink size={12} /> Open</a>}
+              </div>
 
-      {showForm && (
-        <div className="bg-white border border-gray-200 rounded-xl p-5 mb-6">
-          <h3 className="font-semibold text-gray-900 mb-3">Upload Document</h3>
-          <input
-            type="file"
-            onChange={(e) => setFile(e.target.files[0])}
-            className="w-full text-sm mb-3"
-          />
-          <input
-            placeholder="Document title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm mb-3"
-          />
-          <select
-            value={relationshipType}
-            onChange={(e) => setRelationshipType(e.target.value)}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm mb-3"
-          >
-            <option value="DESIGN_APPROVAL">Design Approval</option>
-            <option value="CONTRACT">Contract</option>
-            <option value="UAT_SIGNOFF">UAT Sign-off</option>
-            <option value="OTHER">Other</option>
-          </select>
-          <select
-            value={approver}
-            onChange={(e) => setApprover(e.target.value)}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm mb-4"
-          >
-            <option value="">No approval needed</option>
-            {teamMembers.map((m) => (
-              <option key={m.project_team_member_id} value={m.project_team_member_id}>
-                Request approval from {m.name}
-              </option>
-            ))}
-          </select>
-          <button
-            onClick={uploadDocument}
-            disabled={uploading}
-            className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-semibold disabled:opacity-60"
-          >
-            {uploading ? "Uploading…" : "Upload"}
-          </button>
+              <div className="pm-approvals">
+                <p className="pm-section-label">Internal approval</p>
+                {(d.approvals || []).length === 0 ? (
+                  <p className="bp-muted pm-small">No approval requested</p>
+                ) : d.approvals.map((a) => (
+                  <div key={a.document_approval_id} className="pm-approval-row">
+                    <span className={`bp-chip ${APPROVAL_CHIP[a.approval_status] || "orange"}`}>{a.approval_status}</span>
+                    {a.comments && <small className="bp-muted">{a.comments}</small>}
+                    {a.approval_status === "PENDING" && a.approver_user === currentUser?.user_id && (
+                      <span className="pm-row-actions">
+                        <button type="button" className="bp-btn outline small" disabled={busy === `a${a.document_approval_id}`} onClick={() => actOnApproval(a.document_approval_id, "REJECTED")}><X size={12} /> Reject</button>
+                        <button type="button" className="bp-btn navy small" disabled={busy === `a${a.document_approval_id}`} onClick={() => actOnApproval(a.document_approval_id, "APPROVED")}><Check size={12} /> Approve</button>
+                      </span>
+                    )}
+                    {a.approval_status === "PENDING" && a.approver_user !== currentUser?.user_id && <small className="bp-muted">Waiting for the approver</small>}
+                  </div>
+                ))}
+              </div>
+
+              <div className="pm-item-foot">
+                {d.client_approved ? (
+                  <span className="pm-ok"><BadgeCheck size={13} /> Approved by client — marked by {d.client_approved_by || "—"} on {new Date(d.client_approved_at).toLocaleDateString("en-IN", { dateStyle: "medium" })}</span>
+                ) : (
+                  <>
+                    <span>Not yet approved by the client</span>
+                    <button type="button" className="bp-btn navy small" disabled={busy === `c${d.document}`} onClick={() => markClientApproved(d.document)}><Handshake size={12} /> Mark as Approved by Client</button>
+                  </>
+                )}
+              </div>
+            </article>
+          ))}
         </div>
       )}
 
-      {documents.length === 0 ? (
-        <div className="bg-white border border-gray-200 rounded-xl p-8 text-center text-gray-400">
-          No documents uploaded yet.
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {documents.map((d) => (
-            <div key={d.document_project_id} className="bg-white border border-gray-200 rounded-lg p-4">
-              <div className="flex justify-between items-start mb-2">
-                <p className="font-medium text-gray-900">{d.document_title}</p>
-                <span className="text-xs text-gray-600">{d.relationship_type}</span>
-              </div>
-
-              {d.approvals.length === 0 ? (
-                <p className="text-xs text-gray-500">No approval requested</p>
-              ) : (
-                d.approvals.map((a) => (
-                  <div key={a.document_approval_id} className="flex items-center justify-between mt-2 border-t border-gray-100 pt-2">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_STYLES[a.approval_status] || STATUS_STYLES.PENDING}`}>
-                      {a.approval_status}
-                    </span>
-                    {a.approval_status === "PENDING" && (
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => actOnApproval(a.document_approval_id, "APPROVED")}
-                          className="text-xs font-semibold text-green-700 hover:text-green-900"
-                        >
-                          Approve
-                        </button>
-                        <button
-                          onClick={() => actOnApproval(a.document_approval_id, "REJECTED")}
-                          className="text-xs font-semibold text-red-700 hover:text-red-900"
-                        >
-                          Reject
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ))
-              )}
-
-              <div className="mt-3 pt-3 border-t border-gray-100">
-                {d.client_approved ? (
-                  <p className="text-xs font-semibold text-green-700">
-                    ✅ Approved by Client — {d.client_approved_by || "—"} on{" "}
-                    {new Date(d.client_approved_at).toLocaleDateString()}
-                  </p>
-                ) : (
-                  <button
-                    onClick={() => markClientApproved(d.document_id)}
-                    className="text-xs font-semibold text-blue-600 hover:text-blue-800"
-                  >
-                    Mark as Approved by Client
-                  </button>
-                )}
-              </div>
+      {showForm && (
+        <div className="bp-modal-backdrop" onClick={() => !uploading && setShowForm(false)}>
+          <div className="bp-modal" onClick={(e) => e.stopPropagation()}>
+            <h2>Upload Document</h2>
+            <p className="bp-sub">Upload something that needs sign-off and pick who approves it internally.</p>
+            <div className="bp-form-grid">
+              <label className="bp-field full"><span>File</span>
+                <input type="file" onChange={(e) => setFile(e.target.files[0])} />
+              </label>
+              <label className="bp-field full"><span>Title</span>
+                <input value={title} onChange={(e) => setTitle(e.target.value)} />
+              </label>
+              <label className="bp-field"><span>Type</span>
+                <select value={relationshipType} onChange={(e) => setRelationshipType(e.target.value)}>
+                  {TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                </select>
+              </label>
+              <label className="bp-field"><span>Internal approver</span>
+                <select value={approver} onChange={(e) => setApprover(e.target.value)}>
+                  <option value="">No approval needed</option>
+                  {teamMembers.map((m) => <option key={m.project_team_member_id} value={m.user_id}>{m.name}</option>)}
+                </select>
+              </label>
             </div>
-          ))}
+            {formError && <p className="bp-form-error">{formError}</p>}
+            <div className="bp-modal-actions">
+              <button type="button" className="bp-btn outline" onClick={() => setShowForm(false)} disabled={uploading}>Cancel</button>
+              <button type="button" className="bp-btn navy" onClick={uploadDocument} disabled={uploading}>{uploading ? "Uploading…" : "Upload"}</button>
+            </div>
+          </div>
         </div>
       )}
     </div>

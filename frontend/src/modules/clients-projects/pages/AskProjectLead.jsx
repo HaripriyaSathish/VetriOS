@@ -1,5 +1,12 @@
 import { useEffect, useRef, useState } from "react";
+import { Send, MessageSquare } from "lucide-react";
 import client from "../../../api/client";
+import PmHeader from "../components/PmHeader";
+import "../../training/styles/BusinessPages.css";
+import "../../training/styles/TrainerDashboard.css";
+import "../styles/PmPages.css";
+
+const stamp = (d) => (d ? new Date(d).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "");
 
 function AskProjectLead({ projectId }) {
   const currentUser = JSON.parse(localStorage.getItem("user") || "null");
@@ -10,22 +17,21 @@ function AskProjectLead({ projectId }) {
   const [sending, setSending] = useState(false);
   const bottomRef = useRef(null);
 
-  const load = () => {
-    client
-      .get(`/api/projects/${projectId}/ask-lead/`)
+  const load = () =>
+    client.get(`/api/projects/${projectId}/ask-lead/`)
       .then(({ data }) => setMessages(data))
       .catch((err) => setError(err.response?.data?.detail || "Couldn't load messages."))
       .finally(() => setLoading(false));
-  };
 
   useEffect(() => {
     load();
     const interval = setInterval(load, 10000);
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages]);
 
   const send = async () => {
@@ -50,51 +56,38 @@ function AskProjectLead({ projectId }) {
     }
   };
 
-  if (loading) return <p className="p-6 text-gray-400">Loading…</p>;
-
   return (
-    <div className="p-6 max-w-3xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900 mb-1">Ask Project Lead</h1>
-      <p className="text-gray-500 mb-6">Message your reporting lead on this project directly.</p>
+    <div className="bp-page tr-page pm-page">
+      <PmHeader
+        section="Ask Project Lead"
+        title="Ask Project Lead"
+        subtitle="Message your reporting lead on this project directly."
+        back={`/project/${projectId}/team`}
+        backLabel="Project team"
+      />
 
-      {error && <p className="text-red-600 mb-4">{error}</p>}
+      {error && <p className="bp-panel bp-error">{error}</p>}
 
-      <div className="bg-white border border-gray-200 rounded-xl p-4 h-[500px] flex flex-col">
-        <div className="flex-1 overflow-y-auto space-y-2 mb-3">
-          {messages.length === 0 ? (
-            <p className="text-gray-400 text-sm text-center mt-8">No messages yet — say hello.</p>
-          ) : (
-            messages.map((m) => (
-              <div
-                key={m.message_id}
-                className={"max-w-[70%] px-3 py-2 rounded-lg text-sm " +
-                  (m.sender === currentUser?.user_id ? "bg-blue-600 text-white ml-auto" : "bg-gray-100 text-gray-800")}
-              >
-                {m.content}
+      <section className="bp-panel pm-chat single">
+        <div className="pm-chat-body">
+          <div className="pm-chat-head"><MessageSquare size={16} /> <b>Conversation with your lead</b></div>
+          <div className="pm-chat-msgs">
+            {loading ? <p className="pm-empty">Loading…</p> : messages.length === 0 ? (
+              <p className="pm-empty">No messages yet — say hello.</p>
+            ) : messages.map((m) => (
+              <div key={m.message_id} className={`pm-bubble ${m.sender === currentUser?.user_id ? "mine" : ""}`}>
+                <p>{m.content}</p>
+                {m.created_at && <small>{stamp(m.created_at)}</small>}
               </div>
-            ))
-          )}
-          <div ref={bottomRef} />
+            ))}
+            <span ref={bottomRef} />
+          </div>
+          <div className="pm-chat-compose">
+            <textarea value={content} onChange={(e) => setContent(e.target.value)} onKeyDown={onKeyDown} placeholder="Type your message… (Enter to send)" rows={1} />
+            <button type="button" className="bp-btn navy" onClick={send} disabled={sending || !content.trim()}><Send size={15} /> Send</button>
+          </div>
         </div>
-
-        <div className="flex gap-2">
-          <textarea
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            onKeyDown={onKeyDown}
-            placeholder="Type your message…"
-            rows={1}
-            className="flex-1 border border-gray-300 rounded-md px-3 py-2 text-sm resize-none"
-          />
-          <button
-            onClick={send}
-            disabled={sending || !content.trim()}
-            className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-semibold disabled:opacity-60"
-          >
-            Send
-          </button>
-        </div>
-      </div>
+      </section>
     </div>
   );
 }

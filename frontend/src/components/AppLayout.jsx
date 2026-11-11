@@ -39,6 +39,25 @@ const STUDENT_PAGES = [
   { label: "Reports", path: "/student/reports" },
 ];
 
+// Pages the project-workspace search can jump to (same list as the PM
+// sidebar). Anything that isn't a page name searches requirements.
+const PROJECT_PAGES = [
+  { label: "Project Dashboard", path: "/project/dashboard" },
+  { label: "Project Team", path: "/project/team" },
+  { label: "Requirements", path: "/project/requirements" },
+  { label: "Kanban Board", path: "/project/kanban" },
+  { label: "Team Tasks", path: "/project/team-tasks" },
+  { label: "Milestones", path: "/project/milestones" },
+  { label: "Deployments", path: "/project/deployments" },
+  { label: "Intern Reviews", path: "/project/intern-performance-review" },
+  { label: "Change Requests", path: "/project/change-requests" },
+  { label: "Testing Reports", path: "/project/testing-reports" },
+  { label: "Repository & Tech Stack", path: "/project/tech-stack" },
+  { label: "Project Documents", path: "/project/documents" },
+  { label: "Client Management", path: "/clients/my-clients" },
+  { label: "Team Messages", path: "/project/team-messages" },
+];
+
 function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -48,15 +67,20 @@ function AppLayout() {
   const [photoUrl, setPhotoUrl] = useState(null);
   const [search, setSearch] = useState("");
   const isStudentArea = location.pathname.startsWith("/student");
+  const isProjectArea = /^\/(project|clients)(\/|$)/.test(location.pathname);
+  const searchPages = isProjectArea ? PROJECT_PAGES : STUDENT_PAGES;
 
   const handleSearch = (event) => {
     event.preventDefault();
     const query = search.trim().toLowerCase();
     if (!query) return;
-    const match = STUDENT_PAGES.find((p) => p.label.toLowerCase().includes(query));
+    const match = searchPages.find((p) => p.label.toLowerCase().includes(query));
     if (match) {
       setSearch("");
       navigate(match.path);
+    } else if (isProjectArea) {
+      setSearch("");
+      navigate(`/project/requirements?q=${encodeURIComponent(search.trim())}`);
     }
   };
 
@@ -100,19 +124,19 @@ function AppLayout() {
         <header className="app-topbar">
           {user?.employee_code && <span className="app-topbar-empcode">{user.employee_code}</span>}
 
-          {isStudentArea && (
+          {(isStudentArea || isProjectArea) && (
             <form className="app-search" onSubmit={handleSearch} role="search">
               <Search size={17} />
               <input
                 type="search"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search anything..."
+                placeholder={isProjectArea ? "Search projects, tasks, deliverables, clients..." : "Search anything..."}
                 list="app-search-pages"
                 aria-label="Search pages"
               />
               <datalist id="app-search-pages">
-                {STUDENT_PAGES.map((p) => <option key={p.path} value={p.label} />)}
+                {searchPages.map((p) => <option key={p.path} value={p.label} />)}
               </datalist>
             </form>
           )}

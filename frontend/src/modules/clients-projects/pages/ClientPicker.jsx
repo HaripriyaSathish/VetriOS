@@ -1,11 +1,19 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { ArrowRight, Building2, FolderKanban, Search, Tag } from "lucide-react";
 import client from "../../../api/client";
+import PmHeader from "../components/PmHeader";
+import "../../training/styles/BusinessPages.css";
+import "../../training/styles/TrainerDashboard.css";
+import "../styles/PmPages.css";
+
+const STATUS_CHIP = { ACTIVE: "green", INACTIVE: "gray", PROSPECT: "blue", ON_HOLD: "orange" };
 
 function ClientPicker({ title, subtitle, getPath }) {
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     client.get("/api/projects/clients/")
@@ -14,35 +22,45 @@ function ClientPicker({ title, subtitle, getPath }) {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <p className="p-6 text-gray-400">Loading…</p>;
-  if (error) return <p className="p-6 text-red-600">{error}</p>;
+  const visible = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return clients;
+    return clients.filter((c) => [c.client_name, c.client_code, c.industry].some((v) => (v || "").toLowerCase().includes(q)));
+  }, [clients, search]);
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
-      <h1 className="text-xl font-bold text-gray-900 mb-1">{title}</h1>
-      <p className="text-gray-600 mb-6">{subtitle}</p>
+    <div className="bp-page tr-page pm-page">
+      <PmHeader eyebrow="Client Management" section={title} title={title} subtitle={subtitle} back="/clients/my-clients" backLabel="Client Management" />
 
-      {clients.length === 0 ? (
-        <div className="bg-white border border-gray-200 rounded-xl p-8 text-center text-gray-400">
-          No clients yet.
-        </div>
+      {error && <p className="bp-panel bp-error">{error}</p>}
+
+      <div className="bp-panel pm-toolbar">
+        <span className="bp-chip blue"><Building2 size={12} /> {clients.length} {clients.length === 1 ? "client" : "clients"}</span>
+        <label className="bp-search">
+          <Search size={15} />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search clients…" />
+        </label>
+      </div>
+
+      {loading ? (
+        <p className="bp-loading">Loading clients…</p>
+      ) : visible.length === 0 ? (
+        <p className="bp-panel pm-empty-panel">{clients.length ? "No clients match your search." : "No clients yet."}</p>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {clients.map((c) => (
-            <Link
-              key={c.client_id}
-              to={getPath(c.client_id)}
-              className="bg-white border border-gray-200 rounded-xl p-5 hover:border-blue-400 hover:shadow-md transition"
-            >
-              <div className="flex justify-between items-start mb-2">
-                <p className="font-semibold text-gray-900">{c.client_name}</p>
-                <span className="px-2 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
-                  {c.status}
-                </span>
+        <div className="pm-pick-grid">
+          {visible.map((c, idx) => (
+            <Link key={c.client_id} to={getPath(c.client_id)} className="pm-pick" style={{ "--i": idx }}>
+              <div className="pm-pick-top">
+                <span className="pm-ico small orange"><Building2 size={17} /></span>
+                <span className={`bp-chip ${STATUS_CHIP[(c.status || "").toUpperCase()] || "blue"}`}>{c.status}</span>
               </div>
-              <p className="text-xs text-gray-600 mb-1">{c.client_code}</p>
-              {c.industry && <p className="text-xs text-gray-600">{c.industry}</p>}
-              <p className="text-xs text-gray-600 mt-1">{c.project_count} project{c.project_count === 1 ? "" : "s"}</p>
+              <b className="pm-pick-name">{c.client_name}</b>
+              <small className="pm-pick-code">{c.client_code}</small>
+              <div className="pm-pick-meta">
+                {c.industry && <span><Tag size={12} /> {c.industry}</span>}
+                <span><FolderKanban size={12} /> {c.project_count} project{c.project_count === 1 ? "" : "s"}</span>
+              </div>
+              <span className="pm-pick-open">Open <ArrowRight size={13} /></span>
             </Link>
           ))}
         </div>

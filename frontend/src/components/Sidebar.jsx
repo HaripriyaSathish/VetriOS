@@ -223,6 +223,11 @@ function Sidebar() {
   // not a system role — this is what gates Client Management specifically.
   const isActualProjectManager = myProjects.some((p) => p.my_role === "Project Manager");
 
+  // Project workspace gets the flat, sectioned menu from the Project
+  // Manager Figma (CORE / DELIVERY & QUALITY / ENGAGEMENT) instead of
+  // the collapsible Project/Client Management groups.
+  const isPmView = !isSystemAdministrator && activeWorkspace === "project" && isProjectTeamMember;
+
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">
@@ -356,7 +361,7 @@ function Sidebar() {
       {/* Unconditional — every role (Employee, Trainer, any admin) can
           ask a specific admin for a permission, so this sits above every
           role-gated group rather than living inside one of them. */}
-      {!isTraineeView && !isBusinessView && !isInternView && (
+      {!isTraineeView && !isBusinessView && !isInternView && !isPmView && (
         <NavLink
           to="/request-access"
           className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
@@ -382,7 +387,7 @@ function Sidebar() {
         </NavLink>
       )}
 
-      {!isSystemAdministrator && !isTraineeView && !isBusinessView && !isTrainerView && !isInternView && (
+      {!isSystemAdministrator && !isTraineeView && !isBusinessView && !isTrainerView && !isInternView && !isPmView && (
         <NavLink
           to="/dashboard"
           className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
@@ -394,7 +399,7 @@ function Sidebar() {
         </NavLink>
       )}
 
-      {!isSystemAdministrator && !isBusinessView && !isTrainerView && !isIntern && !!user?.employee_code && (
+      {!isSystemAdministrator && !isBusinessView && !isTrainerView && !isIntern && !isPmView && !!user?.employee_code && (
         <>
           <NavLink
             to="/my/attendance"
@@ -418,7 +423,7 @@ function Sidebar() {
         </>
       )}
 
-      {!isSystemAdministrator && !isBusinessView && !isTrainerView && !isIntern && !!user?.employee_code && (
+      {!isSystemAdministrator && !isBusinessView && !isTrainerView && !isIntern && !isPmView && !!user?.employee_code && (
         <NavLink
           to="/my/worklog"
           className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
@@ -430,7 +435,7 @@ function Sidebar() {
         </NavLink>
       )}
 
-      {!!user?.is_department_lead && (
+      {!!user?.is_department_lead && !isPmView && (
         <NavLink
           to="/my/team-worklogs"
           className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
@@ -661,7 +666,7 @@ function Sidebar() {
         </>
       )}
 
-      {canSeeDocuments && !isBusinessView && !isTrainerView && !isInternView && (
+      {canSeeDocuments && !isBusinessView && !isTrainerView && !isInternView && !isPmView && (
         <>
           <button
             type="button"
@@ -716,7 +721,7 @@ function Sidebar() {
         </>
       )}
 
-      {canSeeEmail && !isTraineeView && !isBusinessView && !isTrainerView && !isInternView && (
+      {canSeeEmail && !isTraineeView && !isBusinessView && !isTrainerView && !isInternView && !isPmView && (
         <>
           <button
             type="button"
@@ -1014,13 +1019,104 @@ function Sidebar() {
         </>
       )}
 
+      {isPmView && (
+        <>
+          <p className="nav-section-label">Core</p>
+          <NavLink to="/project/dashboard" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+            <span className="nav-icon"><MsIcon name="dashboard" /></span> Project Dashboard
+          </NavLink>
+          <NavLink to="/project/team" className={({ isActive }) => "nav-item" + (isActive || /^\/project\/\d+\/(team|ask-lead)/.test(location.pathname) ? " active" : "")}>
+            <span className="nav-icon"><MsIcon name="group" /></span> Project Team
+          </NavLink>
+          <NavLink to="/project/requirements" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+            <span className="nav-icon"><MsIcon name="description" /></span> Requirements
+          </NavLink>
+          <NavLink to="/project/kanban" className={({ isActive }) => "nav-item" + (isActive || /^\/project\/\d+\/kanban/.test(location.pathname) ? " active" : "")}>
+            <span className="nav-icon"><MsIcon name="view_kanban" /></span> Kanban Board
+          </NavLink>
+          <NavLink to="/project/team-tasks" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+            <span className="nav-icon"><MsIcon name="task_alt" /></span> Team Tasks
+          </NavLink>
+          <NavLink to="/project/milestones" className={({ isActive }) => "nav-item" + (isActive || /^\/project\/\d+\/milestones/.test(location.pathname) ? " active" : "")}>
+            <span className="nav-icon"><MsIcon name="flag" /></span> Milestones
+          </NavLink>
+
+          <p className="nav-section-label">Delivery &amp; Quality</p>
+          <NavLink to="/project/deployments" className={({ isActive }) => "nav-item" + (isActive || /^\/project\/\d+\/deployments/.test(location.pathname) ? " active" : "")}>
+            <span className="nav-icon"><MsIcon name="rocket_launch" /></span> Deployments
+          </NavLink>
+          <NavLink to="/project/intern-performance-review" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+            <span className="nav-icon"><MsIcon name="rate_review" /></span> Intern Reviews
+          </NavLink>
+          <NavLink to="/project/change-requests" className={({ isActive }) => "nav-item" + (isActive || /^\/project\/\d+\/change-requests/.test(location.pathname) ? " active" : "")}>
+            <span className="nav-icon"><MsIcon name="published_with_changes" /></span> Change Requests
+          </NavLink>
+          <NavLink to="/project/testing-reports" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+            <span className="nav-icon"><MsIcon name="bug_report" /></span> Testing Reports
+          </NavLink>
+          <NavLink to="/project/tech-stack" className={({ isActive }) => "nav-item" + (isActive || /^\/project\/\d+\/tech-stack/.test(location.pathname) ? " active" : "")}>
+            <span className="nav-icon"><MsIcon name="code" /></span> Repository &amp; Tech Stack
+          </NavLink>
+          <NavLink to="/project/documents" className={({ isActive }) => "nav-item" + (isActive || /^\/project\/\d+\/(documents|approval-documents)/.test(location.pathname) ? " active" : "")}>
+            <span className="nav-icon"><MsIcon name="folder" /></span> Project Documents
+          </NavLink>
+          {isActualProjectManager && (
+            <NavLink to="/project/recommend-internship-action" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+              <span className="nav-icon"><MsIcon name="how_to_reg" /></span> Internship Completion
+            </NavLink>
+          )}
+
+          <p className="nav-section-label">Engagement</p>
+          {isActualProjectManager && (
+            <NavLink to="/clients/my-clients" className={({ isActive }) => "nav-item" + (isActive || /^\/clients\//.test(location.pathname) ? " active" : "")}>
+              <span className="nav-icon"><MsIcon name="handshake" /></span> Client Management
+            </NavLink>
+          )}
+          <NavLink to="/project/team-messages" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+            <span className="nav-icon"><MsIcon name="chat" /></span> Team Messages
+          </NavLink>
+          {canSeeDocuments && (
+            <NavLink to="/documents" end className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+              <span className="nav-icon"><MsIcon name="folder_shared" /></span> Document Library
+            </NavLink>
+          )}
+          <NavLink to="/email" end className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+            <span className="nav-icon"><MsIcon name="mail" /></span> Email
+          </NavLink>
+
+          {!!user?.employee_code && (
+            <>
+              <p className="nav-section-label">Self Service</p>
+              <NavLink to="/my/attendance" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+                <span className="nav-icon"><MsIcon name="event_available" /></span> My Attendance
+              </NavLink>
+              <NavLink to="/my/leave" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+                <span className="nav-icon"><MsIcon name="flight_takeoff" /></span> Apply Leave
+              </NavLink>
+              <NavLink to="/my/worklog" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+                <span className="nav-icon"><MsIcon name="history" /></span> My Worklogs
+              </NavLink>
+              {!!user?.is_department_lead && (
+                <NavLink to="/my/team-worklogs" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+                  <span className="nav-icon"><MsIcon name="groups" /></span> Team Worklogs
+                </NavLink>
+              )}
+            </>
+          )}
+          <NavLink to="/request-access" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+            <span className="nav-icon"><MsIcon name="key" /></span> Request Access
+            {pendingRequestCount > 0 && <span className="nav-count-badge">{pendingRequestCount}</span>}
+          </NavLink>
+        </>
+      )}
+
       {/* Project Management: any active team member (lead or regular
           member) or admin can VIEW these pages. Write actions inside
           each page are further restricted to the actual Project
           Manager via can_manage_project on the backend, and the
           create/edit buttons should be hidden client-side too
           (see Deployments.jsx / ProjectTeam.jsx / etc.) */}
-     {inWorkspace("project") && (isSystemAdministrator || isProjectTeamMember) && (
+     {inWorkspace("project") && (isSystemAdministrator || isProjectTeamMember) && !isPmView && (
         <>
           <button
             type="button"
@@ -1106,7 +1202,7 @@ function Sidebar() {
       {/* Client Management: PM (real per-project PM, not just anyone
           with view access to Project Management) or admin only.
           Leads and regular team members never see this. */}
-      {inWorkspace("project") && (isSystemAdministrator || isActualProjectManager) && (
+      {inWorkspace("project") && (isSystemAdministrator || isActualProjectManager) && !isPmView && (
         <>
           <button
             type="button"
@@ -1160,7 +1256,7 @@ function Sidebar() {
       )}
 
       {/* Trainee sidebar cartoon at the bottom, as in the Figma design */}
-      {(isTraineeView || isTrainerView) && (
+      {(isTraineeView || isTrainerView || isPmView) && (
         <div className="sidebar-art" aria-hidden="true">
           <LoginIllustration />
         </div>

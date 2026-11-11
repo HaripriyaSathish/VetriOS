@@ -1,29 +1,32 @@
 import { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams } from "react-router-dom";
+import { Plus, GitBranch, Layers, ExternalLink, Star, Code2 } from "lucide-react";
 import client from "../../../api/client";
+import PmHeader from "../components/PmHeader";
+import "../../training/styles/BusinessPages.css";
+import "../../training/styles/TrainerDashboard.css";
+import "../styles/PmPages.css";
 
 function TechStack() {
   const { projectId } = useParams();
   const [repositories, setRepositories] = useState([]);
   const [technologies, setTechnologies] = useState([]);
+  const [project, setProject] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
-  const [showRepoForm, setShowRepoForm] = useState(false);
+  const [modal, setModal] = useState(null); // "repo" | "tech"
   const [repoName, setRepoName] = useState("");
   const [repoProvider, setRepoProvider] = useState("");
   const [repoUrl, setRepoUrl] = useState("");
-  const [savingRepo, setSavingRepo] = useState(false);
-
-  const [showTechForm, setShowTechForm] = useState(false);
   const [techName, setTechName] = useState("");
   const [techCategory, setTechCategory] = useState("");
   const [techVersion, setTechVersion] = useState("");
-  const [savingTech, setSavingTech] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState("");
 
-  const load = () => {
-    setLoading(true);
+  const fetchStack = () =>
     client.get(`/api/projects/${projectId}/tech-stack/`)
       .then(({ data }) => {
         setRepositories(data.repositories);
@@ -31,199 +34,158 @@ function TechStack() {
       })
       .catch((err) => setError(err.response?.data?.detail || "Couldn't load tech stack."))
       .finally(() => setLoading(false));
-  };
 
   useEffect(() => {
-    load();
+    fetchStack();
+    client.get("/api/projects/me/").then(({ data }) => setProject(data.find((p) => String(p.project_id) === String(projectId)) || null)).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
-  const addRepo = async () => {
-    if (!repoName.trim()) {
-      setError("Repository name is required.");
+  const openModal = (kind) => { setModal(kind); setFormError(""); };
+
+  const save = async () => {
+    const isRepo = modal === "repo";
+    if (isRepo ? !repoName.trim() : !techName.trim()) {
+      setFormError(isRepo ? "Repository name is required." : "Technology name is required.");
       return;
     }
-    setSavingRepo(true);
-    setError("");
+    setSaving(true);
+    setFormError("");
     try {
-      await client.post(`/api/projects/${projectId}/tech-stack/`, {
-        kind: "repository",
-        repository_name: repoName,
-        repository_provider: repoProvider,
-        repository_url: repoUrl,
-      });
-      setMessage("Repository added.");
-      setRepoName(""); setRepoProvider(""); setRepoUrl("");
-      setShowRepoForm(false);
-      load();
+      await client.post(`/api/projects/${projectId}/tech-stack/`, isRepo
+        ? { kind: "repository", repository_name: repoName, repository_provider: repoProvider, repository_url: repoUrl }
+        : { kind: "technology", technology_name: techName, technology_category: techCategory, version_reference: techVersion });
+      setMessage(isRepo ? "Repository added." : "Technology added.");
+      if (isRepo) { setRepoName(""); setRepoProvider(""); setRepoUrl(""); } else { setTechName(""); setTechCategory(""); setTechVersion(""); }
+      setModal(null);
+      fetchStack();
     } catch (err) {
-      setError(err.response?.data?.detail || "Couldn't add repository.");
+      setFormError(err.response?.data?.detail || (isRepo ? "Couldn't add repository." : "Couldn't add technology."));
     } finally {
-      setSavingRepo(false);
+      setSaving(false);
     }
   };
 
-  const addTech = async () => {
-    if (!techName.trim()) {
-      setError("Technology name is required.");
-      return;
-    }
-    setSavingTech(true);
-    setError("");
-    try {
-      await client.post(`/api/projects/${projectId}/tech-stack/`, {
-        kind: "technology",
-        technology_name: techName,
-        technology_category: techCategory,
-        version_reference: techVersion,
-      });
-      setMessage("Technology added.");
-      setTechName(""); setTechCategory(""); setTechVersion("");
-      setShowTechForm(false);
-      load();
-    } catch (err) {
-      setError(err.response?.data?.detail || "Couldn't add technology.");
-    } finally {
-      setSavingTech(false);
-    }
-  };
-
-  if (loading) return <p className="p-6 text-gray-400">Loading…</p>;
+  const byCategory = technologies.reduce((acc, t) => {
+    const k = t.technology_category || "Other";
+    (acc[k] = acc[k] || []).push(t);
+    return acc;
+  }, {});
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <Link to="/project/tech-stack" className="text-sm text-blue-600 hover:underline">
-        ← Back to Projects
-      </Link>
+    <div className="bp-page tr-page pm-page">
+      <PmHeader
+        section="Repository & Tech Stack"
+        title={project ? `${project.project_name} Tech Stack` : "Repository & Tech Stack"}
+        subtitle="Shared reference for the team: where the code lives and what it's built with."
+        back="/project/tech-stack"
+        backLabel="All projects"
+      >
+        <button type="button" className="bp-btn outline" onClick={() => openModal("tech")}><Plus size={16} /> Add Technology</button>
+        <button type="button" className="bp-btn navy" onClick={() => openModal("repo")}><Plus size={16} /> Add Repository</button>
+      </PmHeader>
 
-      <h1 className="text-xl font-bold text-gray-900 mt-3 mb-6">Repository & Tech Stack</h1>
+      {error && <p className="bp-panel bp-error">{error}</p>}
+      {message && <p className="bp-panel pm-notice-ok">{message}</p>}
 
-      {error && <p className="text-red-600 mb-4">{error}</p>}
-      {message && <p className="text-green-600 mb-4">{message}</p>}
-
-      {/* Repositories */}
-      <div className="flex justify-between items-center mb-3">
-        <h2 className="font-semibold text-gray-900">Repositories</h2>
-        <button
-          onClick={() => setShowRepoForm((prev) => !prev)}
-          className="text-xs font-semibold text-blue-600 hover:text-blue-800"
-        >
-          {showRepoForm ? "Cancel" : "+ Add Repository"}
-        </button>
+      <div className="bp-stats tr-stats">
+        <div className="bp-stat" style={{ "--i": 0 }}>
+          <div className="bp-stat-top"><p className="bp-stat-label pm-label">REPOSITORIES</p><span className="pm-ico navy"><GitBranch size={20} /></span></div>
+          <p className="bp-stat-value">{repositories.length}</p>
+          <p className="pm-foot"><span>{repositories.filter((r) => r.is_primary).length} primary</span></p>
+        </div>
+        <div className="bp-stat" style={{ "--i": 1 }}>
+          <div className="bp-stat-top"><p className="bp-stat-label pm-label">TECHNOLOGIES</p><span className="pm-ico orange"><Code2 size={20} /></span></div>
+          <p className="bp-stat-value">{technologies.length}</p>
+          <p className="pm-foot"><span>{Object.keys(byCategory).length} categories</span></p>
+        </div>
       </div>
 
-      {showRepoForm && (
-        <div className="bg-white border border-gray-200 rounded-xl p-5 mb-4">
-          <input
-            placeholder="Repository name"
-            value={repoName}
-            onChange={(e) => setRepoName(e.target.value)}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm mb-3"
-          />
-          <div className="grid grid-cols-2 gap-3 mb-3">
-            <input
-              placeholder="Provider (e.g. GitHub)"
-              value={repoProvider}
-              onChange={(e) => setRepoProvider(e.target.value)}
-              className="border border-gray-300 rounded-md px-3 py-2 text-sm"
-            />
-            <input
-              placeholder="Repository URL"
-              value={repoUrl}
-              onChange={(e) => setRepoUrl(e.target.value)}
-              className="border border-gray-300 rounded-md px-3 py-2 text-sm"
-            />
-          </div>
-          <button
-            onClick={addRepo}
-            disabled={savingRepo}
-            className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-semibold disabled:opacity-60"
-          >
-            {savingRepo ? "Adding…" : "Add Repository"}
-          </button>
-        </div>
-      )}
-
-      {repositories.length === 0 ? (
-        <div className="bg-white border border-gray-200 rounded-xl p-6 text-center text-gray-400 mb-8">
-          No repositories added yet.
-        </div>
-      ) : (
-        <div className="space-y-2 mb-8">
-          {repositories.map((r) => (
-            <div key={r.project_repository_id} className="bg-white border border-gray-200 rounded-lg p-3 flex justify-between items-center">
-              <div>
-                <p className="font-medium text-gray-900 text-sm">{r.repository_name}</p>
-                <p className="text-xs text-gray-600">{r.repository_provider} · {r.default_branch}</p>
-              </div>
-              {r.repository_url && (
-                <a href={r.repository_url} target="_blank" rel="noreferrer" className="text-xs font-semibold text-blue-600 hover:text-blue-800">
-                  Open →
-                </a>
-              )}
+      <div className="pm-grid even">
+        <section className="bp-panel tr-card">
+          <div className="tr-card-head">
+            <div className="pm-card-title">
+              <span className="pm-ico small soft"><GitBranch size={17} /></span>
+              <div><h3>Repositories</h3><p>Source code for this project</p></div>
             </div>
-          ))}
-        </div>
-      )}
+          </div>
+          {loading ? <p className="pm-empty">Loading…</p> : repositories.length === 0 ? <p className="pm-empty">No repositories added yet.</p> : (
+            <div className="pm-engagements">
+              {repositories.map((r) => (
+                <div key={r.project_repository_id} className="pm-eng">
+                  <div>
+                    <b>{r.repository_name} {r.is_primary && <span className="bp-chip orange"><Star size={10} /> Primary</span>}</b>
+                    <small>{[r.repository_provider, r.default_branch && `branch ${r.default_branch}`, r.repository_type].filter(Boolean).join(" · ") || "No provider details"}</small>
+                  </div>
+                  {r.repository_url && <a className="bp-btn outline small" href={r.repository_url} target="_blank" rel="noreferrer"><ExternalLink size={12} /> Open</a>}
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
 
-      {/* Technologies */}
-      <div className="flex justify-between items-center mb-3">
-        <h2 className="font-semibold text-gray-900">Technologies</h2>
-        <button
-          onClick={() => setShowTechForm((prev) => !prev)}
-          className="text-xs font-semibold text-blue-600 hover:text-blue-800"
-        >
-          {showTechForm ? "Cancel" : "+ Add Technology"}
-        </button>
+        <section className="bp-panel tr-card">
+          <div className="tr-card-head">
+            <div className="pm-card-title">
+              <span className="pm-ico small soft"><Layers size={17} /></span>
+              <div><h3>Technologies</h3><p>Grouped by category</p></div>
+            </div>
+          </div>
+          {loading ? <p className="pm-empty">Loading…</p> : technologies.length === 0 ? <p className="pm-empty">No technologies added yet.</p> : (
+            <div className="pm-tech-groups">
+              {Object.entries(byCategory).map(([cat, list]) => (
+                <div key={cat}>
+                  <p className="pm-section-label">{cat}</p>
+                  <div className="pm-tags">
+                    {list.map((t) => (
+                      <span key={t.project_technology_id} className={`pm-tag ${t.is_primary ? "primary" : ""}`}>
+                        {t.technology_name}{t.version_reference && <small> · {t.version_reference}</small>}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
       </div>
 
-      {showTechForm && (
-        <div className="bg-white border border-gray-200 rounded-xl p-5 mb-4">
-          <div className="grid grid-cols-3 gap-3 mb-4">
-            <input
-              placeholder="Technology (e.g. React)"
-              value={techName}
-              onChange={(e) => setTechName(e.target.value)}
-              className="border border-gray-300 rounded-md px-3 py-2 text-sm"
-            />
-            <input
-              placeholder="Category (e.g. Frontend)"
-              value={techCategory}
-              onChange={(e) => setTechCategory(e.target.value)}
-              className="border border-gray-300 rounded-md px-3 py-2 text-sm"
-            />
-            <input
-              placeholder="Version"
-              value={techVersion}
-              onChange={(e) => setTechVersion(e.target.value)}
-              className="border border-gray-300 rounded-md px-3 py-2 text-sm"
-            />
+      {modal && (
+        <div className="bp-modal-backdrop" onClick={() => !saving && setModal(null)}>
+          <div className="bp-modal" onClick={(e) => e.stopPropagation()}>
+            <h2>{modal === "repo" ? "Add Repository" : "Add Technology"}</h2>
+            <p className="bp-sub">Visible to everyone on this project.</p>
+            {modal === "repo" ? (
+              <div className="bp-form-grid">
+                <label className="bp-field full"><span>Repository name</span>
+                  <input value={repoName} onChange={(e) => setRepoName(e.target.value)} />
+                </label>
+                <label className="bp-field"><span>Provider</span>
+                  <input value={repoProvider} onChange={(e) => setRepoProvider(e.target.value)} placeholder="e.g. GitHub" />
+                </label>
+                <label className="bp-field"><span>Repository URL</span>
+                  <input value={repoUrl} onChange={(e) => setRepoUrl(e.target.value)} placeholder="https://…" />
+                </label>
+              </div>
+            ) : (
+              <div className="bp-form-grid">
+                <label className="bp-field full"><span>Technology</span>
+                  <input value={techName} onChange={(e) => setTechName(e.target.value)} placeholder="e.g. React" />
+                </label>
+                <label className="bp-field"><span>Category</span>
+                  <input value={techCategory} onChange={(e) => setTechCategory(e.target.value)} placeholder="e.g. Frontend" />
+                </label>
+                <label className="bp-field"><span>Version</span>
+                  <input value={techVersion} onChange={(e) => setTechVersion(e.target.value)} />
+                </label>
+              </div>
+            )}
+            {formError && <p className="bp-form-error">{formError}</p>}
+            <div className="bp-modal-actions">
+              <button type="button" className="bp-btn outline" onClick={() => setModal(null)} disabled={saving}>Cancel</button>
+              <button type="button" className="bp-btn navy" onClick={save} disabled={saving}>{saving ? "Adding…" : "Add"}</button>
+            </div>
           </div>
-          <button
-            onClick={addTech}
-            disabled={savingTech}
-            className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-semibold disabled:opacity-60"
-          >
-            {savingTech ? "Adding…" : "Add Technology"}
-          </button>
-        </div>
-      )}
-
-      {technologies.length === 0 ? (
-        <div className="bg-white border border-gray-200 rounded-xl p-6 text-center text-gray-400">
-          No technologies added yet.
-        </div>
-      ) : (
-        <div className="flex flex-wrap gap-2">
-          {technologies.map((t) => (
-            <span
-              key={t.project_technology_id}
-              className="bg-white border border-gray-200 rounded-full px-3 py-1.5 text-sm text-gray-800"
-            >
-              {t.technology_name}
-              {t.version_reference && <span className="text-gray-500"> · {t.version_reference}</span>}
-            </span>
-          ))}
         </div>
       )}
     </div>

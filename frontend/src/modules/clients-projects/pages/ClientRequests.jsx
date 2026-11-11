@@ -1,28 +1,35 @@
-import { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useParams } from "react-router-dom";
+import { Plus, ClipboardList, Hourglass, CircleCheck, ArrowRightLeft, CalendarDays, UserRound, Search, ChevronDown } from "lucide-react";
 import client from "../../../api/client";
+import PmHeader from "../components/PmHeader";
+import "../../training/styles/BusinessPages.css";
+import "../../training/styles/TrainerDashboard.css";
+import "../styles/PmPages.css";
 
-const PRIORITY_STYLES = {
-  LOW: "bg-gray-100 text-gray-600",
-  MEDIUM: "bg-blue-100 text-blue-700",
-  HIGH: "bg-amber-100 text-amber-700",
-  CRITICAL: "bg-red-100 text-red-700",
-};
+// client_request check constraints.
+const PRIORITIES = [
+  { key: "LOW", label: "Low", chip: "gray" },
+  { key: "MEDIUM", label: "Medium", chip: "blue" },
+  { key: "HIGH", label: "High", chip: "orange" },
+  { key: "URGENT", label: "Urgent", chip: "red" },
+];
+const PRIORITY_CHIP = Object.fromEntries(PRIORITIES.map((p) => [p.key, p.chip]));
+const STATUS_CHIP = { OPEN: "gray", IN_PROGRESS: "blue", RESOLVED: "green", CLOSED: "gray", CANCELLED: "red", ON_HOLD: "orange" };
+const OPEN = ["OPEN", "IN_PROGRESS", "ON_HOLD"];
 
-const STATUS_STYLES = {
-  OPEN: "bg-gray-100 text-gray-700",
-  IN_PROGRESS: "bg-blue-100 text-blue-700",
-  COMPLETED: "bg-green-100 text-green-700",
-  CLOSED: "bg-gray-200 text-gray-600",
-};
+const day = (d) => (d ? new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—");
 
 function ClientRequests() {
   const { clientId } = useParams();
   const [requests, setRequests] = useState([]);
   const [projects, setProjects] = useState([]);
+  const [clientName, setClientName] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
 
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState("");
@@ -31,18 +38,16 @@ function ClientRequests() {
   const [priority, setPriority] = useState("MEDIUM");
   const [targetDate, setTargetDate] = useState("");
   const [creating, setCreating] = useState(false);
+  const [formError, setFormError] = useState("");
 
-  // Conversion state
   const [convertingId, setConvertingId] = useState(null);
   const [convertError, setConvertError] = useState("");
-  const [projectPickerFor, setProjectPickerFor] = useState(null); // request_id currently choosing a project
+  const [projectPickerFor, setProjectPickerFor] = useState(null);
   const [selectedProjectId, setSelectedProjectId] = useState("");
 
-  // TODO: replace with your actual auth/user context
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
 
-  const load = () => {
-    setLoading(true);
+  const fetchData = () =>
     Promise.all([
       client.get(`/api/projects/clients/${clientId}/requests/`),
       client.get(`/api/projects/clients/${clientId}/`),
@@ -50,23 +55,23 @@ function ClientRequests() {
       .then(([reqRes, clientRes]) => {
         setRequests(reqRes.data);
         setProjects(clientRes.data.projects || []);
+        setClientName(clientRes.data.client_name || null);
       })
       .catch((err) => setError(err.response?.data?.detail || "Couldn't load requests."))
       .finally(() => setLoading(false));
-  };
 
   useEffect(() => {
-    load();
+    fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientId]);
 
   const createRequest = async () => {
     if (!title.trim()) {
-      setError("Request title is required.");
+      setFormError("Request title is required.");
       return;
     }
     setCreating(true);
-    setError("");
+    setFormError("");
     try {
       await client.post(`/api/projects/clients/${clientId}/requests/`, {
         request_title: title,
@@ -78,23 +83,11 @@ function ClientRequests() {
       setMessage("Request logged.");
       setTitle(""); setDescription(""); setRequestType(""); setPriority("MEDIUM"); setTargetDate("");
       setShowForm(false);
-      load();
+      fetchData();
     } catch (err) {
-      setError(err.response?.data?.detail || "Couldn't log request.");
+      setFormError(err.response?.data?.detail || "Couldn't log request.");
     } finally {
       setCreating(false);
-    }
-  };
-
-  const startConvert = (requestId) => {
-    setConvertError("");
-    if (projects.length === 1) {
-      convertToRequirement(requestId, projects[0].project_id);
-    } else if (projects.length > 1) {
-      setProjectPickerFor(requestId);
-      setSelectedProjectId("");
-    } else {
-      setConvertError("This client has no projects to convert this request into.");
     }
   };
 
@@ -102,12 +95,10 @@ function ClientRequests() {
     setConvertingId(requestId);
     setConvertError("");
     try {
-      await client.post(`/api/projects/client-requests/${requestId}/convert/`, {
-        project_id: projectId,
-      });
+      await client.post(`/api/projects/client-requests/${requestId}/convert/`, { project_id: projectId });
       setMessage("Converted to requirement.");
       setProjectPickerFor(null);
-      load();
+      fetchData();
     } catch (err) {
       setConvertError(err.response?.data?.detail || "Couldn't convert request.");
     } finally {
@@ -115,160 +106,160 @@ function ClientRequests() {
     }
   };
 
-  if (loading) return <p className="p-6 text-gray-400">Loading…</p>;
+  const startConvert = (requestId) => {
+    setConvertError("");
+    if (projects.length === 1) convertToRequirement(requestId, projects[0].project_id);
+    else if (projects.length > 1) { setProjectPickerFor(requestId); setSelectedProjectId(""); }
+    else setConvertError("This client has no projects to convert this request into.");
+  };
 
-  const sorted = [...requests].sort((a, b) => new Date(b.requested_date) - new Date(a.requested_date));
+  const sorted = useMemo(() => [...requests].sort((a, b) => new Date(b.requested_date) - new Date(a.requested_date)), [requests]);
+  const openCount = requests.filter((r) => OPEN.includes(r.status)).length;
+  const converted = requests.filter((r) => r.converted_to_requirement).length;
+  const visible = sorted.filter((r) => {
+    if (statusFilter && r.status !== statusFilter) return false;
+    const q = search.trim().toLowerCase();
+    return !q || [r.request_title, r.request_description, r.request_type, r.assigned_to_name].some((v) => (v || "").toLowerCase().includes(q));
+  });
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <Link to="/clients/requests" className="text-sm text-blue-600 hover:underline">
-        ← Back to Clients
-      </Link>
+    <div className="bp-page tr-page pm-page">
+      <PmHeader
+        eyebrow="Client Management"
+        section="Client Requests"
+        title={clientName ? `${clientName} Requests` : "Client Requests"}
+        subtitle="These feed into Requirements and Change Requests once assigned to a project."
+        back="/clients/requests"
+        backLabel="All clients"
+      >
+        <button type="button" className="bp-btn navy" onClick={() => { setShowForm(true); setFormError(""); }}><Plus size={16} /> New Request</button>
+      </PmHeader>
 
-      <div className="flex justify-between items-center mt-3 mb-6">
-        <h1 className="text-xl font-bold text-gray-900">Client Requests</h1>
-        <button
-          onClick={() => setShowForm((prev) => !prev)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-semibold"
-        >
-          {showForm ? "Cancel" : "+ New Request"}
-        </button>
+      {error && <p className="bp-panel bp-error">{error}</p>}
+      {convertError && <p className="bp-panel bp-error">{convertError}</p>}
+      {message && <p className="bp-panel pm-notice-ok">{message}</p>}
+
+      <div className="bp-stats tr-stats">
+        <div className="bp-stat" style={{ "--i": 0 }}>
+          <div className="bp-stat-top"><p className="bp-stat-label pm-label">REQUESTS</p><span className="pm-ico navy"><ClipboardList size={20} /></span></div>
+          <p className="bp-stat-value">{requests.length}</p>
+          <p className="pm-foot"><span>Logged for this client</span></p>
+        </div>
+        <div className="bp-stat" style={{ "--i": 1 }}>
+          <div className="bp-stat-top"><p className="bp-stat-label pm-label">OPEN</p><span className="pm-ico orange"><Hourglass size={20} /></span></div>
+          <p className="bp-stat-value tr-orange">{openCount}</p>
+          <p className="pm-foot"><span>Open, in progress or on hold</span></p>
+        </div>
+        <div className="bp-stat" style={{ "--i": 2 }}>
+          <div className="bp-stat-top"><p className="bp-stat-label pm-label">CONVERTED</p><span className="pm-ico green"><CircleCheck size={20} /></span></div>
+          <p className="bp-stat-value">{converted}</p>
+          <p className="pm-foot"><span>Turned into requirements</span></p>
+        </div>
       </div>
 
-      <p className="text-sm text-gray-600 mb-4">
-        These feed into Requirements and Change Requests once assigned to a project.
-      </p>
+      <div className="bp-panel pm-toolbar">
+        <label className="bp-search">
+          <Search size={15} />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search requests…" />
+        </label>
+        <label className="bp-select">
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+            <option value="">All statuses</option>
+            {Object.keys(STATUS_CHIP).map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
+          </select>
+          <ChevronDown size={14} />
+        </label>
+      </div>
 
-      {error && <p className="text-red-600 mb-4">{error}</p>}
-      {message && <p className="text-green-600 mb-4">{message}</p>}
-      {convertError && <p className="text-red-600 mb-4">{convertError}</p>}
-
-      {showForm && (
-        <div className="bg-white border border-gray-200 rounded-xl p-5 mb-6">
-          <h3 className="font-semibold text-gray-900 mb-3">New Request</h3>
-          <input
-            placeholder="Request title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm mb-3"
-          />
-          <textarea
-            placeholder="Description"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={3}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm mb-3"
-          />
-          <div className="grid grid-cols-3 gap-3 mb-4">
-            <input
-              placeholder="Type (e.g. Feature, Bug, Query)"
-              value={requestType}
-              onChange={(e) => setRequestType(e.target.value)}
-              className="border border-gray-300 rounded-md px-3 py-2 text-sm"
-            />
-            <select
-              value={priority}
-              onChange={(e) => setPriority(e.target.value)}
-              className="border border-gray-300 rounded-md px-3 py-2 text-sm"
-            >
-              <option value="LOW">Low</option>
-              <option value="MEDIUM">Medium</option>
-              <option value="HIGH">High</option>
-              <option value="CRITICAL">Critical</option>
-            </select>
-            <input
-              type="date"
-              value={targetDate}
-              onChange={(e) => setTargetDate(e.target.value)}
-              className="border border-gray-300 rounded-md px-3 py-2 text-sm"
-            />
-          </div>
-          <button
-            onClick={createRequest}
-            disabled={creating}
-            className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-semibold disabled:opacity-60"
-          >
-            {creating ? "Logging…" : "Log Request"}
-          </button>
+      {loading ? (
+        <p className="bp-loading">Loading requests…</p>
+      ) : visible.length === 0 ? (
+        <p className="bp-panel pm-empty-panel">{requests.length ? "No requests match these filters." : "No requests logged yet."}</p>
+      ) : (
+        <div className="pm-list">
+          {visible.map((r, idx) => {
+            const isAssignee = r.assigned_to_user === currentUser.user_id;
+            return (
+              <article key={r.client_request_id} className="bp-panel pm-item" style={{ "--i": idx }}>
+                <div className="pm-item-top">
+                  <div>
+                    <h3 className="pm-item-title">{r.request_title}</h3>
+                    <p className="pm-item-meta">
+                      {r.request_type && <span>{r.request_type}</span>}
+                      {r.assigned_to_name && <span><UserRound size={12} /> {r.assigned_to_name}</span>}
+                      <span><CalendarDays size={12} /> Logged {day(r.requested_date)}</span>
+                      {r.target_date && <span>Target {day(r.target_date)}</span>}
+                    </p>
+                  </div>
+                  <span className="pm-tl-side">
+                    <span className={`bp-chip ${PRIORITY_CHIP[r.priority] || "blue"}`}>{r.priority}</span>
+                    <span className={`bp-chip ${STATUS_CHIP[r.status] || "gray"}`}>{(r.status || "").replace("_", " ")}</span>
+                  </span>
+                </div>
+                {r.request_description && <p className="pm-item-text">{r.request_description}</p>}
+                <div className="pm-item-foot">
+                  {r.converted_to_requirement ? (
+                    <span className="pm-ok"><CircleCheck size={12} /> Converted to requirement</span>
+                  ) : isAssignee ? (
+                    projectPickerFor === r.client_request_id ? (
+                      <span className="pm-row-actions">
+                        <label className="bp-select pm-status-select">
+                          <select value={selectedProjectId} onChange={(e) => setSelectedProjectId(e.target.value)}>
+                            <option value="">Select project…</option>
+                            {projects.map((p) => <option key={p.project_id} value={p.project_id}>{p.project_name}</option>)}
+                          </select>
+                          <ChevronDown size={14} />
+                        </label>
+                        <button type="button" className="bp-btn navy small" onClick={() => selectedProjectId && convertToRequirement(r.client_request_id, selectedProjectId)} disabled={!selectedProjectId || convertingId === r.client_request_id}>
+                          {convertingId === r.client_request_id ? "Converting…" : "Confirm"}
+                        </button>
+                        <button type="button" className="bp-btn outline small" onClick={() => setProjectPickerFor(null)}>Cancel</button>
+                      </span>
+                    ) : (
+                      <button type="button" className="bp-btn navy small" onClick={() => startConvert(r.client_request_id)} disabled={convertingId === r.client_request_id}>
+                        <ArrowRightLeft size={12} /> {convertingId === r.client_request_id ? "Converting…" : "Convert to Requirement"}
+                      </button>
+                    )
+                  ) : (
+                    <span>Only the assignee can convert this request.</span>
+                  )}
+                </div>
+              </article>
+            );
+          })}
         </div>
       )}
 
-      {sorted.length === 0 ? (
-        <div className="bg-white border border-gray-200 rounded-xl p-8 text-center text-gray-400">
-          No requests logged yet.
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {sorted.map((r) => {
-            const isAssignee = r.assigned_to_user === currentUser.user_id;
-
-            return (
-              <div key={r.client_request_id} className="bg-white border border-gray-200 rounded-lg p-4">
-                <div className="flex justify-between items-start mb-2">
-                  <p className="font-medium text-gray-900">{r.request_title}</p>
-                  <div className="flex gap-2">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${PRIORITY_STYLES[r.priority] || PRIORITY_STYLES.MEDIUM}`}>
-                      {r.priority}
-                    </span>
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_STYLES[r.status] || STATUS_STYLES.OPEN}`}>
-                      {r.status}
-                    </span>
-                  </div>
-                </div>
-                {r.request_description && <p className="text-sm text-gray-700 mb-2">{r.request_description}</p>}
-                <div className="flex gap-4 text-xs text-gray-600 mb-3">
-                  {r.request_type && <span>Type: {r.request_type}</span>}
-                  {r.assigned_to_name && <span>Assigned: {r.assigned_to_name}</span>}
-                  {r.requested_date && <span>Logged: {new Date(r.requested_date).toLocaleDateString("en-IN")}</span>}
-                  {r.target_date && <span>Target: {new Date(r.target_date).toLocaleDateString("en-IN")}</span>}
-                </div>
-
-                {r.converted_to_requirement ? (
-                  <span className="text-xs text-green-700 font-semibold">
-                    ✓ Converted to Requirement
-                  </span>
-                ) : isAssignee ? (
-                  projectPickerFor === r.client_request_id ? (
-                    <div className="flex items-center gap-2">
-                      <select
-                        value={selectedProjectId}
-                        onChange={(e) => setSelectedProjectId(e.target.value)}
-                        className="border border-gray-300 rounded-md px-2 py-1.5 text-xs"
-                      >
-                        <option value="">Select project…</option>
-                        {projects.map((p) => (
-                          <option key={p.project_id} value={p.project_id}>
-                            {p.project_name}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        onClick={() => selectedProjectId && convertToRequirement(r.client_request_id, selectedProjectId)}
-                        disabled={!selectedProjectId || convertingId === r.client_request_id}
-                        className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-md font-semibold disabled:opacity-60"
-                      >
-                        {convertingId === r.client_request_id ? "Converting…" : "Confirm"}
-                      </button>
-                      <button
-                        onClick={() => setProjectPickerFor(null)}
-                        className="text-xs text-gray-500 hover:text-gray-700"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => startConvert(r.client_request_id)}
-                      disabled={convertingId === r.client_request_id}
-                      className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-md font-semibold disabled:opacity-60"
-                    >
-                      {convertingId === r.client_request_id ? "Converting…" : "Convert to Requirement"}
-                    </button>
-                  )
-                ) : null}
-              </div>
-            );
-          })}
+      {showForm && (
+        <div className="bp-modal-backdrop" onClick={() => !creating && setShowForm(false)}>
+          <div className="bp-modal" onClick={(e) => e.stopPropagation()}>
+            <h2>New Request</h2>
+            <p className="bp-sub">Log something {clientName || "this client"} asked for.</p>
+            <div className="bp-form-grid">
+              <label className="bp-field full"><span>Title</span>
+                <input value={title} onChange={(e) => setTitle(e.target.value)} />
+              </label>
+              <label className="bp-field full"><span>Description</span>
+                <textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} />
+              </label>
+              <label className="bp-field"><span>Type</span>
+                <input value={requestType} onChange={(e) => setRequestType(e.target.value)} placeholder="Feature, Bug, Query" />
+              </label>
+              <label className="bp-field"><span>Priority</span>
+                <select value={priority} onChange={(e) => setPriority(e.target.value)}>
+                  {PRIORITIES.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
+                </select>
+              </label>
+              <label className="bp-field"><span>Target date</span>
+                <input type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} />
+              </label>
+            </div>
+            {formError && <p className="bp-form-error">{formError}</p>}
+            <div className="bp-modal-actions">
+              <button type="button" className="bp-btn outline" onClick={() => setShowForm(false)} disabled={creating}>Cancel</button>
+              <button type="button" className="bp-btn navy" onClick={createRequest} disabled={creating}>{creating ? "Logging…" : "Log Request"}</button>
+            </div>
+          </div>
         </div>
       )}
     </div>

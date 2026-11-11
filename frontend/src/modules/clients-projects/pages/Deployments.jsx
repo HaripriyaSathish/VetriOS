@@ -1,28 +1,24 @@
 import { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams } from "react-router-dom";
+import { Plus, Rocket, Server, CircleCheck, CircleX, UserRound, Clock3, ChevronDown, Search } from "lucide-react";
 import client from "../../../api/client";
+import PmHeader from "../components/PmHeader";
+import "../../training/styles/BusinessPages.css";
+import "../../training/styles/TrainerDashboard.css";
+import "../styles/PmPages.css";
 
-const STATUS_STYLES = {
-  STARTED: "bg-blue-100 text-blue-700",
-  SUCCESS: "bg-green-100 text-green-700",
-  FAILED: "bg-red-100 text-red-700",
-  ROLLED_BACK: "bg-amber-100 text-amber-700",
-  CANCELLED: "bg-gray-200 text-gray-600",
-};
-
-const ENV_STYLES = {
-  staging: "bg-purple-100 text-purple-700",
-  production: "bg-gray-900 text-white",
-};
-
+// chk_project_deployment_status.
+const STATUS_CHIP = { STARTED: "blue", SUCCESS: "green", FAILED: "red", ROLLED_BACK: "orange", CANCELLED: "gray" };
+const STATUS_LABEL = { STARTED: "In Progress", SUCCESS: "Success", FAILED: "Failed", ROLLED_BACK: "Rolled Back", CANCELLED: "Cancelled" };
 const NEXT_STATUS_OPTIONS = ["SUCCESS", "FAILED", "ROLLED_BACK", "CANCELLED"];
+
+const when = (d) => (d ? new Date(d).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—");
 
 function DeploymentStatusControl({ deployment, onUpdated }) {
   const [updating, setUpdating] = useState(false);
   const [error, setError] = useState("");
 
-  const isTerminal = deployment.deployment_status !== "STARTED";
-  if (isTerminal) return null;
+  if (deployment.deployment_status !== "STARTED") return null;
 
   const updateStatus = async (newStatus) => {
     if (!newStatus) return;
@@ -31,7 +27,7 @@ function DeploymentStatusControl({ deployment, onUpdated }) {
     try {
       const { data } = await client.patch(
         `/api/projects/deployments/${deployment.project_deployment_id}/status/`,
-        { deployment_status: newStatus }
+        { deployment_status: newStatus },
       );
       onUpdated(data);
     } catch (err) {
@@ -42,20 +38,34 @@ function DeploymentStatusControl({ deployment, onUpdated }) {
   };
 
   return (
-    <div className="flex items-center gap-2 mt-2">
-      <select
-        disabled={updating}
-        value=""
-        onChange={(e) => updateStatus(e.target.value)}
-        className="text-xs border border-gray-300 rounded-md px-2 py-1"
-      >
-        <option value="">Mark as…</option>
-        {NEXT_STATUS_OPTIONS.map((s) => (
-          <option key={s} value={s}>{s}</option>
-        ))}
-      </select>
-      {updating && <span className="text-xs text-gray-400">Updating…</span>}
-      {error && <span className="text-xs text-red-600">{error}</span>}
+    <span className="pm-inline-control">
+      <label className="bp-select pm-status-select">
+        <select disabled={updating} value="" onChange={(e) => updateStatus(e.target.value)}>
+          <option value="">{updating ? "Updating…" : "Mark as…"}</option>
+          {NEXT_STATUS_OPTIONS.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
+        </select>
+        <ChevronDown size={14} />
+      </label>
+      {error && <small className="pm-warn">{error}</small>}
+    </span>
+  );
+}
+
+function EnvCard({ label, deployment, tone }) {
+  return (
+    <div className={`pm-env ${tone}`}>
+      <span className={`pm-ico ${tone === "prod" ? "navy" : "orange"}`}><Server size={20} /></span>
+      <div>
+        <p className="pm-env-label">{label}</p>
+        {deployment ? (
+          <>
+            <b>{deployment.deployment_version || "Unversioned"}</b>
+            <small>Live since {when(deployment.deployment_completed_at || deployment.deployment_started_at)}</small>
+          </>
+        ) : (
+          <small>No successful deployment yet</small>
+        )}
+      </div>
     </div>
   );
 }
@@ -63,47 +73,46 @@ function DeploymentStatusControl({ deployment, onUpdated }) {
 function Deployments() {
   const { projectId } = useParams();
   const [deployments, setDeployments] = useState([]);
+  const [project, setProject] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [isPM, setIsPM] = useState(false);
+  const [envFilter, setEnvFilter] = useState("");
+  const [search, setSearch] = useState("");
 
   const [showForm, setShowForm] = useState(false);
   const [environment, setEnvironment] = useState("staging");
   const [version, setVersion] = useState("");
   const [releaseNotes, setReleaseNotes] = useState("");
   const [creating, setCreating] = useState(false);
+  const [formError, setFormError] = useState("");
 
-  const load = () => {
-    setLoading(true);
+  const fetchDeployments = () =>
     client.get(`/api/projects/${projectId}/deployments/`)
       .then(({ data }) => setDeployments(data))
       .catch((err) => setError(err.response?.data?.detail || "Couldn't load deployments."))
       .finally(() => setLoading(false));
-  };
 
-  const loadPmStatus = () => {
-    client.get('/api/projects/me/')
+  useEffect(() => {
+    fetchDeployments();
+    client.get("/api/projects/me/")
       .then(({ data }) => {
         const match = data.find((p) => String(p.project_id) === String(projectId));
+        setProject(match || null);
         setIsPM(match?.my_role === "Project Manager");
       })
       .catch(() => setIsPM(false));
-  };
-
-  useEffect(() => {
-    load();
-    loadPmStatus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
   const createDeployment = async () => {
     if (!environment) {
-      setError("Environment is required.");
+      setFormError("Environment is required.");
       return;
     }
     setCreating(true);
-    setError("");
+    setFormError("");
     try {
       await client.post(`/api/projects/${projectId}/deployments/`, {
         environment_name: environment,
@@ -113,151 +122,146 @@ function Deployments() {
       setMessage("Deployment logged.");
       setVersion(""); setReleaseNotes("");
       setShowForm(false);
-      load();
+      fetchDeployments();
     } catch (err) {
-      setError(err.response?.data?.detail || "Couldn't log deployment.");
+      setFormError(err.response?.data?.detail || "Couldn't log deployment.");
     } finally {
       setCreating(false);
     }
   };
 
-  const handleStatusUpdated = (updatedDeployment) => {
-    setMessage(`Deployment marked ${updatedDeployment.deployment_status}.`);
-    setDeployments((prev) =>
-      prev.map((d) =>
-        d.project_deployment_id === updatedDeployment.project_deployment_id
-          ? updatedDeployment
-          : d
-      )
-    );
+  const handleStatusUpdated = (updated) => {
+    setMessage(`Deployment marked ${STATUS_LABEL[updated.deployment_status] || updated.deployment_status}.`);
+    setDeployments((prev) => prev.map((d) => (d.project_deployment_id === updated.project_deployment_id ? updated : d)));
   };
 
-  if (loading) return <p className="p-6 text-gray-400">Loading…</p>;
-
-  const sorted = [...deployments].sort((a, b) => {
-    const aDate = a.deployment_started_at || a.created_at;
-    const bDate = b.deployment_started_at || b.created_at;
-    return new Date(bDate) - new Date(aDate);
-  });
-
+  const sorted = [...deployments].sort((a, b) => new Date(b.deployment_started_at || b.created_at) - new Date(a.deployment_started_at || a.created_at));
   const currentProduction = sorted.find((d) => d.environment_name === "production" && d.deployment_status === "SUCCESS");
   const currentStaging = sorted.find((d) => d.environment_name === "staging" && d.deployment_status === "SUCCESS");
+  const by = (s) => deployments.filter((d) => d.deployment_status === s).length;
+  const envs = [...new Set(deployments.map((d) => d.environment_name))];
+  const visible = sorted.filter((d) => {
+    if (envFilter && d.environment_name !== envFilter) return false;
+    const q = search.trim().toLowerCase();
+    return !q || [d.deployment_version, d.release_notes, d.deployed_by_name].some((v) => (v || "").toLowerCase().includes(q));
+  });
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <Link to="/project/deployments" className="text-sm text-blue-600 hover:underline">
-        ← Back to Projects
-      </Link>
-
-      <div className="flex justify-between items-center mt-3 mb-6">
-        <h1 className="text-xl font-bold text-gray-900">Deployments</h1>
+    <div className="bp-page tr-page pm-page">
+      <PmHeader
+        section="Deployments"
+        title={project ? `${project.project_name} Deployments` : "Deployments"}
+        subtitle={project ? `${project.client_name} · release history` : "Release history for this project."}
+        back="/project/deployments"
+        backLabel="All projects"
+      >
         {isPM && (
-          <button
-            onClick={() => setShowForm((prev) => !prev)}
-            className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-semibold"
-          >
-            {showForm ? "Cancel" : "+ Log Deployment"}
-          </button>
+          <button type="button" className="bp-btn navy" onClick={() => { setShowForm(true); setFormError(""); }}><Plus size={16} /> Log Deployment</button>
         )}
-      </div>
+      </PmHeader>
 
-      {error && <p className="text-red-600 mb-4">{error}</p>}
-      {message && <p className="text-green-600 mb-4">{message}</p>}
+      {error && <p className="bp-panel bp-error">{error}</p>}
+      {message && <p className="bp-panel pm-notice-ok">{message}</p>}
 
-      <div className="grid grid-cols-2 gap-4 mb-6">
-        <div className="bg-white border border-gray-200 rounded-xl p-4">
-          <p className="text-xs font-semibold text-purple-700 mb-1">Current Staging</p>
-          {currentStaging ? (
-            <>
-              <p className="font-medium text-gray-900">{currentStaging.deployment_version || "—"}</p>
-              <p className="text-xs text-gray-600">
-                {new Date(currentStaging.deployment_completed_at || currentStaging.deployment_started_at).toLocaleDateString("en-IN")}
-              </p>
-            </>
-          ) : (
-            <p className="text-sm text-gray-400">No successful deployment yet</p>
-          )}
+      <div className="bp-stats tr-stats">
+        <div className="bp-stat" style={{ "--i": 0 }}>
+          <div className="bp-stat-top"><p className="bp-stat-label pm-label">DEPLOYMENTS</p><span className="pm-ico navy"><Rocket size={20} /></span></div>
+          <p className="bp-stat-value">{deployments.length}</p>
+          <p className="pm-foot"><span>{by("STARTED")} in progress</span></p>
         </div>
-        <div className="bg-white border border-gray-200 rounded-xl p-4">
-          <p className="text-xs font-semibold text-gray-900 mb-1">Current Production</p>
-          {currentProduction ? (
-            <>
-              <p className="font-medium text-gray-900">{currentProduction.deployment_version || "—"}</p>
-              <p className="text-xs text-gray-600">
-                {new Date(currentProduction.deployment_completed_at || currentProduction.deployment_started_at).toLocaleDateString("en-IN")}
-              </p>
-            </>
-          ) : (
-            <p className="text-sm text-gray-400">No successful deployment yet</p>
-          )}
+        <div className="bp-stat" style={{ "--i": 1 }}>
+          <div className="bp-stat-top"><p className="bp-stat-label pm-label">SUCCESSFUL</p><span className="pm-ico green"><CircleCheck size={20} /></span></div>
+          <p className="bp-stat-value">{by("SUCCESS")}</p>
+          <p className="pm-foot"><span className="pm-ok">{deployments.length ? Math.round((by("SUCCESS") * 100) / deployments.length) : 0}% success rate</span></p>
+        </div>
+        <div className="bp-stat" style={{ "--i": 2 }}>
+          <div className="bp-stat-top"><p className="bp-stat-label pm-label">FAILED / ROLLED BACK</p><span className="pm-ico red"><CircleX size={20} /></span></div>
+          <p className={`bp-stat-value ${by("FAILED") ? "pm-warn" : ""}`}>{by("FAILED") + by("ROLLED_BACK")}</p>
+          <p className="pm-foot"><span>{by("CANCELLED")} cancelled</span></p>
         </div>
       </div>
+
+      <div className="pm-grid even">
+        <EnvCard label="Current Staging" deployment={currentStaging} tone="stage" />
+        <EnvCard label="Current Production" deployment={currentProduction} tone="prod" />
+      </div>
+
+      <section className="bp-panel">
+        <div className="pm-toolbar pm-toolbar-flat">
+          <h3 className="pm-panel-title">Release History</h3>
+          <div className="pm-toolbar-right">
+            <label className="bp-search">
+              <Search size={15} />
+              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search version, notes…" />
+            </label>
+            <label className="bp-select">
+              <select value={envFilter} onChange={(e) => setEnvFilter(e.target.value)}>
+                <option value="">All environments</option>
+                {envs.map((e) => <option key={e} value={e}>{e}</option>)}
+              </select>
+              <ChevronDown size={14} />
+            </label>
+          </div>
+        </div>
+        <div className="bp-table-wrap">
+          <table className="bp-table">
+            <thead>
+              <tr><th>Version</th><th>Environment</th><th>Release Notes</th><th>Deployed</th><th>Status</th></tr>
+            </thead>
+            <tbody>
+              {loading && <tr className="bp-empty-row"><td colSpan={5}>Loading deployments…</td></tr>}
+              {!loading && visible.length === 0 && <tr className="bp-empty-row"><td colSpan={5}>{deployments.length ? "No deployments match these filters." : "No deployments yet."}</td></tr>}
+              {visible.map((d, idx) => (
+                <tr key={d.project_deployment_id} style={{ "--row": idx }}>
+                  <td><b className="bp-strong">{d.deployment_version || "Unversioned"}</b></td>
+                  <td><span className={`pm-area ${d.environment_name === "production" ? "prod" : ""}`}><Server size={12} /> {d.environment_name}</span></td>
+                  <td className="pm-notes-cell">{d.release_notes || <span className="bp-muted">—</span>}</td>
+                  <td>
+                    <div className="pm-owner">
+                      <div>
+                        <b><UserRound size={11} /> {d.deployed_by_name || "—"}</b>
+                        <small><Clock3 size={11} /> {when(d.deployment_started_at || d.created_at)}</small>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <div className="pm-status-cell">
+                      <span className={`bp-chip ${STATUS_CHIP[d.deployment_status] || "blue"}`}>{STATUS_LABEL[d.deployment_status] || d.deployment_status}</span>
+                      {isPM && <DeploymentStatusControl deployment={d} onUpdated={handleStatusUpdated} />}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
       {isPM && showForm && (
-        <div className="bg-white border border-gray-200 rounded-xl p-5 mb-6">
-          <h3 className="font-semibold text-gray-900 mb-3">New Deployment</h3>
-          <div className="grid grid-cols-2 gap-3 mb-3">
-            <select
-              value={environment}
-              onChange={(e) => setEnvironment(e.target.value)}
-              className="border border-gray-300 rounded-md px-3 py-2 text-sm"
-            >
-              <option value="staging">Staging</option>
-              <option value="production">Production</option>
-            </select>
-            <input
-              placeholder="Version (e.g. v1.0.0)"
-              value={version}
-              onChange={(e) => setVersion(e.target.value)}
-              className="border border-gray-300 rounded-md px-3 py-2 text-sm"
-            />
-          </div>
-          <textarea
-            placeholder="Release notes"
-            value={releaseNotes}
-            onChange={(e) => setReleaseNotes(e.target.value)}
-            rows={3}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm mb-4"
-          />
-          <button
-            onClick={createDeployment}
-            disabled={creating}
-            className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-semibold disabled:opacity-60"
-          >
-            {creating ? "Logging…" : "Log Deployment"}
-          </button>
-        </div>
-      )}
-
-      {sorted.length === 0 ? (
-        <div className="bg-white border border-gray-200 rounded-xl p-8 text-center text-gray-400">
-          No deployments yet.
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {sorted.map((d) => (
-            <div key={d.project_deployment_id} className="bg-white border border-gray-200 rounded-lg p-4">
-              <div className="flex justify-between items-start mb-2">
-                <div className="flex items-center gap-2">
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${ENV_STYLES[d.environment_name] || "bg-gray-100 text-gray-700"}`}>
-                    {d.environment_name}
-                  </span>
-                  <p className="font-medium text-gray-900">{d.deployment_version || "Unversioned"}</p>
-                </div>
-                <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_STYLES[d.deployment_status] || STATUS_STYLES.STARTED}`}>
-                  {d.deployment_status}
-                </span>
-              </div>
-              {d.release_notes && <p className="text-sm text-gray-700 mb-2">{d.release_notes}</p>}
-              <div className="flex gap-4 text-xs text-gray-600">
-                {d.deployed_by_name && <span>Deployed by: {d.deployed_by_name}</span>}
-                {d.deployment_started_at && (
-                  <span>Started: {new Date(d.deployment_started_at).toLocaleString("en-IN")}</span>
-                )}
-              </div>
-              {isPM && <DeploymentStatusControl deployment={d} onUpdated={handleStatusUpdated} />}
+        <div className="bp-modal-backdrop" onClick={() => !creating && setShowForm(false)}>
+          <div className="bp-modal" onClick={(e) => e.stopPropagation()}>
+            <h2>Log Deployment</h2>
+            <p className="bp-sub">Records a release; mark it Success or Failed once it finishes.</p>
+            <div className="bp-form-grid">
+              <label className="bp-field"><span>Environment</span>
+                <select value={environment} onChange={(e) => setEnvironment(e.target.value)}>
+                  <option value="staging">Staging</option>
+                  <option value="production">Production</option>
+                </select>
+              </label>
+              <label className="bp-field"><span>Version</span>
+                <input value={version} onChange={(e) => setVersion(e.target.value)} placeholder="e.g. v1.0.0" />
+              </label>
+              <label className="bp-field full"><span>Release notes</span>
+                <textarea rows={3} value={releaseNotes} onChange={(e) => setReleaseNotes(e.target.value)} />
+              </label>
             </div>
-          ))}
+            {formError && <p className="bp-form-error">{formError}</p>}
+            <div className="bp-modal-actions">
+              <button type="button" className="bp-btn outline" onClick={() => setShowForm(false)} disabled={creating}>Cancel</button>
+              <button type="button" className="bp-btn navy" onClick={createDeployment} disabled={creating}>{creating ? "Logging…" : "Log Deployment"}</button>
+            </div>
+          </div>
         </div>
       )}
     </div>

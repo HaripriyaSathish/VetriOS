@@ -202,9 +202,17 @@ class EmailBatchListView(generics.ListAPIView):
 class AiEmailListView(generics.ListAPIView):
     """GET — every drafted/sent email, newest first (the Compose page's
     history / a simple inbox-like view)."""
-    permission_classes = [CanUseEmail]
+    # Open to any login (the Email page is open to everyone). System
+    # Administrators see every email; everyone else sees only their own.
+    permission_classes = [IsAuthenticated]
     serializer_class = AiEmailSerializer
-    queryset = AiEmail.objects.select_related("created_by_user__person").order_by("-created_at")
+
+    def get_queryset(self):
+        qs = AiEmail.objects.select_related("created_by_user__person").order_by("-created_at")
+        user = self.request.user
+        if user.has_permission("SYSTEM_ADMIN"):
+            return qs
+        return qs.filter(created_by_user=user)
 
 
 class ComposeEmailView(APIView):

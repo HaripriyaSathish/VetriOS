@@ -223,3 +223,15 @@
 }
 
 .app-search input::placeholder { color: var(--vt-muted); }
+
+/* Log out confirmation */
+.app-confirm-backdrop { position: fixed; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(15, 42, 87, .45); }
+.app-confirm { width: 100%; max-width: 380px; padding: 26px 26px 22px; text-align: center; background: #fff; border-radius: 16px; box-shadow: 0 24px 60px rgba(15, 42, 87, .3); }
+.app-confirm-icon { width: 48px; height: 48px; margin: 0 auto 12px; border-radius: 14px; display: flex; align-items: center; justify-content: center; background: #fdf0dc; color: #d96a12; }
+.app-confirm h2 { margin: 0 0 6px; font-size: 19px; font-weight: 700; color: #12315f; }
+.app-confirm p { margin: 0 0 20px; font-size: 14px; color: #6b7b95; }
+.app-confirm-actions { display: flex; gap: 10px; }
+.app-confirm-actions button { flex: 1; padding: 11px 14px; border: 0; border-radius: 12px; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.app-confirm-cancel { background: #eef2f8; color: #51607a; }
+.app-confirm-cancel:hover { background: #e3e9f3; }
+.app-confirm-ok { background: linear-gradient(135deg, #e7510c, #ff8a4c); color: #fff; box-shadow: 0 6px 14px rgba(231, 81, 12, .3); }

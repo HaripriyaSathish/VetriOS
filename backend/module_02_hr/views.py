@@ -1,10 +1,12 @@
 import calendar
 import datetime
 import io
+import uuid
 
 from PIL import Image, ImageOps, UnidentifiedImageError
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
+from django.db import transaction
 from django.db.models import Count
 from django.db.models.functions import TruncDate
 from django.http import FileResponse
@@ -417,7 +419,17 @@ class AttendanceTodayView(APIView):
     permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
 
     def get(self, request):
+        # Optional ?date=YYYY-MM-DD to look at a past day; defaults to today.
+        # Future dates aren't allowed — nothing has happened yet.
         today = timezone.localdate()
+        date_param = request.query_params.get("date")
+        if date_param:
+            try:
+                today = datetime.date.fromisoformat(date_param)
+            except ValueError:
+                return Response({"detail": "date must be YYYY-MM-DD."}, status=status.HTTP_400_BAD_REQUEST)
+            if today > timezone.localdate():
+                return Response({"detail": "date can't be in the future."}, status=status.HTTP_400_BAD_REQUEST)
         employees = Employee.objects.filter(status="ACTIVE").select_related("person")
         attendance_by_employee = {
             a.employee_id: a for a in EmployeeAttendance.objects.filter(attendance_date=today)
@@ -1145,20 +1157,25 @@ def _maybe_auto_create_employee_from_onboarding(intern, onboarding, now):
         return
 
     intern_employment_type = EmploymentType.objects.filter(employment_type_code="INTERN").first()
-    employee = Employee.objects.create(
-        person=person,
-        employment_type=intern_employment_type,
-        designation_id=onboarding.designation_id,
-        joining_date=intern.internship_start_date,
-        status="ACTIVE",
-        created_at=now,
-        updated_at=now,
-    )
-    # employee_code is only known once the row exists (its own employee_id
-    # is auto-generated), so it's set in a second write right after create.
-    employee.employee_code = f"EMP-{employee.employee_id}"
-    employee.save(update_fields=["employee_code"])
-    _set_current_department(person.person_id, onboarding.department_id)
+    # One transaction, so a failure can't leave a half-created employee.
+    with transaction.atomic():
+        # employee_code is NOT NULL in some databases, but the final code
+        # ("EMP-<employee_id>") is only known once the row exists (its own
+        # employee_id is auto-generated). So create with a unique temporary
+        # code, then replace it with the real one right after.
+        employee = Employee.objects.create(
+            person=person,
+            employment_type=intern_employment_type,
+            designation_id=onboarding.designation_id,
+            joining_date=intern.internship_start_date,
+            status="ACTIVE",
+            employee_code=f"TMP-{uuid.uuid4().hex[:12]}",
+            created_at=now,
+            updated_at=now,
+        )
+        employee.employee_code = f"EMP-{employee.employee_id}"
+        employee.save(update_fields=["employee_code"])
+        _set_current_department(person.person_id, onboarding.department_id)
 
 
 # Updates one intern's onboarding checklist (documents verified / offer

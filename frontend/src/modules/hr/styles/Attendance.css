@@ -295,3 +295,155 @@
 .att-stats { margin-bottom: 18px; }
 .att-unit { font-family: var(--vt-font-body); font-size: 14px; font-weight: 500; color: var(--vt-text); }
 .att-today { font-size: 20px !important; }
+
+/* ---------- Attendance page redesign (scoped to .att-v2) ---------- */
+.att-v2 .att-head h1 { font-size: 32px; }
+.att-v2 .att-head p { font-size: 15px; }
+.att-v2 .att-eyebrow { color: var(--vt-orange); font-size: 12px; }
+.att2-date {
+  display: inline-flex; align-items: center; gap: 8px; align-self: center;
+  background: #fff; border: 1px solid #dde5ef; border-radius: 12px; padding: 8px 14px;
+  font-size: 14px; font-weight: 600; color: var(--vt-navy);
+}
+.att2-cards { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; margin-bottom: 14px; }
+.att2-card {
+  --solid: #7b8798;
+  display: flex; flex-direction: column; gap: 10px; text-align: left; font: inherit; cursor: pointer;
+  background: #fff; border: 1px solid #eef1f6; border-bottom: 3px solid var(--solid); border-radius: 14px; padding: 12px 14px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, .05), 0 4px 12px rgba(16, 24, 40, .07);
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.att2-card:hover { transform: translateY(-2px); box-shadow: 0 2px 4px rgba(16, 24, 40, .06), 0 10px 20px rgba(16, 24, 40, .1); }
+.att2-card:focus-visible { outline: 2px solid var(--vt-orange); outline-offset: 2px; }
+.att2-card.selected { border-color: var(--solid); box-shadow: 0 0 0 1px var(--solid), 0 6px 16px rgba(16, 24, 40, .1); }
+.att2-card.tone-green { --solid: #2f9e5a; }
+.att2-card.tone-blue { --solid: #2b6fd6; }
+.att2-card.tone-amber { --solid: #d98a1c; }
+.att2-card.tone-violet { --solid: #8a4fd8; }
+.att2-card.tone-red { --solid: #d9473b; }
+.att2-card.tone-grey { --solid: #7b8798; }
+.att2-card-top { display: flex; align-items: center; gap: 10px; }
+.att2-card-icon { width: 34px; height: 34px; border-radius: 10px; background: var(--solid); color: #fff; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.att2-card-top b { font-family: var(--vt-font-head); font-size: 26px; font-weight: 800; line-height: 1; color: var(--solid); }
+.att2-card-label { font-size: 13.5px; color: var(--vt-muted); }
+
+.att2-summary { background: #fff; border-radius: 14px; padding: 12px 16px; margin-bottom: 16px; box-shadow: 0 1px 2px rgba(16, 24, 40, .05), 0 4px 12px rgba(16, 24, 40, .06); }
+.att2-summary-row { display: flex; justify-content: space-between; font-size: 13.5px; color: var(--vt-muted); margin-bottom: 8px; }
+.att2-summary-row span:first-child { font-weight: 600; color: var(--vt-navy); }
+.att2-bar { display: flex; height: 11px; border-radius: 6px; overflow: hidden; background: #eef2f8; }
+.att2-bar i { display: block; height: 100%; }
+.att2-bar .tone-green, .att2-legend .tone-green { --c: #2f9e5a; }
+.att2-bar .tone-blue, .att2-legend .tone-blue { --c: #2b6fd6; }
+.att2-bar .tone-violet, .att2-legend .tone-violet { --c: #8a4fd8; }
+.att2-bar .tone-red, .att2-legend .tone-red { --c: #d9473b; }
+.att2-bar .tone-grey, .att2-legend .tone-grey { --c: #7b8798; }
+.att2-bar i { background: var(--c); }
+.att2-legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 9px; font-size: 13px; color: #51607a; }
+.att2-legend span::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--c); margin-right: 6px; }
+
+.att-v2 .att-panel { border-radius: 14px; box-shadow: 0 1px 2px rgba(16, 24, 40, .05), 0 4px 12px rgba(16, 24, 40, .06); }
+.att-v2 .att-panel-head h3 { font-size: 17px; }
+.att-v2 .att-panel-head p { font-size: 13.5px; }
+.att-v2 .att-search { border-radius: 999px; background: #f7f9fc; border-color: #dde5ef; }
+.att-v2 .att-search input { font-size: 14px; }
+.att-toolbar-right { flex-wrap: wrap; }
+.att2-seg { display: flex; gap: 6px; }
+.att2-seg button { border: 0; font: inherit; font-size: 13px; cursor: pointer; padding: 6px 13px; border-radius: 999px; background: #eef2f8; color: #51607a; }
+.att2-seg button.active { background: var(--vt-navy); color: #fff; }
+.att-v2 .hr-table th { background: #eef2f8; color: var(--vt-navy); font-size: 12px; padding: 11px 16px; }
+.att-v2 .hr-table td { padding: 11px 16px; font-size: 14px; }
+.att-v2 .hr-table tbody tr:nth-child(even) td { background: #f8fafd; }
+.att-v2 .hr-name { font-size: 14.5px; }
+.att2-time { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: #1b2a41; }
+.att2-time.in svg { color: #2f9e5a; }
+.att2-time.out svg { color: #e8791f; }
+.att2-none { color: #b0b9c6; }
+.att2-hours { display: inline-flex; align-items: center; gap: 9px; font-size: 14px; }
+.att2-hbar { width: 64px; height: 6px; border-radius: 4px; background: #eef2f8; overflow: hidden; }
+.att2-hbar i { display: block; height: 100%; background: #2b6fd6; }
+.att-v2 .att-pill { font-size: 12.5px; padding: 4px 12px; }
+.att-v2 .att-pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; margin-right: 6px; }
+@media (max-width: 1100px) { .att2-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .att2-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Leave, Promotions, Reports, Exit stat cards: same look as the other stat cards. */
+.att-stats .att-stat-card {
+  --k: #2b6fd6;
+  border: 1px solid #d5e0ef; border-bottom: 3px solid var(--k); border-radius: 14px; padding: 16px 18px;
+  box-shadow: 0 2px 4px rgba(16, 24, 40, .08), 0 8px 18px rgba(16, 24, 40, .10);
+}
+.att-stats .att-stat-card:nth-child(2) { --k: #2f9e5a; }
+.att-stats .att-stat-card:nth-child(3) { --k: #e8791f; }
+.att-stats .att-stat-card:nth-child(4) { --k: #8a4fd8; }
+.att-stats .att-stat-card .att-stat-label { font-size: 14px; }
+.att-stats .att-stat-card .att-stat-value { font-size: 32px; color: var(--k); }
+.att-stats .att-stat-card .att-stat-sub { font-size: 12.5px; }
+
+.att2-chart { height: 210px; margin-top: 4px; }
+.att2-summary-row span:first-child { font-size: 15px; }
+
+/* Date switcher */
+.att2-date { position: relative; padding: 4px; gap: 4px; }
+.att2-date-btn, .att2-date-main, .att2-date-today { border: 0; font: inherit; cursor: pointer; background: transparent; color: var(--vt-navy); }
+.att2-date-btn { width: 32px; height: 32px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; }
+.att2-date-btn:hover:not(:disabled) { background: #eef2f8; }
+.att2-date-btn:disabled { opacity: .35; cursor: not-allowed; }
+.att2-date-main { display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 9px; font-size: 14px; font-weight: 600; }
+.att2-date-main:hover { background: #eef2f8; }
+.att2-date-today { background: var(--vt-navy); color: #fff; border-radius: 9px; padding: 6px 12px; font-size: 13px; font-weight: 600; margin-left: 2px; }
+.att2-date-input { position: absolute; left: 0; bottom: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+
+/* ---------- Worklogs page redesign (scoped to .wl2) ---------- */
+.wl2 .wl2-cards { margin-bottom: 16px; }
+.wl2-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.wl2 .hr-search { border-radius: 999px; background: #f7f9fc; border-color: #dde5ef; min-width: 300px; }
+.wl2 .hr-search input { font-size: 14px; }
+.wl2 .hr-name { font-size: 14.5px; }
+.wl2 .hr-sub { font-size: 12.5px; }
+.wl2-person { display: flex; align-items: center; gap: 10px; }
+.wl2-av { width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: #fff; background: #2b6fd6; }
+.wl2-av.t1 { background: #e8791f; }
+.wl2-av.t2 { background: #2f9e5a; }
+.wl2-av.t3 { background: #8a4fd8; }
+.wl2-av.t4 { background: #1d4f91; }
+.wl2-hours { display: inline-flex; align-items: center; gap: 7px; background: #f3f7fb; border-radius: 8px; padding: 4px 10px; font-size: 13.5px; color: #1b2a41; white-space: nowrap; }
+.wl2-hours svg { color: #8a95a5; }
+.wl2-count { display: inline-block; min-width: 26px; text-align: center; background: #eef2f8; color: var(--vt-navy); border-radius: 999px; padding: 3px 10px; font-size: 13.5px; font-weight: 600; }
+.wl2-view { display: inline-flex; align-items: center; gap: 6px; border: 1px solid #dde5ef; background: #fff; color: var(--vt-navy); border-radius: 9px; padding: 6px 12px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.wl2-view:hover { background: #eef2f8; }
+
+.hr-modal.wl2-modal { max-width: 600px; }
+.wl2-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 14px 20px 4px; }
+.wl2-facts > div { background: #f3f7fb; border-radius: 10px; padding: 8px 12px; }
+.wl2-facts small { display: block; font-size: 12px; color: var(--vt-muted); }
+.wl2-facts b { font-size: 14px; font-weight: 600; color: var(--vt-navy); }
+.wl2-entries { padding: 8px 20px 14px; max-height: 340px; overflow-y: auto; }
+.wl2-entry { display: grid; grid-template-columns: 24px 140px 1fr; gap: 10px; align-items: start; padding: 10px 0; border-top: 1px solid #edf1f7; font-size: 14px; }
+.wl2-entry:first-child { border-top: 0; }
+.wl2-no { width: 24px; height: 24px; border-radius: 50%; background: var(--vt-navy); color: #fff; font-size: 12px; display: inline-flex; align-items: center; justify-content: center; }
+.wl2-range { font-size: 13px; background: #f3f7fb; border-radius: 8px; padding: 3px 9px; color: var(--vt-navy); text-align: center; white-space: nowrap; }
+.wl2-desc { color: #1b2a41; line-height: 1.45; word-break: break-word; }
+
+/* ---------- Onboarding: stat cards and popups ---------- */
+.org-stats .emp-mini.tone-red { --solid: #d9473b; }
+.ob2-cards { margin-bottom: 16px; }
+.hr-modal.ob2-modal { max-width: 520px; }
+.ob2-note { margin: 4px 0 12px; font-size: 13px; color: var(--vt-muted); line-height: 1.45; }
+.hr-modal.org-modal .ob2-step {
+  display: flex; align-items: flex-start; gap: 12px; margin: 0 0 8px; padding: 11px 13px;
+  border: 1px solid #e3eaf3; border-radius: 12px; background: #fff;
+}
+.hr-modal.org-modal .ob2-step input[type="checkbox"] { width: 20px; height: 20px; margin-top: 1px; accent-color: #2f9e5a; flex-shrink: 0; cursor: pointer; }
+.hr-modal.org-modal .ob2-step label { margin: 0; font-size: 14px; font-weight: 600; color: var(--vt-navy); cursor: pointer; flex: 1; }
+.hr-modal.org-modal .ob2-step .ob-step-hint { display: block; margin-top: 2px; font-size: 12.5px; font-weight: 400; color: var(--vt-muted); }
+.hr-modal.org-modal .ob2-step:has(input:checked) { background: #f4fbf6; border-color: #cfe9d8; }
+
+.hr-modal.ob2-assign { max-width: 640px; }
+
+/* Four-card rows on the Promotion approvals, User accounts and Roles pages —
+   same card as the Attendance page, just not clickable filters. */
+.att2-cards.att2-four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.att2-static .att2-card { cursor: default; }
+.att2-static .att2-card:not(.att2-click):hover { transform: none; box-shadow: 0 1px 2px rgba(16, 24, 40, .05), 0 4px 12px rgba(16, 24, 40, .07); }
+.att2-static .att2-card.att2-click { cursor: pointer; }
+@media (max-width: 900px) { .att2-cards.att2-four { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

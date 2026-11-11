@@ -7,6 +7,7 @@ import {
 import client from "../../../api/client";
 import Pagination, { paginate } from "../../../components/Pagination";
 import "../../student/styles/StudentDashboard.css";
+import "../../hr/styles/Attendance.css";
 import "../styles/UserAccounts.css";
 
 // Exactly 8 characters: at least one capital letter, one digit, one
@@ -852,15 +853,14 @@ function UserAccounts() {
   };
 
   const stats = [
-    { label: "Total accounts", value: users.length, accent: "blue", Icon: Users },
-    { label: "Active", value: activeCount, accent: "orange", Icon: UserCheck },
-    { label: "Inactive", value: inactiveCount, accent: "blue", Icon: UserX, red: inactiveCount > 0 },
+    { label: "Total accounts", value: users.length, tone: "blue", Icon: Users },
+    { label: "Active", value: activeCount, tone: "green", Icon: UserCheck },
+    { label: "Inactive", value: inactiveCount, tone: inactiveCount > 0 ? "red" : "grey", Icon: UserX },
     {
       label: "Login requests waiting",
       value: loginRequests.length,
-      accent: "orange",
+      tone: "amber",
       Icon: KeyRound,
-      red: loginRequests.length > 0,
       onClick: () => setLoginRequestsPanelOpen(true),
     },
   ];
@@ -893,12 +893,11 @@ function UserAccounts() {
 
       {error && <p className="ua-error">{error}</p>}
 
-      <div className="sd-stats ua-stats">
-        {stats.map(({ label, value, accent, Icon, red, onClick }, i) => (
+      <div className="att2-cards att2-four att2-static">
+        {stats.map(({ label, value, tone, Icon, onClick }) => (
           <div
             key={label}
-            className={`sd-card sd-card-${accent}` + (onClick ? " ua-stat-click" : "")}
-            style={{ "--delay": `${0.05 + i * 0.07}s` }}
+            className={`att2-card tone-${tone}` + (onClick ? " att2-click" : "")}
             {...(onClick
               ? {
                   role: "button",
@@ -913,10 +912,11 @@ function UserAccounts() {
                 }
               : {})}
           >
-            <span className="sd-card-blob" aria-hidden="true" />
-            <span className="sd-card-icon ua-stat-icon"><Icon size={22} /></span>
-            <p className={`sd-card-value sd-tone-${red ? "red" : "gray"}`}>{value}</p>
-            <p className="sd-card-label">{label}</p>
+            <span className="att2-card-top">
+              <span className="att2-card-icon"><Icon size={16} /></span>
+              <b>{value}</b>
+            </span>
+            <span className="att2-card-label">{label}</span>
           </div>
         ))}
       </div>

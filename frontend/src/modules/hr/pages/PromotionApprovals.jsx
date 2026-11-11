@@ -4,6 +4,7 @@ import client from "../../../api/client";
 import { EmployeeAvatar } from "../components/EmployeeAvatar";
 import Pagination, { paginate } from "../../../components/Pagination";
 import "../../student/styles/StudentDashboard.css";
+import "../styles/Attendance.css";
 import "../styles/PromotionApprovals.css";
 
 const PAGE_SIZE = 8;
@@ -116,9 +117,9 @@ function PromotionApprovals() {
   };
 
   const stats = [
-    { label: "Awaiting your decision", value: pending.length, icon: Clock, tone: "orange", red: pending.length > 0 },
-    { label: `Approved in ${year}`, value: approvedCount, icon: CheckCircle2, tone: "blue" },
-    { label: `Rejected in ${year}`, value: rejectedCount, icon: XCircle, tone: "blue", gray: rejectedCount === 0 },
+    { label: "Awaiting your decision", value: pending.length, icon: Clock, tone: "amber" },
+    { label: `Approved in ${year}`, value: approvedCount, icon: CheckCircle2, tone: "green" },
+    { label: `Rejected in ${year}`, value: rejectedCount, icon: XCircle, tone: rejectedCount === 0 ? "grey" : "red" },
     { label: "Total requests", value: promotions.length, icon: ClipboardList, tone: "blue" },
   ];
 
@@ -126,7 +127,6 @@ function PromotionApprovals() {
     <div className="pa-screen">
       <div className="pa-head">
         <div>
-          <span className="pa-eyebrow">System Administrator</span>
           <h1>Promotion approvals</h1>
           <p>Review and decide on promotion requests submitted by HR.</p>
         </div>
@@ -144,15 +144,14 @@ function PromotionApprovals() {
 
       {error && <p className="pa-error">{error}</p>}
 
-      <div className="sd-stats pa-stats">
+      <div className="att2-cards att2-four att2-static">
         {stats.map((s) => (
-          <div key={s.label} className={"sd-card sd-card-" + s.tone}>
-            <div className="sd-card-blob" />
-            <div className="sd-card-icon">
-              <s.icon size={20} />
-            </div>
-            <div className={"sd-card-value" + (s.red ? " sd-tone-red" : s.gray ? " sd-tone-gray" : "")}>{s.value}</div>
-            <div className="sd-card-label">{s.label}</div>
+          <div key={s.label} className={"att2-card tone-" + s.tone}>
+            <span className="att2-card-top">
+              <span className="att2-card-icon"><s.icon size={16} /></span>
+              <b>{s.value}</b>
+            </span>
+            <span className="att2-card-label">{s.label}</span>
           </div>
         ))}
       </div>

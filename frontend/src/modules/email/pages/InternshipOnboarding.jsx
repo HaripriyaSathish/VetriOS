@@ -4,6 +4,8 @@ import { ArrowLeft, Search, X, Check, Paperclip } from "lucide-react";
 import client from "../../../api/client";
 import RichTextEditor from "../components/RichTextEditor";
 import "../styles/Email.css";
+import "../../documents/styles/DocumentLibrary.css";
+import "../styles/EmailPremium.css";
 
 const DEFAULT_BODY = `<p>Dear <strong>{{intern_name}}</strong>,</p>
 <p>Welcome aboard! We're excited to have you start your internship with us. Please find your Integrated Internship Offer Letter attached to this email.</p>
@@ -178,19 +180,22 @@ function InternshipOnboarding() {
   };
 
   return (
-    <div className="mail-screen">
-      <div className="mail-head">
-        <div>
-          <span className="mail-eyebrow">Email</span>
-          <h1>Internship Onboarding</h1>
-          <p>Choose a batch, pick who it's for, and send.</p>
+    <div className="mail-screen dl2 em2">
+      <div className="dl2-ban">
+        <div className="dl2-ban-top">
+          <div>
+            <h1>Internship onboarding</h1>
+            <p>Choose a batch, pick who it's for, and send.</p>
+          </div>
+          <div className="dl2-ban-actions">
+            <button type="button" className="dl2-ghost" onClick={() => navigate("/email/batches")}>
+              <ArrowLeft size={15} /> Back
+            </button>
+          </div>
         </div>
-        <button type="button" className="mail-btn-sm" onClick={() => navigate("/email/batches")}>
-          <ArrowLeft size={14} />
-          Back
-        </button>
       </div>
 
+      <div className="dl2-body">
       {error && <div className="mail-error">{error}</div>}
 
       {result && (
@@ -198,9 +203,6 @@ function InternshipOnboarding() {
           <div className="mail-panel-body">
             <p style={{ fontWeight: 700, marginBottom: 4 }}>
               Batch {result.status.toLowerCase()} — {result.successful} sent, {result.failed} failed.
-            </p>
-            <p style={{ fontSize: 12.5, color: "#8a93a6" }}>
-              Sent via the console email backend in this environment.
             </p>
           </div>
         </div>
@@ -372,6 +374,7 @@ function InternshipOnboarding() {
           </button>
         </div>
       )}
+      </div>
     </div>
   );
 }

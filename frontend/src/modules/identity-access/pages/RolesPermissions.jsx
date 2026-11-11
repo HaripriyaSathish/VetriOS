@@ -6,6 +6,7 @@ import {
 import client from "../../../api/client";
 import Pagination, { paginate } from "../../../components/Pagination";
 import "../../student/styles/StudentDashboard.css";
+import "../../hr/styles/Attendance.css";
 import "../styles/RolesPermissions.css";
 
 const EMPTY_FORM = { role_name: "", description: "", is_active: true };
@@ -158,10 +159,10 @@ function RolesPermissions() {
   });
 
   const stats = [
-    { label: "Total roles", value: roles.length, accent: "blue", Icon: ShieldCheck },
-    { label: "Active", value: activeCount, accent: "orange", Icon: CircleCheck },
-    { label: "Inactive", value: inactiveCount, accent: "blue", Icon: CircleOff, red: inactiveCount > 0 },
-    { label: "Permissions available", value: permissionCount, accent: "orange", Icon: KeyRound },
+    { label: "Total roles", value: roles.length, tone: "blue", Icon: ShieldCheck },
+    { label: "Active", value: activeCount, tone: "green", Icon: CircleCheck },
+    { label: "Inactive", value: inactiveCount, tone: inactiveCount > 0 ? "red" : "grey", Icon: CircleOff },
+    { label: "Permissions available", value: permissionCount, tone: "amber", Icon: KeyRound },
   ];
 
   const chips = [
@@ -188,17 +189,14 @@ function RolesPermissions() {
         <p className="rp-empty">Loading…</p>
       ) : (
         <>
-          <div className="sd-stats rp-stats">
-            {stats.map(({ label, value, accent, Icon, red }, i) => (
-              <div
-                key={label}
-                className={`sd-card sd-card-${accent}`}
-                style={{ "--delay": `${0.05 + i * 0.07}s` }}
-              >
-                <span className="sd-card-blob" aria-hidden="true" />
-                <span className="sd-card-icon rp-stat-icon"><Icon size={22} /></span>
-                <p className={`sd-card-value sd-tone-${red ? "red" : "gray"}`}>{value}</p>
-                <p className="sd-card-label">{label}</p>
+          <div className="att2-cards att2-four att2-static">
+            {stats.map(({ label, value, tone, Icon }) => (
+              <div key={label} className={`att2-card tone-${tone}`}>
+                <span className="att2-card-top">
+                  <span className="att2-card-icon"><Icon size={16} /></span>
+                  <b>{value}</b>
+                </span>
+                <span className="att2-card-label">{label}</span>
               </div>
             ))}
           </div>

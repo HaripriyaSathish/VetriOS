@@ -4,6 +4,8 @@ import client from "../../../api/client";
 import "../../training/styles/BusinessPages.css";
 import "../styles/HRDashboard.css";
 import "../styles/Attendance.css";
+import "../../documents/styles/DocumentLibrary.css";
+import "../styles/EmployeePages.css";
 
 const EMPTY_DRAFT = { start_time: "", end_time: "", description: "" };
 
@@ -342,47 +344,45 @@ function MyWorklog() {
   );
 
   return (
-    <div className="att-screen">
-      <div className="att-head">
-        <div>
-          <span className="att-eyebrow">My workspace</span>
-          <h1>My Worklogs</h1>
-          <p>Submit your daily worklog — it's sent straight to your reporting lead.</p>
+    <div className="att-screen emp2 dl2">
+      <div className="dl2-ban">
+        <div className="dl2-ban-top">
+          <div>
+            <h1>My worklogs</h1>
+            <p>Submit your daily worklog. It goes straight to your reporting lead.</p>
+          </div>
         </div>
       </div>
 
+      <div className="dl2-body">
       {error && <p className="att-error">{error}</p>}
       {!loading && !employeeId && (
         <p className="att-error">No employee record is linked to your account — a worklog can't be submitted.</p>
       )}
 
       {employeeId && (
-        <div className="bp-stats att-stats">
-          <div className="bp-stat" style={{ "--i": 0 }}>
-            <div className="bp-stat-top"><p className="bp-stat-label">Logs Submitted</p><span className="bp-stat-icon"><ClipboardList size={17} /></span></div>
-            <p className="bp-stat-value">{history.length} <small className="att-unit">days</small></p>
-            <p className="bp-person-sub">In the last 30 days</p>
+        <div className="att2-cards att2-four">
+          <div className="att2-card tone-blue">
+            <span className="att2-card-top"><span className="att2-card-icon"><ClipboardList size={16} /></span><b>{history.length}</b></span>
+            <span className="att2-card-label"><span>Logs, last 30 days</span></span>
           </div>
-          <div className="bp-stat" style={{ "--i": 1 }}>
-            <div className="bp-stat-top"><p className="bp-stat-label">Today's Timesheet</p><span className="bp-stat-icon orange"><CalendarClock size={17} /></span></div>
-            <p className="bp-stat-value att-today">{alreadySubmittedToday ? "Submitted" : "Pending"}</p>
-            <p className="bp-person-sub">{alreadySubmittedToday ? "Edit it from History below" : "Add today's time-blocks below"}</p>
+          <div className="att2-card tone-amber">
+            <span className="att2-card-top"><span className="att2-card-icon"><CalendarClock size={16} /></span><b className="txt">{alreadySubmittedToday ? "Submitted" : "Pending"}</b></span>
+            <span className="att2-card-label"><span>Today's timesheet</span></span>
           </div>
-          <div className="bp-stat" style={{ "--i": 2 }}>
-            <div className="bp-stat-top"><p className="bp-stat-label">Time Blocks Logged</p><span className="bp-stat-icon green"><Check size={17} /></span></div>
-            <p className="bp-stat-value">{history.reduce((s, h) => s + (h.entries?.length || 0), 0)}</p>
-            <p className="bp-person-sub">Across all submitted days</p>
+          <div className="att2-card tone-green">
+            <span className="att2-card-top"><span className="att2-card-icon"><Check size={16} /></span><b>{history.reduce((sum, h) => sum + (h.entries?.length || 0), 0)}</b></span>
+            <span className="att2-card-label"><span>Time blocks logged</span></span>
           </div>
-          <div className="bp-stat" style={{ "--i": 3 }}>
-            <div className="bp-stat-top"><p className="bp-stat-label">Reported To</p><span className="bp-stat-icon"><UserRound size={17} /></span></div>
-            <p className="bp-stat-value att-today">{history[0]?.reported_to_name || "—"}</p>
-            <p className="bp-person-sub">Your reporting lead</p>
+          <div className="att2-card tone-violet">
+            <span className="att2-card-top"><span className="att2-card-icon"><UserRound size={16} /></span><b className="txt">{history[0]?.reported_to_name || "—"}</b></span>
+            <span className="att2-card-label"><span>Reported to</span></span>
           </div>
         </div>
       )}
 
-      <div className="att-panel">
-        <div className="att-panel-head">
+      <div className="emp2-panel">
+        <div className="emp2-panel-head">
           <div>
             <h3>Today's worklog</h3>
             <p>Add each time-block you worked, in order — e.g. "9:30 am".</p>
@@ -401,7 +401,7 @@ function MyWorklog() {
 
             <div className="wl-form-footer">
               <div className="hr-modal-actions" style={{ justifyContent: "flex-end", margin: 0 }}>
-                <button type="button" className="att-btn-accent" onClick={openConfirm} disabled={!employeeId}>
+                <button type="button" className="emp2-submit" onClick={openConfirm} disabled={!employeeId}>
                   Submit worklog
                 </button>
               </div>
@@ -417,8 +417,8 @@ function MyWorklog() {
         )}
       </div>
 
-      <div className="att-panel">
-        <div className="att-panel-head">
+      <div className="emp2-panel">
+        <div className="emp2-panel-head">
           <div>
             <h3>History</h3>
             <p>Your last 30 days of submitted worklogs</p>
@@ -490,6 +490,8 @@ function MyWorklog() {
             </table>
           </div>
         )}
+      </div>
+
       </div>
 
       {confirmOpen && (

@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Check, X } from "lucide-react";
+import { Plus, Check, X, Sun, Palmtree, HeartPulse, Baby, CalendarDays, CalendarPlus, Hourglass, CalendarClock } from "lucide-react";
 import client from "../../../api/client";
+import Pagination, { paginate } from "../../../components/Pagination";
 import { EmployeeAvatar } from "../components/EmployeeAvatar";
 import "../styles/HRDashboard.css";
+import "../styles/Employees.css";
 import "../styles/Leave.css";
 
 const STATUS_CLASS = {
@@ -10,6 +12,26 @@ const STATUS_CLASS = {
   APPROVED: "present",
   REJECTED: "absent",
   CANCELLED: "absent",
+};
+
+const PAGE_SIZE = 10;
+
+const TONES = ["blue", "green", "orange", "violet"];
+
+const leaveIcon = (name) => {
+  const n = String(name || "").toLowerCase();
+  if (n.includes("casual")) return Sun;
+  if (n.includes("earned")) return Palmtree;
+  if (n.includes("sick")) return HeartPulse;
+  if (n.includes("matern")) return Baby;
+  return CalendarDays;
+};
+
+// Inclusive count of calendar days between two yyyy-mm-dd dates (0 if unset or reversed).
+const calendarDays = (start, end) => {
+  if (!start || !end) return 0;
+  const diff = Math.round((new Date(`${end}T00:00:00`) - new Date(`${start}T00:00:00`)) / 86400000) + 1;
+  return diff > 0 ? diff : 0;
 };
 
 const EMPTY_FORM = { leave_type_id: "", start_date: "", end_date: "", reason: "" };
@@ -31,7 +53,12 @@ function Leave() {
   const [leaveTypes, setLeaveTypes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState("all"); // "all" | "pending" | "approved"
+  const [tab, setTabState] = useState("all"); // "all" | "pending" | "approved"
+  const [page, setPage] = useState(1);
+  const setTab = (t) => {
+    setTabState(t);
+    setPage(1);
+  };
 
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -135,11 +162,12 @@ function Leave() {
     return requests;
   }, [requests, tab]);
 
+  const safePage = Math.min(page, Math.max(1, Math.ceil(filteredRequests.length / PAGE_SIZE)));
+
   return (
-    <div className="att-screen">
+    <div className="att-screen lv-v2">
       <div className="att-head">
         <div>
-          <span className="att-eyebrow">Time off</span>
           <h1>Leave management</h1>
           <p>Review balances, requests, and upcoming time away.</p>
         </div>
@@ -151,43 +179,62 @@ function Leave() {
       {error && <p className="att-error">{error}</p>}
       {actionError && <p className="att-error">{actionError}</p>}
 
-      <div className="lv-balance-row">
-        {(summary?.my_balances || []).map((b) => {
+      <div className="lv2-groups">
+      <div className="lv2-group lv2-group-bal">
+        <p className="lv2-label">My leave balance</p>
+        <div className="lv2-row lv2-row-3">
+        {(summary?.my_balances || []).filter((b) => !/maternity/i.test(b.leave_type_name)).map((b, i) => {
           const pct = b.allocated_days > 0 ? Math.min(100, (b.used_days / b.allocated_days) * 100) : 0;
+          const Icon = leaveIcon(b.leave_type_name);
           return (
-            <div className="lv-balance-card" key={b.leave_type_id}>
-              <span className="lv-balance-label">{b.leave_type_name}</span>
-              <span className="lv-balance-value">
-                {b.remaining_days} <span className="lv-balance-unit">days left</span>
-              </span>
+            <div className={`lv-balance-card lv2-tone-${TONES[i % TONES.length]}`} key={b.leave_type_id}>
+              <div className="lv2-balance-top">
+                <span className="lv2-icon"><Icon size={18} /></span>
+                <div>
+                  <span className="lv-balance-value">
+                    {b.remaining_days} <span className="lv-balance-unit">days left</span>
+                  </span>
+                  <span className="lv-balance-label">{b.leave_type_name}</span>
+                </div>
+              </div>
               <div className="lv-balance-bar">
                 <div className="lv-balance-bar-fill" style={{ width: `${pct}%` }} />
               </div>
               <span className="lv-balance-sub">
-                {b.used_days} used of {b.allocated_days} total
+                <span>{b.used_days} used</span>
+                <span>{b.allocated_days} total</span>
               </span>
             </div>
           );
         })}
-        {!loading && (summary?.my_balances || []).length === 0 && (
-          <p className="hr-empty">No employee record is linked to your account — no personal balance to show.</p>
-        )}
+        </div>
       </div>
 
-      <div className="att-stats" style={{ gridTemplateColumns: "repeat(2, 1fr)" }}>
-        <div className="att-stat-card">
-          <span className="att-stat-label">Pending approvals</span>
-          <span className="att-stat-value">{summary?.stats.pending_approvals ?? "—"}</span>
-          <span className="att-stat-sub">Need your review</span>
+      <div className="lv2-group lv2-group-team">
+        <p className="lv2-label">Team overview</p>
+        <div className="lv2-row lv2-row-2">
+        <div className="lv2-stat lv2-tone-blue">
+          <div className="lv2-balance-top">
+            <span className="lv2-icon"><Hourglass size={18} /></span>
+            <b>{summary?.stats.pending_approvals ?? "—"}</b>
+          </div>
+          <span className="lv2-stat-label">Pending approvals</span>
+          <span className="lv2-stat-sub">Need your review</span>
         </div>
-        <div className="att-stat-card">
-          <span className="att-stat-label">Upcoming time off</span>
-          <span className="att-stat-value">{summary?.stats.upcoming_days ?? "—"}</span>
-          <span className="att-stat-sub">
-            days booked · across {summary?.stats.upcoming_employees ?? 0} employees
-          </span>
+        <div className="lv2-stat lv2-tone-green">
+          <div className="lv2-balance-top">
+            <span className="lv2-icon"><CalendarClock size={18} /></span>
+            <b>{summary?.stats.upcoming_days ?? "—"}</b>
+          </div>
+          <span className="lv2-stat-label">Upcoming time off</span>
+          <span className="lv2-stat-sub">days · {summary?.stats.upcoming_employees ?? 0} employees</span>
+        </div>
         </div>
       </div>
+      </div>
+      {!loading && (summary?.my_balances || []).length === 0 && (
+        <p className="hr-empty lv2-nobalance">No employee record is linked to your account — no personal balance to show.</p>
+      )}
 
       <div className="att-panel">
         <div className="att-panel-head">
@@ -238,8 +285,8 @@ function Leave() {
                 </tr>
               </thead>
               <tbody>
-                {filteredRequests.map((r) => (
-                  <tr key={r.leave_id}>
+                {paginate(filteredRequests, safePage, PAGE_SIZE).map((r) => (
+                  <tr key={r.leave_id} className={r.status === "PENDING" ? "lv-pending" : ""}>
                     <td>
                       <div className="hr-cell-user">
                         <EmployeeAvatar personId={r.person_id} size={28} />
@@ -247,7 +294,9 @@ function Leave() {
                       </div>
                     </td>
                     <td>{r.leave_type_name || "—"}</td>
-                    <td>{formatDateRange(r.start_date, r.end_date)}</td>
+                    <td>
+                      <span className="lv2-dates"><CalendarDays size={14} />{formatDateRange(r.start_date, r.end_date)}</span>
+                    </td>
                     <td className="hr-mono">
                       {r.total_days} {r.total_days === 1 ? "day" : "days"}
                     </td>
@@ -286,63 +335,82 @@ function Leave() {
             </table>
           </div>
         )}
+        <Pagination page={safePage} totalItems={filteredRequests.length} onPageChange={setPage} pageSize={PAGE_SIZE} />
       </div>
 
       {modalOpen && (
         <div className="hr-modal-backdrop" onClick={() => setModalOpen(false)}>
-          <form className="hr-modal" onClick={(e) => e.stopPropagation()} onSubmit={handleSubmit}>
-            <button type="button" className="hr-modal-x" onClick={() => setModalOpen(false)} aria-label="Close">
+          <form className="hr-modal org-modal" onClick={(e) => e.stopPropagation()} onSubmit={handleSubmit}>
+            <button type="button" className="hr-modal-x org-modal-x" onClick={() => setModalOpen(false)} aria-label="Close">
               ✕
             </button>
-            <h2>New leave request</h2>
-            <p className="hr-hint">Requests you submit here are for your own employee record.</p>
-
-            <label>Leave type</label>
-            <select
-              value={form.leave_type_id}
-              onChange={(e) => setForm({ ...form, leave_type_id: e.target.value })}
-              required
-            >
-              <option value="">Select…</option>
-              {leaveTypes.map((t) => (
-                <option key={t.leave_type_id} value={t.leave_type_id}>
-                  {t.leave_type_name}
-                </option>
-              ))}
-            </select>
-
-            <div className="hr-form-row">
+            <div className="org-modal-head">
+              <span className="org-modal-ico"><CalendarPlus size={19} /></span>
               <div>
-                <label>Start date</label>
-                <input
-                  type="date"
-                  value={form.start_date}
-                  onChange={(e) => setForm({ ...form, start_date: e.target.value })}
-                  required
-                />
-              </div>
-              <div>
-                <label>End date</label>
-                <input
-                  type="date"
-                  value={form.end_date}
-                  onChange={(e) => setForm({ ...form, end_date: e.target.value })}
-                  required
-                />
+                <h2>New leave request</h2>
+                <p>Requests are for your own employee record.</p>
               </div>
             </div>
 
-            <label>Reason (optional)</label>
-            <textarea
-              className="lv-textarea"
-              value={form.reason}
-              onChange={(e) => setForm({ ...form, reason: e.target.value })}
-              rows={3}
-            />
+            <div className="org-modal-body">
+              <label>Leave type</label>
+              <select
+                value={form.leave_type_id}
+                onChange={(e) => setForm({ ...form, leave_type_id: e.target.value })}
+                required
+              >
+                <option value="">Select…</option>
+                {leaveTypes.map((t) => {
+                  const bal = (summary?.my_balances || []).find((x) => x.leave_type_id === t.leave_type_id);
+                  return (
+                    <option key={t.leave_type_id} value={t.leave_type_id}>
+                      {t.leave_type_name}{bal ? ` · ${bal.remaining_days} days left` : ""}
+                    </option>
+                  );
+                })}
+              </select>
 
-            {formError && <p className="hr-error">{formError}</p>}
+              <div className="hr-form-row">
+                <div>
+                  <label>Start date</label>
+                  <input
+                    type="date"
+                    value={form.start_date}
+                    onChange={(e) => setForm({ ...form, start_date: e.target.value })}
+                    required
+                  />
+                </div>
+                <div>
+                  <label>End date</label>
+                  <input
+                    type="date"
+                    min={form.start_date || undefined}
+                    value={form.end_date}
+                    onChange={(e) => setForm({ ...form, end_date: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
 
-            <div className="hr-modal-actions">
+              {calendarDays(form.start_date, form.end_date) > 0 && (
+                <div className="lv2-total">
+                  <span>Total</span>
+                  <b>{calendarDays(form.start_date, form.end_date)} calendar {calendarDays(form.start_date, form.end_date) === 1 ? "day" : "days"}</b>
+                </div>
+              )}
+
+              <label>Reason (optional)</label>
+              <textarea
+                className="lv-textarea"
+                value={form.reason}
+                onChange={(e) => setForm({ ...form, reason: e.target.value })}
+                rows={3}
+              />
+
+              {formError && <p className="hr-error">{formError}</p>}
+            </div>
+
+            <div className="hr-modal-actions org-modal-foot">
               <button type="button" className="hr-btn-sm" onClick={() => setModalOpen(false)}>
                 Cancel
               </button>

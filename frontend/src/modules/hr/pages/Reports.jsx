@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { CalendarCheck, UserPlus, LogOut, Users, Percent } from "lucide-react";
 import client from "../../../api/client";
 import { EmployeeAvatar } from "../components/EmployeeAvatar";
 import ReportFilterPanel from "../components/ReportFilterPanel";
@@ -6,6 +7,7 @@ import Pagination, { paginate } from "../../../components/Pagination";
 import { downloadReport } from "../utils/exportFile";
 import "../styles/HRDashboard.css";
 import "../styles/Attendance.css";
+import "../styles/Employees.css";
 
 const ATTENDANCE_REPORT_STATUS_OPTIONS = [
   { value: "PRESENT", label: "Present" },
@@ -176,9 +178,25 @@ function Legend({ items }) {
   );
 }
 
+// Horizontal bars for a short list (exits by type): label, bar, count.
+function HBars({ items }) {
+  const max = Math.max(1, ...items.map((i) => i.value));
+  return (
+    <div className="rpt2-hbars">
+      {items.map((i) => (
+        <div className="rpt2-hbar" key={i.label}>
+          <span>{i.label}</span>
+          <div><i style={{ width: `${(i.value / max) * 100}%`, background: i.color }} /></div>
+          <b>{i.value}</b>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // Sequential single-hue bar chart (fixed <=24px thick, capped, grows from
 // one baseline) — used for the exits-per-month trend.
-function BarChart({ data, color = "#2a78d6" }) {
+function BarChart({ data, color = "#1d4f91" }) {
   const max = Math.max(1, ...data.map((d) => d.value));
   return (
     <div className="rpt-bars">
@@ -229,6 +247,7 @@ function Reports() {
   const [error, setError] = useState("");
 
   const currentYear = new Date().getFullYear();
+  const [report, setReport] = useState("attendance"); // attendance | onboarding | exit
   const [attritionYear, setAttritionYear] = useState(currentYear);
   const [leaveYear, setLeaveYear] = useState(currentYear);
 
@@ -447,11 +466,11 @@ function Reports() {
   const leaveTotalDays = leaveSegments.reduce((sum, s) => sum + s.value, 0);
 
   return (
-    <div className="hr-screen">
+    <div className="hr-screen rpt2">
       <div className="hr-head">
         <div>
           <h1>Reports</h1>
-          <p>Attrition and attendance/leave, at a glance.</p>
+          <p>Attendance, onboarding and exits, plus attrition at a glance.</p>
         </div>
       </div>
 
@@ -460,7 +479,27 @@ function Reports() {
         <p className="hr-empty">Loading…</p>
       ) : (
         <>
-          {/* Attendance overview */}
+          <div className="rpt2-switch" role="tablist" aria-label="Report type">
+            {[
+              { key: "attendance", label: "Attendance", Icon: CalendarCheck },
+              { key: "onboarding", label: "Onboarding", Icon: UserPlus },
+              { key: "exit", label: "Exits", Icon: LogOut },
+            ].map(({ key, label, Icon }) => (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                aria-selected={report === key}
+                className={report === key ? "active" : ""}
+                onClick={() => setReport(key)}
+              >
+                <Icon size={15} /> {label}
+              </button>
+            ))}
+          </div>
+
+          {report === "attendance" && (
+          <>
           <ReportFilterPanel
             title="Attendance overview"
             period={attReportPeriod}
@@ -542,7 +581,11 @@ function Reports() {
             </div>
           )}
 
-          {/* Onboarding overview */}
+          </>
+          )}
+
+          {report === "onboarding" && (
+          <>
           <ReportFilterPanel
             title="Onboarding overview"
             period={obReportPeriod}
@@ -617,7 +660,11 @@ function Reports() {
             </div>
           )}
 
-          {/* Exit overview */}
+          </>
+          )}
+
+          {report === "exit" && (
+          <>
           <ReportFilterPanel
             title="Exit overview"
             period={exReportPeriod}
@@ -694,6 +741,9 @@ function Reports() {
             </div>
           )}
 
+          </>
+          )}
+
           {/* Attrition */}
           <div className="hr-panel rpt-panel">
             <div className="att-panel-head">
@@ -705,21 +755,18 @@ function Reports() {
             </div>
 
             <div className="rpt-panel-body">
-            <div className="att-stats" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
-              <div className="att-stat-card">
-                <span className="att-stat-label">Active headcount</span>
-                <span className="att-stat-value">{activeHeadcount}</span>
-                <span className="att-stat-sub">Right now</span>
+            <div className="emp-mini-row org-stats">
+              <div className="emp-mini tone-blue">
+                <span className="emp-mini-icon"><Users size={15} /></span>
+                <span className="emp-mini-text"><b>{activeHeadcount}</b><span>Active headcount</span></span>
               </div>
-              <div className="att-stat-card">
-                <span className="att-stat-label">Exits</span>
-                <span className="att-stat-value">{completedExitsInYear.length}</span>
-                <span className="att-stat-sub">Completed · {attritionYear}</span>
+              <div className="emp-mini tone-green">
+                <span className="emp-mini-icon"><LogOut size={15} /></span>
+                <span className="emp-mini-text"><b>{completedExitsInYear.length}</b><span>Exits · {attritionYear}</span></span>
               </div>
-              <div className="att-stat-card">
-                <span className="att-stat-label">Attrition rate</span>
-                <span className="att-stat-value">{formatPct(attritionRate)}</span>
-                <span className="att-stat-sub">Exits ÷ (active + exits)</span>
+              <div className="emp-mini tone-amber">
+                <span className="emp-mini-icon"><Percent size={15} /></span>
+                <span className="emp-mini-text"><b>{formatPct(attritionRate)}</b><span>Attrition rate</span></span>
               </div>
             </div>
 
@@ -729,16 +776,9 @@ function Reports() {
                 {exitTypeSegments.length === 0 ? (
                   <p className="hr-empty">No completed exits in {attritionYear}.</p>
                 ) : (
-                  <div className="rpt-donut-row">
-                    <Donut
-                      segments={exitTypeSegments}
-                      centerLabel={String(completedExitsInYear.length)}
-                      centerSub="exits"
-                    />
-                    <Legend
-                      items={exitTypeSegments.map((s) => ({ ...s, display: s.value }))}
-                    />
-                  </div>
+                  <HBars
+                    items={exitTypeSegments.map((seg, i) => ({ ...seg, color: i % 2 === 0 ? "#1d4f91" : "#e8791f" }))}
+                  />
                 )}
               </div>
               <div className="rpt-chart-block">

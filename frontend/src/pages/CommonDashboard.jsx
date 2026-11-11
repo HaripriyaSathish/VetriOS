@@ -1,27 +1,42 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { CalendarCheck, Palmtree, Briefcase, FileText, Mail, TrendingUp, FolderKanban } from "lucide-react";
-import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from "recharts";
+import {
+  CalendarCheck, Palmtree, Briefcase, FileText, Mail, TrendingUp, FolderKanban, Activity, KeyRound,
+  Eye, Plus, Pencil, Trash2, Check, Download,
+} from "lucide-react";
 import client from "../api/client";
-import PermissionsPanel from "../components/PermissionsPanel";
+import { groupPermissions } from "../components/PermissionsPanel";
 import "../styles/CommonDashboard.css";
+import "../modules/documents/styles/DocumentLibrary.css";
 
 const PROJECT_STATUS_META = {
-  Planned: { color: "#8a93a6", bg: "#f0f2f5" },
-  Active: { color: "#16a34a", bg: "#dcfce7" },
-  "On Hold": { color: "#b45309", bg: "#ffedd5" },
-  Completed: { color: "#235777", bg: "#eef3f7" },
-  Cancelled: { color: "#96271f", bg: "#fbe7e5" },
-  Archived: { color: "#8a93a6", bg: "#f0f2f5" },
+  Planned: { color: "#51607a", bg: "#eef2f8" },
+  Active: { color: "#1f6837", bg: "#e3f5e9" },
+  "On Hold": { color: "#93590c", bg: "#fdf0dc" },
+  Completed: { color: "#1d4f91", bg: "#e4eefc" },
+  Cancelled: { color: "#a32d2d", bg: "#fbe5e2" },
+  Archived: { color: "#51607a", bg: "#eef2f8" },
 };
-const DEFAULT_STATUS_META = { color: "#8a93a6", bg: "#f0f2f5" };
+const DEFAULT_STATUS_META = { color: "#51607a", bg: "#eef2f8" };
 
-const ATTENDANCE_META = {
-  PRESENT: { label: "Present", color: "#16a34a" },
-  HALF_DAY: { label: "Half day", color: "#b45309" },
-  ON_LEAVE: { label: "On leave", color: "#235777" },
-  ABSENT: { label: "Absent", color: "#96271f" },
+// Permission codes read PREFIX_ACTION (e.g. DOCUMENT_CREATE) — show the
+// action part in plain words with a matching icon.
+const ACTION_META = {
+  VIEW: { label: "View", Icon: Eye },
+  CREATE: { label: "Create", Icon: Plus },
+  UPDATE: { label: "Update", Icon: Pencil },
+  EDIT: { label: "Edit", Icon: Pencil },
+  DELETE: { label: "Delete", Icon: Trash2 },
+  APPROVE: { label: "Approve", Icon: Check },
+  EXPORT: { label: "Export", Icon: Download },
 };
+
+function actionOf(code, prefix) {
+  const rest = code.startsWith(`${prefix}_`) ? code.slice(prefix.length + 1) : code;
+  if (ACTION_META[rest]) return ACTION_META[rest];
+  const words = rest.toLowerCase().replace(/_/g, " ");
+  return { label: words.charAt(0).toUpperCase() + words.slice(1), Icon: Check };
+}
 
 function formatTime(iso) {
   const d = new Date(iso);
@@ -30,51 +45,6 @@ function formatTime(iso) {
     return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
   }
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-}
-
-// Small donut + legend, reused for both the project-status and attendance
-// breakdowns — only the slices and total caption differ.
-function MiniDonut({ slices, total, caption }) {
-  return (
-    <div className="cmnd-project-layout">
-      <div className="cmnd-project-donut-wrap">
-        <ResponsiveContainer width="100%" height={140}>
-          <PieChart>
-            <Pie data={slices} dataKey="count" nameKey="label" innerRadius={44} outerRadius={62} paddingAngle={2} stroke="none">
-              {slices.map((s) => <Cell key={s.label} fill={s.color} />)}
-            </Pie>
-            <Tooltip
-              cursor={false}
-              content={({ active, payload }) => {
-                if (!active || !payload?.length) return null;
-                const p = payload[0];
-                return (
-                  <div className="cmnd-tooltip">
-                    <span className="cmnd-tooltip-swatch" style={{ background: p.payload.color }} />
-                    {p.name}: <strong>{p.value}</strong>
-                  </div>
-                );
-              }}
-            />
-          </PieChart>
-        </ResponsiveContainer>
-        <div className="cmnd-project-donut-center">
-          <span className="cmnd-project-donut-total">{total}</span>
-          {caption && <span className="cmnd-project-donut-caption">{caption}</span>}
-        </div>
-      </div>
-
-      <div className="cmnd-project-legend">
-        {slices.map((s) => (
-          <div className="cmnd-project-legend-row" key={s.label}>
-            <span className="cmnd-project-legend-swatch" style={{ background: s.color }} />
-            <span className="cmnd-project-legend-name">{s.label}</span>
-            <span className="cmnd-project-legend-val">{s.count}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
 }
 
 // Shared landing page for every role except System Administrator (which
@@ -102,123 +72,146 @@ function CommonDashboard({ user }) {
   const roles = user.roles || [];
   const permissions = user.permissions || [];
   const hasProjects = (projects?.length ?? 0) > 0;
-  const hasAttendance = (attendance?.history?.length ?? 0) > 0;
+  const history = attendance?.history ?? [];
+  const hasAttendance = history.length > 0;
 
-  const statusCounts = hasProjects
-    ? Object.entries(
-        projects.reduce((acc, p) => {
-          acc[p.status] = (acc[p.status] || 0) + 1;
-          return acc;
-        }, {})
-      ).map(([status, count]) => ({ status, label: status, count, ...(PROJECT_STATUS_META[status] || DEFAULT_STATUS_META) }))
-    : [];
-
-  const attendanceCounts = hasAttendance
-    ? Object.entries(
-        attendance.history.reduce((acc, day) => {
-          acc[day.status] = (acc[day.status] || 0) + 1;
-          return acc;
-        }, {})
-      )
-        .filter(([status]) => ATTENDANCE_META[status])
-        .map(([status, count]) => ({ status, count, ...ATTENDANCE_META[status] }))
-    : [];
-  const attendanceTotal = attendanceCounts.reduce((s, x) => s + x.count, 0);
+  const permissionGroups = groupPermissions(permissions);
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  const firstName = (user.full_name || "").split(" ")[0];
 
   const quickLinks = [
-    user.employee_code && { to: "/my/attendance", label: "My Attendance", icon: CalendarCheck, color: "#235777", bg: "#eef3f7" },
-    user.employee_code && { to: "/my/leave", label: "My Leave", icon: Palmtree, color: "#16a34a", bg: "#dcfce7" },
-    roles.includes("HR Administrator") && { to: "/hr", label: "HR", icon: Briefcase, color: "#b45309", bg: "#ffedd5" },
-    permissions.includes("DOCUMENT_VIEW") && { to: "/documents", label: "Document Generator", icon: FileText, color: "#2a6fd6", bg: "#e8f1fc" },
-    { to: "/email", label: "Email", icon: Mail, color: "#be5985", bg: "#fbe9f0" },
-    hasProjects && { to: "/project/dashboard", label: "Project Management", icon: FolderKanban, color: "#7c3aed", bg: "#ece9f7" },
+    user.employee_code && { to: "/my/attendance", label: "Attendance", icon: CalendarCheck, primary: true },
+    user.employee_code && { to: "/my/leave", label: "Apply leave", icon: Palmtree },
+    hasProjects && { to: "/project/dashboard", label: "Projects", icon: FolderKanban },
+    roles.includes("HR Administrator") && { to: "/hr", label: "HR", icon: Briefcase },
+    permissions.includes("DOCUMENT_VIEW") && { to: "/documents", label: "Documents", icon: FileText },
+    { to: "/email", label: "Email", icon: Mail },
+  ].filter(Boolean);
+
+  const cards = [
+    hasAttendance && {
+      label: `Days present · last ${history.length} ${history.length === 1 ? "day" : "days"}`,
+      value: history.filter((d) => d.status === "PRESENT").length,
+      tone: "green",
+      Icon: CalendarCheck,
+    },
+    hasProjects && { label: "Projects assigned", value: projects.length, tone: "blue", Icon: FolderKanban },
+    hasProjects && { label: "Active projects", value: projects.filter((p) => p.status === "Active").length, tone: "amber", Icon: Activity },
+    { label: "Permissions granted", value: permissions.length, tone: "violet", Icon: KeyRound },
   ].filter(Boolean);
 
   return (
-    <div className="cmnd-body">
-      <div className="cmnd-page-head">
-        <h1>Welcome, {user.full_name}</h1>
-        <p>
-          {user.designation ? `${user.designation} · ` : ""}
-          {roles.join(", ") || "No role assigned yet"}
-        </p>
+    <div className="cmnd-body cmn2 dl2">
+      <div className="dl2-ban">
+        <div className="dl2-ban-top">
+          <div>
+            <h1>{greeting}, {firstName}</h1>
+            <p>
+              {user.designation ? `${user.designation} · ` : ""}
+              {roles.join(", ") || "No role assigned yet"}
+            </p>
+          </div>
+        </div>
+        {quickLinks.length > 0 && (
+          <div className="cmn2-chips">
+            {quickLinks.map((q) => (
+              <Link to={q.to} key={q.to} className={`cmn2-chip${q.primary ? " primary" : ""}`}>
+                <q.icon size={15} /> {q.label}
+              </Link>
+            ))}
+          </div>
+        )}
       </div>
 
-      {quickLinks.length > 0 && (
-        <div className="cmnd-quicklinks">
-          {quickLinks.map((q) => (
-            <Link to={q.to} className="cmnd-quicklink" key={q.to}>
-              <span className="cmnd-quicklink-icon" style={{ background: q.bg, color: q.color }}>
-                <q.icon size={18} />
+      <div className="dl2-body cmn2-body">
+        <div className="cmn2-cards">
+          {cards.map(({ label, value, tone, Icon }) => (
+            <div key={label} className={`cmn2-card tone-${tone}`}>
+              <span className="cmn2-card-top">
+                <span className="cmn2-card-icon"><Icon size={17} /></span>
+                <b>{value}</b>
               </span>
-              <span className="cmnd-quicklink-label">{q.label}</span>
-            </Link>
+              <span className="cmn2-card-label">{label}</span>
+            </div>
           ))}
         </div>
-      )}
 
-      <div className="cmnd-top-row">
-        <div className="cmnd-top-graphs">
-          {hasAttendance && (
-            <div className="cmnd-card">
-              <div className="cmnd-card-head">
-                <span className="cmnd-card-title">My Attendance</span>
-                <span className="cmnd-card-sub">last {attendance.history.length} days</span>
-              </div>
-              <MiniDonut slices={attendanceCounts} total={attendanceTotal} caption="days" />
-            </div>
-          )}
-
+        <div className={`cmn2-grid${hasProjects ? "" : " single"}`}>
           {hasProjects && (
-            <div className="cmnd-card">
-              <div className="cmnd-card-head">
-                <span className="cmnd-card-title">My Projects</span>
-                <span className="cmnd-card-sub">{projects.length} assigned</span>
+            <div className="cmn2-panel">
+              <div className="cmn2-head">
+                <b>My projects</b>
+                <span>{projects.length} assigned</span>
               </div>
-
-              <MiniDonut slices={statusCounts} total={projects.length} />
-
               {projects.map((p) => {
                 const meta = PROJECT_STATUS_META[p.status] || DEFAULT_STATUS_META;
                 return (
-                  <Link to="/project/dashboard" className="cmnd-project-row" key={p.project_id}>
-                    <span className="cmnd-project-icon"><FolderKanban size={15} /></span>
-                    <div className="cmnd-activity-text">
-                      <div className="cmnd-activity-title">{p.project_name}</div>
-                      <div className="cmnd-activity-sub">{p.client_name} · {p.my_role}</div>
+                  <Link to="/project/dashboard" className="cmn2-row" key={p.project_id}>
+                    <span className="cmn2-tile"><FolderKanban size={16} /></span>
+                    <div className="cmn2-text">
+                      <b>{p.project_name}</b>
+                      <small>{p.client_name} · {p.my_role}</small>
                     </div>
-                    <span className="cmnd-project-status" style={{ background: meta.bg, color: meta.color }}>{p.status}</span>
+                    <span className="cmn2-pill" style={{ background: meta.bg, color: meta.color }}>{p.status}</span>
                   </Link>
                 );
               })}
             </div>
           )}
-        </div>
 
-        <PermissionsPanel permissions={permissions} />
-      </div>
-
-      <div className="cmnd-card">
-        <div className="cmnd-card-head">
-          <span className="cmnd-card-title">Recent Activity</span>
-          <span className="cmnd-card-sub">your notifications</span>
-        </div>
-        {activity === null ? (
-          <p className="cmnd-loading">Loading…</p>
-        ) : activity.length === 0 ? (
-          <p className="cmnd-loading">Nothing yet.</p>
-        ) : (
-          activity.map((a, i) => (
-            <div className="cmnd-activity-row" key={i}>
-              <span className="cmnd-activity-icon"><TrendingUp size={15} /></span>
-              <div className="cmnd-activity-text">
-                <div className="cmnd-activity-title">{a.title}</div>
-                {a.message && <div className="cmnd-activity-sub">{a.message}</div>}
-              </div>
-              <span className="cmnd-activity-time">{formatTime(a.created_at)}</span>
+          <div className="cmn2-panel">
+            <div className="cmn2-head">
+              <b>What you can do</b>
+              <span>{permissions.length} {permissions.length === 1 ? "permission" : "permissions"}</span>
             </div>
-          ))
-        )}
+            {permissionGroups.length === 0 ? (
+              <p className="cmnd-loading">No permissions yet.</p>
+            ) : (
+              permissionGroups.map((g) => (
+                <div className="cmn2-perm" key={g.prefix} style={{ "--k": g.from }}>
+                  <div className="cmn2-perm-top">
+                    <g.icon size={16} />
+                    <b>{g.label === "Users" ? "User accounts" : g.label}</b>
+                  </div>
+                  <div className="cmn2-actions">
+                    {g.items.map((code) => {
+                      const { label, Icon } = actionOf(code, g.prefix);
+                      return (
+                        <span className="cmn2-action" key={code} title={code}>
+                          <Icon size={12} /> {label}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div className="cmn2-panel">
+          <div className="cmn2-head">
+            <b>Recent activity</b>
+            <span>your notifications</span>
+          </div>
+          {activity === null ? (
+            <p className="cmnd-loading">Loading…</p>
+          ) : activity.length === 0 ? (
+            <p className="cmnd-loading">Nothing yet.</p>
+          ) : (
+            activity.map((a, i) => (
+              <div className="cmn2-row static" key={i}>
+                <span className="cmn2-dot"><TrendingUp size={15} /></span>
+                <div className="cmn2-text">
+                  <b>{a.title}</b>
+                  {a.message && <small>{a.message}</small>}
+                </div>
+                <time className="cmn2-time">{formatTime(a.created_at)}</time>
+              </div>
+            ))
+          )}
+        </div>
       </div>
     </div>
   );

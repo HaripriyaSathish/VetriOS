@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Check, X } from "lucide-react";
+import { Plus, Check, X, TrendingUp, Hourglass, CircleX, ListChecks, ArrowRight, CalendarDays } from "lucide-react";
 import client from "../../../api/client";
 import { EmployeeAvatar } from "../components/EmployeeAvatar";
 import Pagination, { paginate } from "../../../components/Pagination";
 import "../styles/HRDashboard.css";
+import "../styles/Employees.css";
 import "../styles/Leave.css";
 
 const STATUS_CLASS = {
@@ -34,7 +35,6 @@ function formatDate(d) {
 function Promotions({
   showActions = true,
   showDraftButton = true,
-  eyebrow = "HR",
   title = "Promotions",
   subtitle = "Move an employee to a senior or higher designation.",
 }) {
@@ -165,11 +165,19 @@ function Promotions({
     (p) => p.status === "APPROVED" && new Date(p.effective_date).getFullYear() === statsYear
   ).length;
 
+  const inStatsYear = (p, status) => p.status === status && new Date(p.effective_date).getFullYear() === statsYear;
+  const statCards = [
+    { label: `Approved · ${statsYear}`, value: promotionsInStatsYear, tone: "green", Icon: TrendingUp },
+    { label: "Awaiting approval", value: counts.pending, tone: "amber", Icon: Hourglass },
+    { label: `Rejected · ${statsYear}`, value: promotions.filter((p) => inStatsYear(p, "REJECTED")).length, tone: "red", Icon: CircleX },
+    { label: "Total requests", value: counts.all, tone: "blue", Icon: ListChecks },
+  ];
+  const newDesignationName = designations.find((d) => String(d.designation_id) === String(form.new_designation_id))?.designation_name;
+
   return (
-    <div className="att-screen">
+    <div className="att-screen lv-v2">
       <div className="att-head">
         <div>
-          <span className="att-eyebrow">{eyebrow}</span>
           <h1>{title}</h1>
           <p>{subtitle}</p>
         </div>
@@ -194,17 +202,16 @@ function Promotions({
         </select>
       </div>
 
-      <div className="att-stats" style={{ gridTemplateColumns: "repeat(2, 1fr)" }}>
-        <div className="att-stat-card">
-          <span className="att-stat-label">Promotions</span>
-          <span className="att-stat-value">{promotionsInStatsYear}</span>
-          <span className="att-stat-sub">Approved · {statsYear}</span>
-        </div>
-        <div className="att-stat-card">
-          <span className="att-stat-label">Awaiting approval</span>
-          <span className="att-stat-value">{counts.pending}</span>
-          <span className="att-stat-sub">Pending requests (all time)</span>
-        </div>
+      <div className="emp-mini-row org-stats">
+        {statCards.map(({ label, value, tone, Icon }) => (
+          <div key={label} className={`emp-mini tone-${tone}`}>
+            <span className="emp-mini-icon"><Icon size={15} /></span>
+            <span className="emp-mini-text">
+              <b>{loading ? "-" : value}</b>
+              <span>{label}</span>
+            </span>
+          </div>
+        ))}
       </div>
 
       <div className="att-panel">
@@ -256,8 +263,7 @@ function Promotions({
                 <thead>
                   <tr>
                     <th>Employee</th>
-                    <th>From</th>
-                    <th>To</th>
+                    <th>Promotion</th>
                     <th>Effective date</th>
                     <th>Status</th>
                     <th>Decided by</th>
@@ -266,16 +272,23 @@ function Promotions({
                 </thead>
                 <tbody>
                   {paginate(filtered, page, 8).map((p) => (
-                    <tr key={p.promotion_id}>
+                    <tr key={p.promotion_id} className={p.status === "PENDING" ? "lv-pending" : ""}>
                       <td>
                         <div className="hr-cell-user">
                           <EmployeeAvatar personId={p.person_id} size={28} />
                           <div className="hr-name">{p.full_name}</div>
                         </div>
                       </td>
-                      <td>{p.previous_designation_name || "—"}</td>
-                      <td>{p.new_designation_name}</td>
-                      <td className="hr-mono">{formatDate(p.effective_date)}</td>
+                      <td>
+                        <span className="pr2-move">
+                          <span>{p.previous_designation_name || "—"}</span>
+                          <ArrowRight size={14} />
+                          <b>{p.new_designation_name}</b>
+                        </span>
+                      </td>
+                      <td>
+                        <span className="lv2-dates"><CalendarDays size={14} />{formatDate(p.effective_date)}</span>
+                      </td>
                       <td>
                         <span className={"att-pill " + (STATUS_CLASS[p.status] || "absent")}>
                           {p.status.charAt(0) + p.status.slice(1).toLowerCase()}
@@ -320,63 +333,76 @@ function Promotions({
 
       {modalOpen && (
         <div className="hr-modal-backdrop" onClick={() => setModalOpen(false)}>
-          <form className="hr-modal" onClick={(e) => e.stopPropagation()} onSubmit={handleSubmit}>
-            <button type="button" className="hr-modal-x" onClick={() => setModalOpen(false)} aria-label="Close">
+          <form className="hr-modal org-modal" onClick={(e) => e.stopPropagation()} onSubmit={handleSubmit}>
+            <button type="button" className="hr-modal-x org-modal-x" onClick={() => setModalOpen(false)} aria-label="Close">
               ✕
             </button>
-            <h2>New promotion</h2>
-            <p className="hr-hint">Submitted as a pending request for System Administrator to approve.</p>
+            <div className="org-modal-head">
+              <span className="org-modal-ico"><TrendingUp size={19} /></span>
+              <div>
+                <h2>Draft promotion</h2>
+                <p>Sent as a pending request for System Administrator to approve.</p>
+              </div>
+            </div>
 
-            <label>Employee</label>
-            <select
-              value={form.employee_id}
-              onChange={(e) => setForm({ ...form, employee_id: e.target.value })}
-              required
-            >
-              <option value="">Select…</option>
-              {employees.map((e) => (
-                <option key={e.employee_id} value={e.employee_id}>
-                  {e.full_name} {e.employee_code ? `(${e.employee_code})` : ""}
-                </option>
-              ))}
-            </select>
-            {selectedEmployee && (
-              <p className="hr-hint">Current designation: {selectedEmployee.designation_name || "Not assigned"}</p>
-            )}
+            <div className="org-modal-body">
+              <label>Employee</label>
+              <select
+                value={form.employee_id}
+                onChange={(e) => setForm({ ...form, employee_id: e.target.value })}
+                required
+              >
+                <option value="">Select…</option>
+                {employees.map((e) => (
+                  <option key={e.employee_id} value={e.employee_id}>
+                    {e.full_name} {e.employee_code ? `(${e.employee_code})` : ""}
+                  </option>
+                ))}
+              </select>
 
-            <label>New designation</label>
-            <select
-              value={form.new_designation_id}
-              onChange={(e) => setForm({ ...form, new_designation_id: e.target.value })}
-              required
-            >
-              <option value="">Select…</option>
-              {designations.map((d) => (
-                <option key={d.designation_id} value={d.designation_id}>
-                  {d.designation_name}
-                </option>
-              ))}
-            </select>
+              <label>New designation</label>
+              <select
+                value={form.new_designation_id}
+                onChange={(e) => setForm({ ...form, new_designation_id: e.target.value })}
+                required
+              >
+                <option value="">Select…</option>
+                {designations.map((d) => (
+                  <option key={d.designation_id} value={d.designation_id}>
+                    {d.designation_name}
+                  </option>
+                ))}
+              </select>
 
-            <label>Effective date</label>
-            <input
-              type="date"
-              value={form.effective_date}
-              onChange={(e) => setForm({ ...form, effective_date: e.target.value })}
-              required
-            />
+              {selectedEmployee && (
+                <div className="pr2-preview">
+                  <span>{selectedEmployee.designation_name || "Not assigned"}</span>
+                  <ArrowRight size={15} />
+                  <b>{newDesignationName || "Select a designation"}</b>
+                </div>
+              )}
 
-            <label>Reason (optional)</label>
-            <textarea
-              className="lv-textarea"
-              value={form.reason}
-              onChange={(e) => setForm({ ...form, reason: e.target.value })}
-              rows={3}
-            />
+              <label>Effective date</label>
+              <input
+                type="date"
+                value={form.effective_date}
+                onChange={(e) => setForm({ ...form, effective_date: e.target.value })}
+                required
+              />
 
-            {formError && <p className="hr-error">{formError}</p>}
+              <label>Reason (optional)</label>
+              <textarea
+                className="lv-textarea"
+                value={form.reason}
+                onChange={(e) => setForm({ ...form, reason: e.target.value })}
+                placeholder="Why is this promotion happening?"
+                rows={3}
+              />
 
-            <div className="hr-modal-actions">
+              {formError && <p className="hr-error">{formError}</p>}
+            </div>
+
+            <div className="hr-modal-actions org-modal-foot">
               <button type="button" className="hr-btn-sm" onClick={() => setModalOpen(false)}>
                 Cancel
               </button>

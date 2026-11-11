@@ -465,7 +465,7 @@
    name/designation, a progress bar, and an "Open checklist" action. */
 .ob-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(330px, 360px));
   gap: 16px;
 }
 
@@ -1262,3 +1262,85 @@
   gap: 10px;
   margin-top: 20px;
 }
+
+/* Payroll references KPI cards: same look as the other stat cards. */
+.hr-kpi-row .hr-kpi-card {
+  --k: #2b6fd6;
+  border: 1px solid #d5e0ef; border-bottom: 3px solid var(--k); border-radius: 14px;
+  box-shadow: 0 2px 4px rgba(16, 24, 40, .08), 0 8px 18px rgba(16, 24, 40, .10);
+}
+.hr-kpi-row .hr-kpi-card:nth-child(2) { --k: #2f9e5a; }
+.hr-kpi-row .hr-kpi-card:nth-child(3) { --k: #e8791f; }
+.hr-kpi-row .hr-kpi-card:nth-child(4) { --k: #d9473b; }
+.hr-kpi-row .hr-kpi-icon { width: 34px; height: 34px; border-radius: 10px; background: var(--k); color: #fff; }
+.hr-kpi-row .hr-kpi-label { font-size: 12.5px; }
+.hr-kpi-row .hr-kpi-value { font-size: 30px; color: var(--k); }
+
+/* ---------- Payroll reference form ---------- */
+.hr-modal.org-modal.prf-modal { max-width: 720px; }
+.prf-bar { height: 5px; background: #e8eef6; }
+.prf-bar i { display: block; height: 100%; background: var(--vt-orange); transition: width .25s ease; }
+.prf-body { padding: 4px 22px 6px; }
+.prf-sec { margin-top: 12px; }
+.prf-sec h3 { display: flex; align-items: center; gap: 9px; margin: 0 0 8px; font-family: var(--vt-font-head); font-size: 14px; font-weight: 700; color: var(--vt-navy); }
+.prf-sec h3::after { content: ""; flex: 1; height: 1px; background: var(--vt-border); }
+.prf-step { width: 22px; height: 22px; border-radius: 50%; background: var(--vt-navy); color: #fff; font-size: 12px; display: inline-flex; align-items: center; justify-content: center; }
+.hr-modal.prf-modal label { font-size: 13px; }
+.hr-modal.prf-modal input, .hr-modal.prf-modal select { font-size: 14px; }
+.prf-locked { position: relative; }
+.prf-locked input { background: #f3f6fa; color: var(--vt-muted); padding-right: 34px; }
+.prf-locked svg { position: absolute; right: 12px; top: 50%; transform: translateY(-30%); color: #8a95a5; }
+.prf-hint { display: flex; align-items: center; gap: 7px; margin: 10px 0 0; padding: 8px 12px; border-radius: 10px; background: #f3f7fb; font-size: 13px; color: #51607a; }
+.prf-hint svg { color: #2b6fd6; flex-shrink: 0; }
+.prf-summary { display: flex; align-items: center; gap: 11px; margin-top: 14px; padding: 10px 12px; border-radius: 12px; background: #f3f7fb; }
+.prf-summary svg { color: var(--vt-navy); flex-shrink: 0; }
+.prf-summary b { display: block; font-weight: 600; font-size: 14px; color: var(--vt-navy); }
+.prf-summary span { font-size: 12.5px; color: var(--vt-muted); }
+.prf-foot { align-items: center; }
+.prf-count { margin-right: auto; font-size: 13px; color: var(--vt-muted); }
+.prf-foot .emp-form-changes { margin-right: auto; }
+.hr-modal.prf-modal .emp-changed input { border-color: var(--vt-orange); background: #fff8f0; }
+
+/* ---------- Exit records page ---------- */
+.ex2 .hr-table td { padding: 12px 16px; font-size: 14px; }
+.ex2 .hr-name { font-size: 14.5px; }
+.ex2 tr.ex2-pending td:first-child { box-shadow: inset 3px 0 0 var(--vt-orange); }
+.ex2-date { display: inline-flex; align-items: center; gap: 7px; }
+.ex2-date svg { color: #8a95a5; }
+.ex2 .att-pill { font-size: 12.5px; padding: 4px 12px; }
+.ex2 .att-pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; margin-right: 6px; }
+.ex2 .hr-stats-head { margin-bottom: 10px; }
+.prf-modal .lv-textarea { width: 100%; box-sizing: border-box; margin-top: 5px; border: 1px solid #c9d5ec; border-radius: 8px; padding: 9px 11px; font: inherit; font-size: 14px; resize: vertical; }
+.prf-modal .lv-textarea:focus { outline: none; border-color: var(--vt-orange); box-shadow: 0 0 0 3px rgba(232, 121, 31, .15); }
+.hr-modal.prf-modal .emp-changed .lv-textarea { border-color: var(--vt-orange); background: #fff8f0; }
+
+/* ---------- Reports page ---------- */
+.rpt2 .hr-head p { font-size: 14.5px; }
+.rpt2-switch { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+.rpt2-switch button {
+  display: inline-flex; align-items: center; gap: 7px; padding: 8px 18px; border-radius: 999px;
+  border: 1px solid #dde5ef; background: #fff; color: #51607a; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+}
+.rpt2-switch button:hover { background: #f7f9fc; }
+.rpt2-switch button.active { background: var(--vt-navy); border-color: var(--vt-navy); color: #fff; }
+.rpt2 .rpt-filter-panel { border-radius: 14px; box-shadow: 0 1px 2px rgba(16, 24, 40, .05), 0 4px 12px rgba(16, 24, 40, .06); }
+.rpt2 .rpt-filter-head h3, .rpt2 .att-panel-head h3 { font-size: 17px; }
+.rpt2 .rpt-filter-head p, .rpt2 .att-panel-head p { font-size: 13.5px; }
+.rpt2 .rpt-filter-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin-bottom: 0; }
+.rpt2 .rpt-filter-row > div:not(.rpt-filter-actions) { flex: 1 1 180px; min-width: 0; }
+.rpt2 .rpt-filter-row label { font-size: 13px; }
+.rpt2 .rpt-filter-row input, .rpt2 .rpt-filter-row select { font-size: 14px; padding: 10px 12px; }
+.rpt2 .rpt-filter-actions { margin-left: auto; align-items: center; }
+.rpt2 .rpt-filter-actions .hr-btn-sm { font-size: 14px; padding: 10px 16px; border-radius: 10px; }
+.rpt2 .rpt-filter-actions .hr-btn-accent {
+  display: inline-flex; align-items: center; gap: 7px; font-size: 14px; padding: 10px 18px; border: 0; border-radius: 10px;
+  background: linear-gradient(135deg, #e7510c, #ff8a4c); color: #fff; box-shadow: 0 6px 14px rgba(231, 81, 12, .25);
+}
+.rpt2 .rpt-panel { border-radius: 14px; box-shadow: 0 1px 2px rgba(16, 24, 40, .05), 0 4px 12px rgba(16, 24, 40, .06); }
+.rpt2 .rpt-panel-body .emp-mini-row { margin-bottom: 6px; }
+.rpt2-hbars { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+.rpt2-hbar { display: grid; grid-template-columns: 110px 1fr 28px; gap: 10px; align-items: center; font-size: 14px; color: #51607a; }
+.rpt2-hbar > div { height: 12px; border-radius: 7px; background: #eef2f8; overflow: hidden; }
+.rpt2-hbar i { display: block; height: 100%; border-radius: 7px; }
+.rpt2-hbar b { font-weight: 600; color: var(--vt-navy); text-align: right; }
+.rpt2 .rpt-filter-row input, .rpt2 .rpt-filter-row select { height: 44px; box-sizing: border-box; }

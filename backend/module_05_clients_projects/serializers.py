@@ -262,13 +262,38 @@ class DocumentProjectSerializer(serializers.ModelSerializer):
     document_status = serializers.CharField(source="document.status", read_only=True)
     approvals = serializers.SerializerMethodField()
     current_version_url = serializers.SerializerMethodField()
+    # Client sign-off (ext_document_client_approval), read by the
+    # Approval Documents page.
+    client_approved = serializers.SerializerMethodField()
+    client_approved_by = serializers.SerializerMethodField()
+    client_approved_at = serializers.SerializerMethodField()
 
     class Meta:
         model = DocumentProject
         fields = [
             "document_project_id", "document", "document_title", "document_status",
             "project", "relationship_type", "approvals", "current_version_url",
+            "client_approved", "client_approved_by", "client_approved_at",
         ]
+
+    def _client_approval(self, obj):
+        from module_06_documents.models import DocumentClientApproval
+        if not hasattr(obj, "_client_approval_row"):
+            obj._client_approval_row = (
+                DocumentClientApproval.objects.select_related("approved_by__person").filter(document_id=obj.document_id).first()
+            )
+        return obj._client_approval_row
+
+    def get_client_approved(self, obj):
+        return self._client_approval(obj) is not None
+
+    def get_client_approved_by(self, obj):
+        row = self._client_approval(obj)
+        return _person_name(row.approved_by) if row and row.approved_by_id else None
+
+    def get_client_approved_at(self, obj):
+        row = self._client_approval(obj)
+        return row.approved_at if row else None
 
     def get_approvals(self, obj):
         return DocumentApprovalSerializer(

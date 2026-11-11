@@ -31,11 +31,16 @@ from .views import AskProjectLeadThreadView
 from .views import MyProjectTestingReportsView, MyFiledTestingReportsView
 from .views import TaskSubmissionsView
 from .views import MarkDocumentClientApprovedView
+from .pm_overview_views import PmOverviewView, MyRequirementsView, RequirementUpdateView, MilestoneStatusView
 
 urlpatterns = [
     # ---------- Projects (core) ----------
     path("create/", CreateProjectView.as_view()),
     path("me/", MyProjectsView.as_view()),
+    path("pm/overview/", PmOverviewView.as_view()),
+    path("requirements/", MyRequirementsView.as_view()),
+    path("requirements/<int:requirement_id>/", RequirementUpdateView.as_view()),
+    path("milestones/<int:milestone_id>/", MilestoneStatusView.as_view()),
     path("<int:project_id>/team/", ProjectTeamView.as_view()),
     path("<int:project_id>/my-reports/", MyDirectReportsView.as_view()),
     path('users-lookup/', UserLookupView.as_view()),

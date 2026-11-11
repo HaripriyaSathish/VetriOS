@@ -1,20 +1,23 @@
 import { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams } from "react-router-dom";
+import { Plus, CalendarCheck, CalendarClock, CircleCheck, MapPin, UserRound, Search } from "lucide-react";
 import client from "../../../api/client";
+import PmHeader from "../components/PmHeader";
+import useClientName from "../components/useClientName";
+import "../../training/styles/BusinessPages.css";
+import "../../training/styles/TrainerDashboard.css";
+import "../styles/PmPages.css";
 
-const STATUS_STYLES = {
-  SCHEDULED: "bg-blue-100 text-blue-700",
-  COMPLETED: "bg-green-100 text-green-700",
-  CANCELLED: "bg-red-100 text-red-700",
-  RESCHEDULED: "bg-amber-100 text-amber-700",
-};
+const STATUS_CHIP = { SCHEDULED: "blue", IN_PROGRESS: "orange", COMPLETED: "green", CANCELLED: "red", POSTPONED: "orange" };
 
 function Meetings() {
   const { clientId } = useParams();
+  const clientName = useClientName(clientId);
   const [meetings, setMeetings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [search, setSearch] = useState("");
 
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState("");
@@ -23,27 +26,26 @@ function Meetings() {
   const [location, setLocation] = useState("");
   const [agenda, setAgenda] = useState("");
   const [creating, setCreating] = useState(false);
+  const [formError, setFormError] = useState("");
 
-  const load = () => {
-    setLoading(true);
+  const fetchMeetings = () =>
     client.get(`/api/projects/clients/${clientId}/meetings/`)
       .then(({ data }) => setMeetings(data))
       .catch((err) => setError(err.response?.data?.detail || "Couldn't load meetings."))
       .finally(() => setLoading(false));
-  };
 
   useEffect(() => {
-    load();
+    fetchMeetings();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientId]);
 
   const createMeeting = async () => {
     if (!title.trim() || !scheduledStart) {
-      setError("Meeting title and start time are required.");
+      setFormError("Meeting title and start time are required.");
       return;
     }
     setCreating(true);
-    setError("");
+    setFormError("");
     try {
       await client.post(`/api/projects/clients/${clientId}/meetings/`, {
         meeting_title: title,
@@ -55,119 +57,120 @@ function Meetings() {
       setMessage("Meeting scheduled.");
       setTitle(""); setMeetingType(""); setScheduledStart(""); setLocation(""); setAgenda("");
       setShowForm(false);
-      load();
+      fetchMeetings();
     } catch (err) {
-      setError(err.response?.data?.detail || "Couldn't schedule meeting.");
+      setFormError(err.response?.data?.detail || "Couldn't schedule meeting.");
     } finally {
       setCreating(false);
     }
   };
 
-  if (loading) return <p className="p-6 text-gray-400">Loading…</p>;
-
+  const now = new Date();
   const sorted = [...meetings].sort((a, b) => new Date(b.scheduled_start) - new Date(a.scheduled_start));
+  const upcoming = meetings.filter((m) => new Date(m.scheduled_start) >= now && m.status !== "CANCELLED");
+  const next = [...upcoming].sort((a, b) => new Date(a.scheduled_start) - new Date(b.scheduled_start))[0];
+  const visible = sorted.filter((m) => {
+    const q = search.trim().toLowerCase();
+    return !q || [m.meeting_title, m.meeting_type, m.agenda, m.meeting_notes].some((v) => (v || "").toLowerCase().includes(q));
+  });
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <Link to="/clients/meetings" className="text-sm text-blue-600 hover:underline">
-        ← Back to Clients
-      </Link>
+    <div className="bp-page tr-page pm-page">
+      <PmHeader
+        eyebrow="Client Management"
+        section="Meetings / Call Log"
+        title={clientName ? `${clientName} Meetings` : "Meetings / Call Log"}
+        subtitle="Calls, video meetings and visits with this client."
+        back="/clients/meetings"
+        backLabel="All clients"
+      >
+        <button type="button" className="bp-btn navy" onClick={() => { setShowForm(true); setFormError(""); }}><Plus size={16} /> Log Meeting</button>
+      </PmHeader>
 
-      <div className="flex justify-between items-center mt-3 mb-6">
-        <h1 className="text-xl font-bold text-gray-900">Meetings / Call Log</h1>
-        <button
-          onClick={() => setShowForm((prev) => !prev)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-semibold"
-        >
-          {showForm ? "Cancel" : "+ Log Meeting"}
-        </button>
+      {error && <p className="bp-panel bp-error">{error}</p>}
+      {message && <p className="bp-panel pm-notice-ok">{message}</p>}
+
+      <div className="bp-stats tr-stats">
+        <div className="bp-stat" style={{ "--i": 0 }}>
+          <div className="bp-stat-top"><p className="bp-stat-label pm-label">MEETINGS</p><span className="pm-ico navy"><CalendarCheck size={20} /></span></div>
+          <p className="bp-stat-value">{meetings.length}</p>
+          <p className="pm-foot"><span>{meetings.filter((m) => m.status === "COMPLETED").length} completed</span></p>
+        </div>
+        <div className="bp-stat" style={{ "--i": 1 }}>
+          <div className="bp-stat-top"><p className="bp-stat-label pm-label">UPCOMING</p><span className="pm-ico orange"><CalendarClock size={20} /></span></div>
+          <p className="bp-stat-value tr-orange">{upcoming.length}</p>
+          <p className="pm-foot"><span>{next ? `Next ${new Date(next.scheduled_start).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}` : "Nothing scheduled"}</span></p>
+        </div>
+        <div className="bp-stat" style={{ "--i": 2 }}>
+          <div className="bp-stat-top"><p className="bp-stat-label pm-label">WITH NOTES</p><span className="pm-ico green"><CircleCheck size={20} /></span></div>
+          <p className="bp-stat-value">{meetings.filter((m) => m.meeting_notes).length}</p>
+          <p className="pm-foot"><span>Meetings with minutes</span></p>
+        </div>
       </div>
 
-      {error && <p className="text-red-600 mb-4">{error}</p>}
-      {message && <p className="text-green-600 mb-4">{message}</p>}
+      <div className="bp-panel pm-toolbar">
+        <h3 className="pm-panel-title">Call Log</h3>
+        <label className="bp-search">
+          <Search size={15} />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search meetings…" />
+        </label>
+      </div>
 
-      {showForm && (
-        <div className="bg-white border border-gray-200 rounded-xl p-5 mb-6">
-          <h3 className="font-semibold text-gray-900 mb-3">New Meeting</h3>
-          <input
-            placeholder="Meeting title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm mb-3"
-          />
-          <div className="grid grid-cols-2 gap-3 mb-3">
-            <input
-              placeholder="Type (e.g. Call, Video, In-person)"
-              value={meetingType}
-              onChange={(e) => setMeetingType(e.target.value)}
-              className="border border-gray-300 rounded-md px-3 py-2 text-sm"
-            />
-            <input
-              type="datetime-local"
-              value={scheduledStart}
-              onChange={(e) => setScheduledStart(e.target.value)}
-              className="border border-gray-300 rounded-md px-3 py-2 text-sm"
-            />
-          </div>
-          <input
-            placeholder="Location / meeting link"
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm mb-3"
-          />
-          <textarea
-            placeholder="Agenda"
-            value={agenda}
-            onChange={(e) => setAgenda(e.target.value)}
-            rows={3}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm mb-4"
-          />
-          <button
-            onClick={createMeeting}
-            disabled={creating}
-            className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-semibold disabled:opacity-60"
-          >
-            {creating ? "Scheduling…" : "Log Meeting"}
-          </button>
+      {loading ? (
+        <p className="bp-loading">Loading meetings…</p>
+      ) : visible.length === 0 ? (
+        <p className="bp-panel pm-empty-panel">{meetings.length ? "No meetings match your search." : "No meetings logged yet."}</p>
+      ) : (
+        <div className="pm-list">
+          {visible.map((m, idx) => (
+            <article key={m.meeting_id} className="bp-panel pm-item" style={{ "--i": idx }}>
+              <div className="pm-item-top">
+                <div>
+                  <h3 className="pm-item-title">{m.meeting_title}</h3>
+                  <p className="pm-item-meta">
+                    <span><CalendarClock size={12} /> {new Date(m.scheduled_start).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}</span>
+                    {m.meeting_type && <span>{m.meeting_type}</span>}
+                    {m.meeting_location && <span><MapPin size={12} /> {m.meeting_location}</span>}
+                  </p>
+                </div>
+                <span className={`bp-chip ${STATUS_CHIP[m.status] || "blue"}`}>{m.status}</span>
+              </div>
+              {m.agenda && <div><p className="pm-section-label">Agenda</p><p className="pm-item-text">{m.agenda}</p></div>}
+              {m.meeting_notes && <div><p className="pm-section-label">Notes</p><p className="pm-item-text">{m.meeting_notes}</p></div>}
+              {m.created_by_name && <div className="pm-item-foot"><span><UserRound size={12} /> Logged by {m.created_by_name}</span></div>}
+            </article>
+          ))}
         </div>
       )}
 
-      {sorted.length === 0 ? (
-        <div className="bg-white border border-gray-200 rounded-xl p-8 text-center text-gray-400">
-          No meetings logged yet.
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {sorted.map((m) => (
-            <div key={m.meeting_id} className="bg-white border border-gray-200 rounded-lg p-4">
-              <div className="flex justify-between items-start mb-2">
-                <p className="font-medium text-gray-900">{m.meeting_title}</p>
-                <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_STYLES[m.status] || STATUS_STYLES.SCHEDULED}`}>
-                  {m.status}
-                </span>
-              </div>
-              <p className="text-xs text-gray-600 mb-2">
-                {new Date(m.scheduled_start).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
-                {m.meeting_type && ` · ${m.meeting_type}`}
-                {m.meeting_location && ` · ${m.meeting_location}`}
-              </p>
-              {m.agenda && (
-                <div className="mb-2">
-                  <p className="text-xs font-semibold text-gray-700">Agenda</p>
-                  <p className="text-sm text-gray-700">{m.agenda}</p>
-                </div>
-              )}
-              {m.meeting_notes && (
-                <div>
-                  <p className="text-xs font-semibold text-gray-700">Notes</p>
-                  <p className="text-sm text-gray-700">{m.meeting_notes}</p>
-                </div>
-              )}
-              {m.created_by_name && (
-                <p className="text-xs text-gray-500 mt-2">Logged by {m.created_by_name}</p>
-              )}
+      {showForm && (
+        <div className="bp-modal-backdrop" onClick={() => !creating && setShowForm(false)}>
+          <div className="bp-modal" onClick={(e) => e.stopPropagation()}>
+            <h2>Log Meeting</h2>
+            <p className="bp-sub">Schedule or record a meeting with {clientName || "this client"}.</p>
+            <div className="bp-form-grid">
+              <label className="bp-field full"><span>Title</span>
+                <input value={title} onChange={(e) => setTitle(e.target.value)} />
+              </label>
+              <label className="bp-field"><span>Type</span>
+                <input value={meetingType} onChange={(e) => setMeetingType(e.target.value)} placeholder="Call, Video, In-person" />
+              </label>
+              <label className="bp-field"><span>Starts</span>
+                <input type="datetime-local" value={scheduledStart} onChange={(e) => setScheduledStart(e.target.value)} />
+              </label>
+              <label className="bp-field full"><span>Location / meeting link</span>
+                <input value={location} onChange={(e) => setLocation(e.target.value)} />
+              </label>
+              <label className="bp-field full"><span>Agenda</span>
+                <textarea rows={3} value={agenda} onChange={(e) => setAgenda(e.target.value)} />
+              </label>
             </div>
-          ))}
+            {formError && <p className="bp-form-error">{formError}</p>}
+            <div className="bp-modal-actions">
+              <button type="button" className="bp-btn outline" onClick={() => setShowForm(false)} disabled={creating}>Cancel</button>
+              <button type="button" className="bp-btn navy" onClick={createMeeting} disabled={creating}>{creating ? "Scheduling…" : "Log Meeting"}</button>
+            </div>
+          </div>
         </div>
       )}
     </div>

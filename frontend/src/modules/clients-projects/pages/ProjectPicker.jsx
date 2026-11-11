@@ -1,11 +1,19 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { ArrowRight, Briefcase, FolderKanban, Search, UserRound } from "lucide-react";
 import client from "../../../api/client";
+import PmHeader from "../components/PmHeader";
+import "../../training/styles/BusinessPages.css";
+import "../../training/styles/TrainerDashboard.css";
+import "../styles/PmPages.css";
+
+const STATUS_CHIP = { Active: "green", Planned: "blue", "On Hold": "orange", Completed: "green", Cancelled: "red", Archived: "gray" };
 
 function ProjectPicker({ title, subtitle, basePath, getPath }) {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     client.get("/api/projects/me/")
@@ -14,39 +22,50 @@ function ProjectPicker({ title, subtitle, basePath, getPath }) {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <p className="p-6 text-gray-400">Loading…</p>;
-  if (error) return <p className="p-6 text-red-600">{error}</p>;
-
   // getPath(projectId) lets a page override the URL shape when the
   // route puts the id before the feature name (e.g. /project/6/team)
   // instead of after it (e.g. /project/requirements/6).
   const linkFor = (projectId) => (getPath ? getPath(projectId) : `${basePath}/${projectId}`);
 
-  return (
-    <div className="p-6 max-w-5xl mx-auto">
-      <h1 className="text-xl font-bold text-gray-900 mb-1">{title}</h1>
-      <p className="text-gray-600 mb-6">{subtitle}</p>
+  const visible = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return projects;
+    return projects.filter((p) => [p.project_name, p.project_code, p.client_name, p.my_role].some((v) => (v || "").toLowerCase().includes(q)));
+  }, [projects, search]);
 
-      {projects.length === 0 ? (
-        <div className="bg-white border border-gray-200 rounded-xl p-8 text-center text-gray-400">
-          No projects yet.
-        </div>
+  return (
+    <div className="bp-page tr-page pm-page">
+      <PmHeader section={title} title={title} subtitle={subtitle} />
+
+      {error && <p className="bp-panel bp-error">{error}</p>}
+
+      <div className="bp-panel pm-toolbar">
+        <span className="bp-chip blue"><FolderKanban size={12} /> {projects.length} {projects.length === 1 ? "project" : "projects"}</span>
+        <label className="bp-search">
+          <Search size={15} />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search projects, clients…" />
+        </label>
+      </div>
+
+      {loading ? (
+        <p className="bp-loading">Loading your projects…</p>
+      ) : visible.length === 0 ? (
+        <p className="bp-panel pm-empty-panel">{projects.length ? "No projects match your search." : "You aren't on any projects yet."}</p>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {projects.map((p) => (
-            <Link
-              key={p.project_id}
-              to={linkFor(p.project_id)}
-              className="bg-white border border-gray-200 rounded-xl p-5 hover:border-blue-400 hover:shadow-md transition"
-            >
-              <div className="flex justify-between items-start mb-2">
-                <p className="font-semibold text-gray-900">{p.project_name}</p>
-                <span className="px-2 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
-                  {p.status}
-                </span>
+        <div className="pm-pick-grid">
+          {visible.map((p, idx) => (
+            <Link key={p.project_id} to={linkFor(p.project_id)} className="pm-pick" style={{ "--i": idx }}>
+              <div className="pm-pick-top">
+                <span className="pm-ico small navy"><FolderKanban size={17} /></span>
+                <span className={`bp-chip ${STATUS_CHIP[p.status] || "blue"}`}>{p.status}</span>
               </div>
-              <p className="text-xs text-gray-600 mb-1">Client: {p.client_name}</p>
-              <p className="text-xs text-gray-600">Your role: {p.my_role}</p>
+              <b className="pm-pick-name">{p.project_name}</b>
+              <small className="pm-pick-code">{p.project_code}</small>
+              <div className="pm-pick-meta">
+                <span><Briefcase size={12} /> {p.client_name}</span>
+                <span><UserRound size={12} /> {p.my_role}</span>
+              </div>
+              <span className="pm-pick-open">Open <ArrowRight size={13} /></span>
             </Link>
           ))}
         </div>

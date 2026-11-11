@@ -91,7 +91,6 @@ import RoleRevision from "./modules/email/pages/RoleRevision";
 import EmailApprovals from "./modules/email/pages/Approvals";
 import CreateProject from "./modules/clients-projects/pages/CreateProject";
 import KanbanBoard from "./modules/clients-projects/pages/KanbanBoard";
-import RequirementsProjects from "./modules/clients-projects/pages/RequirementsProjects";
 import Requirements from "./modules/clients-projects/pages/Requirements";
 import MilestonesProjects from "./modules/clients-projects/pages/MilestonesProjects";
 import Milestones from "./modules/clients-projects/pages/Milestones";
@@ -435,7 +434,7 @@ function App() {
 <Route path="/project/kanban" element={<KanbanProjects />} />
 <Route path="/project/:projectId/kanban" element={<KanbanBoard />} />
 <Route path="/project/team-tasks" element={<LeadTeamTasks />} />
-<Route path="/project/requirements" element={<RequirementsProjects />} />
+<Route path="/project/requirements" element={<Requirements />} />
 <Route path="/project/requirements/:projectId" element={<Requirements />} />
 <Route path="/project/milestones" element={<MilestonesProjects />} />
 <Route path="/project/:projectId/milestones" element={<Milestones />} />

@@ -1,148 +1,209 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import {
+  BookOpen, GraduationCap, Pencil, Plus, Search, UserRound, Users, ClipboardList, ChevronDown,
+} from "lucide-react";
 import client from "../../../api/client";
-import "../styles/TrainingDashboard.css";
+import "../styles/BusinessPages.css";
+import "../styles/TrainerDashboard.css";
+import "../styles/TrainingBatches.css";
+
+const fmt = (d) => (d ? new Date(d).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "—");
+const initials = (name) => (name || "?").split(" ").filter(Boolean).slice(0, 2).map((p) => p[0].toUpperCase()).join("");
+const STATUS_CHIP = { ACTIVE: "green", PLANNED: "blue", UPCOMING: "blue", COMPLETED: "gray", CANCELLED: "red", ON_HOLD: "orange" };
 
 function TrainingManagement() {
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
-
-  const loadData = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const { data } = await client.get("/api/training/management/overview/");
-      setData(data);
-    } catch (err) {
-      setError(err.response?.data?.detail || "Couldn't load Training Management.");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [tab, setTab] = useState("batches");
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("all");
 
   useEffect(() => {
-    loadData();
+    client.get("/api/training/management/overview/")
+      .then(({ data: d }) => setData(d))
+      .catch((err) => setError(err.response?.data?.detail || "Couldn't load Training Management."));
   }, []);
 
-  if (loading) return <p className="td-empty">Loading…</p>;
-  if (error) return <p className="td-error">{error}</p>;
+  const statuses = useMemo(() => [...new Set((data?.batches || []).map((b) => b.status).filter(Boolean))], [data]);
+
+  const batches = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return (data?.batches || []).filter((b) =>
+      (status === "all" || b.status === status) &&
+      (!q || [b.batch_name, b.course_name, b.trainer_name].some((v) => (v || "").toLowerCase().includes(q))));
+  }, [data, search, status]);
+
+  const trainers = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return (data?.trainers || []).filter((t) =>
+      !q || [t.trainer_name, t.email, t.specialization].some((v) => (v || "").toLowerCase().includes(q)));
+  }, [data, search]);
+
+  if (error) return <p className="bp-error">{error}</p>;
+  if (!data) return <p className="bp-loading">Loading…</p>;
+
+  const activeBatches = data.batches.filter((b) => b.status === "ACTIVE").length;
+  const activeTrainers = data.trainers.filter((t) => t.is_active).length;
+  const unassigned = data.batches.filter((b) => !b.trainer_name).length;
 
   return (
-    <div className="td-screen">
-      <div className="td-head">
+    <div className="bp-page tr-page">
+      <div className="bp-head">
         <div>
-          <h1>Training Management</h1>
-          <p>
-            {data.total_batches} batches · {data.total_trainers} trainers ·{" "}
-            {data.total_students} students
-          </p>
+          <p className="bp-crumb">Business Team / <span>Training Management</span></p>
+          <h1 className="bp-title">Training Management</h1>
+          <p className="bp-sub">Every batch and trainer across the academy — schedule cohorts, assign trainers and track enrolment.</p>
         </div>
-        {data.is_business_team && (
-          <div style={{ display: "flex", gap: 10 }}>
-            <Link to="/training/enquiries" className="td-pill on" style={{ textDecoration: "none" }}>
-              + Enquiries
-            </Link>
-          </div>
-        )}
-        {data.can_create && (
-          <Link to="/training/batches/new" className="td-pill on" style={{ textDecoration: "none" }}>
-            + New Batch
-          </Link>
-        )}
+        <div className="bp-actions">
+          {data.is_business_team && (
+            <Link to="/training/enquiries" className="bp-btn outline"><ClipboardList size={16} /> Enquiries</Link>
+          )}
+          {data.can_create && (
+            <Link to="/training/batches/new" className="bp-btn orange"><Plus size={16} /> New Batch</Link>
+          )}
+        </div>
       </div>
 
-      <div className="td-panel">
-        <div className="td-panel-head">
-          <h3>All Batches</h3>
+      <div className="bp-stats tr-stats">
+        <div className="bp-stat" style={{ "--i": 0 }}>
+          <div className="bp-stat-top">
+            <p className="bp-stat-label tb-label">TOTAL BATCHES</p>
+            <span className="tb-stat-icon navy"><GraduationCap size={20} /></span>
+          </div>
+          <p className="bp-stat-value">{data.total_batches}</p>
+          <p className="tb-foot">
+            <span className="bp-chip green">{activeBatches} active</span>
+            {unassigned > 0 && <span className="bp-chip orange">{unassigned} unassigned</span>}
+          </p>
         </div>
-        <div className="td-table-scroll">
-          <table className="td-table">
-            <thead>
-              <tr>
-                <th>Batch</th>
-                <th>Course</th>
-                <th>Trainer</th>
-                <th>Start Date</th>
-                <th>Status</th>
-                <th>Students</th>
-                {data.can_edit && <th></th>}
-              </tr>
-            </thead>
-            <tbody>
-              {data.batches.length === 0 ? (
+        <div className="bp-stat" style={{ "--i": 1 }}>
+          <div className="bp-stat-top">
+            <p className="bp-stat-label tb-label">TRAINERS</p>
+            <span className="tb-stat-icon blue"><UserRound size={20} /></span>
+          </div>
+          <p className="bp-stat-value">{data.total_trainers}</p>
+          <p className="tb-foot"><span className="bp-chip blue">{activeTrainers} active</span></p>
+        </div>
+        <div className="bp-stat" style={{ "--i": 2 }}>
+          <div className="bp-stat-top">
+            <p className="bp-stat-label tb-label">STUDENTS</p>
+            <span className="tb-stat-icon orange"><Users size={20} /></span>
+          </div>
+          <p className="bp-stat-value tr-orange">{data.total_students}</p>
+          <p className="tr-stat-sub">Enrolled across all batches</p>
+        </div>
+      </div>
+
+      <div className="bp-panel tb-toolbar">
+        <div className="bp-tabs">
+          <button type="button" className={`bp-tab ${tab === "batches" ? "active" : ""}`} onClick={() => setTab("batches")}>
+            All Batches <small>({data.batches.length})</small>
+          </button>
+          <button type="button" className={`bp-tab ${tab === "trainers" ? "active" : ""}`} onClick={() => setTab("trainers")}>
+            All Trainers <small>({data.trainers.length})</small>
+          </button>
+        </div>
+        <div className="tb-toolbar-right">
+          <label className="bp-search">
+            <Search size={15} />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={tab === "batches" ? "Search batch, course or trainer…" : "Search trainer, email or skill…"}
+            />
+          </label>
+          {tab === "batches" && (
+            <label className="bp-select">
+              <select value={status} onChange={(e) => setStatus(e.target.value)}>
+                <option value="all">All statuses</option>
+                {statuses.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+              <ChevronDown size={14} />
+            </label>
+          )}
+        </div>
+      </div>
+
+      <section className="bp-panel">
+        <div className="bp-table-wrap">
+          {tab === "batches" ? (
+            <table className="bp-table">
+              <thead>
                 <tr>
-                  <td colSpan={data.can_edit ? 7 : 6} className="td-empty">
-                    No batches yet.
-                  </td>
+                  <th>Batch</th>
+                  <th>Trainer</th>
+                  <th>Start Date</th>
+                  <th>Status</th>
+                  <th>Students</th>
+                  {data.can_edit && <th></th>}
                 </tr>
-              ) : (
-                data.batches.map((b) => (
-                  <tr key={b.batch_id}>
-                    <td className="td-name">
-                      <Link to={`/training/batches/${b.batch_id}`}>{b.batch_name}</Link>
-                    </td>
-                    <td className="td-sub">{b.course_name}</td>
-                    <td className="td-sub">{b.trainer_name || "Unassigned"}</td>
-                    <td className="td-mono">{b.start_date}</td>
+              </thead>
+              <tbody>
+                {batches.length === 0 ? (
+                  <tr className="bp-empty-row">
+                    <td colSpan={data.can_edit ? 6 : 5}>{data.batches.length ? "No batches match your filters." : "No batches yet."}</td>
+                  </tr>
+                ) : batches.map((b, i) => (
+                  <tr key={b.batch_id} style={{ "--row": i }}>
                     <td>
-                      <span className="td-pill on">{b.status}</span>
+                      <div className="bp-person">
+                        <span className="tb-stat-icon navy tm-ico"><BookOpen size={16} /></span>
+                        <div>
+                          <Link to={`/training/batches/${b.batch_id}`} className="bp-person-name tm-link">{b.batch_name}</Link>
+                          <p className="bp-person-sub">{b.course_name}</p>
+                        </div>
+                      </div>
                     </td>
-                    <td className="td-mono">{b.students_enrolled}</td>
+                    <td>{b.trainer_name ? <span className="bp-strong">{b.trainer_name}</span> : <span className="bp-chip orange">Unassigned</span>}</td>
+                    <td className="bp-muted">{fmt(b.start_date)}</td>
+                    <td><span className={`bp-chip ${STATUS_CHIP[b.status] || "blue"}`}>{b.status}</span></td>
+                    <td className="bp-strong">{b.students_enrolled}</td>
                     {data.can_edit && (
                       <td>
-                        <Link to={`/training/batches/${b.batch_id}/edit`}>Edit</Link>
+                        <Link to={`/training/batches/${b.batch_id}/edit`} className="bp-btn outline small"><Pencil size={12} /> Edit</Link>
                       </td>
                     )}
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div className="td-panel">
-        <div className="td-panel-head">
-          <h3>All Trainers</h3>
-        </div>
-        <div className="td-table-scroll">
-          <table className="td-table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Specialization</th>
-                <th>Batches</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.trainers.length === 0 ? (
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <table className="bp-table">
+              <thead>
                 <tr>
-                  <td colSpan={5} className="td-empty">
-                    No trainers yet.
-                  </td>
+                  <th>Trainer</th>
+                  <th>Specialization</th>
+                  <th>Batches</th>
+                  <th>Status</th>
                 </tr>
-              ) : (
-                data.trainers.map((t) => (
-                  <tr key={t.trainer_id}>
-                    <td className="td-name">{t.trainer_name}</td>
-                    <td className="td-sub">{t.email}</td>
-                    <td className="td-sub">{t.specialization}</td>
-                    <td className="td-mono">{t.batch_count}</td>
-                    <td>
-                      <span className={"td-pill " + (t.is_active ? "on" : "off")}>
-                        {t.is_active ? "Active" : "Inactive"}
-                      </span>
-                    </td>
+              </thead>
+              <tbody>
+                {trainers.length === 0 ? (
+                  <tr className="bp-empty-row">
+                    <td colSpan={4}>{data.trainers.length ? "No trainers match your search." : "No trainers yet."}</td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : trainers.map((t, i) => (
+                  <tr key={t.trainer_id} style={{ "--row": i }}>
+                    <td>
+                      <div className="bp-person">
+                        <span className={`bp-avatar t${(i % 3) + 1}`}>{initials(t.trainer_name)}</span>
+                        <div>
+                          <p className="bp-person-name">{t.trainer_name}</p>
+                          <p className="bp-person-sub">{t.email || "—"}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td>{t.specialization || <span className="bp-muted">—</span>}</td>
+                    <td className="bp-strong">{t.batch_count}</td>
+                    <td><span className={`bp-chip ${t.is_active ? "green" : "gray"}`}>{t.is_active ? "Active" : "Inactive"}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
-      </div>
+      </section>
     </div>
   );
 }

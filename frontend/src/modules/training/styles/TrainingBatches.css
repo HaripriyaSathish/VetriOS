@@ -234,3 +234,8 @@
   .tb-tl-row { grid-template-columns: 1fr 48px; }
   .tb-tl-track { grid-column: 1 / -1; grid-row: 2; }
 }
+
+/* Training Management table (Business Team) */
+.tm-ico { width: 36px; height: 36px; border-radius: 11px; }
+.tm-link { text-decoration: none; }
+.tm-link:hover { color: var(--vt-orange); }

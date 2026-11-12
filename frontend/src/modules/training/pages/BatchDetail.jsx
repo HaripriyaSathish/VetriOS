@@ -1,6 +1,25 @@
-import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link, useParams, useNavigate } from "react-router-dom";
+import {
+  ArrowLeft, BookOpen, CalendarDays, ClipboardCheck, Flag, GraduationCap, Plus, Search,
+  Trash2, UserRound, Users, Activity,
+} from "lucide-react";
 import client from "../../../api/client";
+import "../styles/BusinessPages.css";
+import "../styles/TrainerDashboard.css";
+import "../styles/TrainingBatches.css";
+import "../styles/BatchDetail.css";
+
+const fmt = (d) => (d ? new Date(d).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "—");
+const initials = (name) => (name || "?").split(" ").filter(Boolean).slice(0, 2).map((p) => p[0].toUpperCase()).join("");
+
+function pacing(batch) {
+  if (!batch?.start_date || !batch?.end_date) return null;
+  const start = new Date(batch.start_date).getTime();
+  const end = new Date(batch.end_date).getTime();
+  if (end <= start) return null;
+  return Math.max(0, Math.min(100, Math.round(((Date.now() - start) / (end - start)) * 100)));
+}
 
 function BatchDetail() {
   const { batchId } = useParams();
@@ -11,14 +30,14 @@ function BatchDetail() {
   const [topicLogs, setTopicLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [actionError, setActionError] = useState("");
+  const [search, setSearch] = useState("");
 
   const [logDate, setLogDate] = useState(new Date().toISOString().slice(0, 10));
   const [logTopic, setLogTopic] = useState("");
   const [logging, setLogging] = useState(false);
 
-  const loadData = async () => {
-    setLoading(true);
-    setError("");
+  const loadData = useCallback(async () => {
     try {
       const [batchRes, rosterRes, logsRes] = await Promise.all([
         client.get(`/api/training/batches/${batchId}/detail/`),
@@ -28,23 +47,23 @@ function BatchDetail() {
       setBatch(batchRes.data);
       setRoster(rosterRes.data);
       setTopicLogs(logsRes.data);
+      setError("");
     } catch (err) {
-      setError("Couldn't load this batch.");
+      setError(err.response?.data?.detail || "Couldn't load this batch.");
     } finally {
       setLoading(false);
     }
-  };
+  }, [batchId]);
 
   useEffect(() => {
     loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [batchId]);
+  }, [loadData]);
 
   const addTopicLog = async (event) => {
     event.preventDefault();
     if (!logTopic.trim()) return;
     setLogging(true);
-    setError("");
+    setActionError("");
     try {
       await client.post(`/api/training/batches/${batchId}/topic-log/`, {
         date: logDate,
@@ -53,165 +72,224 @@ function BatchDetail() {
       setLogTopic("");
       await loadData();
     } catch (err) {
-      setError(err.response?.data?.detail || "Couldn't log topic.");
+      setActionError(err.response?.data?.detail || "Couldn't log topic.");
     } finally {
       setLogging(false);
     }
   };
 
   const deleteLog = async (topicLogId) => {
+    setActionError("");
     try {
       await client.delete(`/api/training/topic-log/${topicLogId}/`);
       await loadData();
     } catch (err) {
-      setError("Couldn't delete entry.");
+      setActionError(err.response?.data?.detail || "Couldn't delete entry.");
     }
   };
 
-  if (loading) return <p className="p-6 text-gray-400">Loading…</p>;
-  if (error) return <p className="p-6 text-red-600">{error}</p>;
+  const visibleRoster = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return roster;
+    return roster.filter((r) => [r.student_name, r.email].some((v) => (v || "").toLowerCase().includes(q)));
+  }, [roster, search]);
+
+  if (loading) return <p className="bp-loading">Loading…</p>;
+  if (error) return <p className="bp-error">{error}</p>;
   if (!batch) return null;
 
+  const progress = pacing(batch);
+  const rates = roster.map((r) => r.attendance_percentage).filter((v) => v !== null && v !== undefined);
+  const avgAttendance = rates.length ? Math.round((rates.reduce((s, v) => s + Number(v), 0) / rates.length) * 10) / 10 : null;
+  const isActive = batch.status === "ACTIVE";
+  const seatsPct = batch.capacity ? Math.min(100, Math.round((batch.students_enrolled / batch.capacity) * 100)) : null;
+
   return (
-    <div className="p-6 max-w-6xl mx-auto">
-      <button onClick={() => navigate(-1)} className="text-sm text-gray-500 hover:underline mb-4">
-        ← Back
+    <div className="bp-page tr-page">
+      <button type="button" className="bd-back" onClick={() => navigate(-1)}>
+        <ArrowLeft size={15} /> Back
       </button>
 
-      <div className="flex items-start justify-between mb-5">
+      <div className="bp-head">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">{batch.batch_name}</h1>
-          <p className="text-gray-500">{batch.course_name} · {batch.batch_code}</p>
-        </div>
-        <span
-          className={`px-3 py-1 rounded-full text-xs font-semibold ${
-            batch.status === "ACTIVE" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"
-          }`}
-        >
-          {batch.status}
-        </span>
-      </div>
-
-      <div className="bg-gray-50 rounded-lg p-4 flex gap-8 mb-6">
-        <div>
-          <p className="text-xs uppercase text-gray-400 mb-1">Trainer</p>
-          <p className="font-semibold text-gray-900">{batch.trainer_name || "Unassigned"}</p>
-        </div>
-        <div>
-          <p className="text-xs uppercase text-gray-400 mb-1">Start Date</p>
-          <p className="font-semibold text-gray-900">{batch.start_date}</p>
-        </div>
-        <div>
-          <p className="text-xs uppercase text-gray-400 mb-1">Students Enrolled</p>
-          <p className="font-semibold text-gray-900">{batch.students_enrolled} / {batch.capacity ?? "—"}</p>
-        </div>
-      </div>
-
-      <div className="bg-white border border-gray-200 rounded-xl mb-6 overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100">
-          <h3 className="font-semibold text-gray-900">Topics Covered</h3>
-        </div>
-
-        <form onSubmit={addTopicLog} className="flex flex-wrap gap-3 items-end px-5 py-4">
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 mb-1">Date</label>
-            <input
-              type="date"
-              value={logDate}
-              onChange={(e) => setLogDate(e.target.value)}
-              className="border border-gray-300 rounded-md px-3 py-2 text-sm"
-            />
+          <p className="bp-crumb">
+            Trainer Workspace / <Link to="/training/batches" className="bd-crumb-link">Training Batches</Link> / <span>{batch.batch_code}</span>
+          </p>
+          <div className="tr-title-row">
+            <h1 className="bp-title">{batch.batch_name}</h1>
+            <span className={`bp-chip ${isActive ? "green" : "gray"}`}>{batch.status}</span>
           </div>
-          <div className="flex-1 min-w-[220px]">
-            <label className="block text-xs font-semibold text-gray-500 mb-1">Topic covered</label>
+          <p className="bp-sub">{batch.course_name} · {batch.batch_code}</p>
+        </div>
+        <div className="bp-actions">
+          <Link to="/training/attendance" className="bp-btn orange">
+            <ClipboardCheck size={16} /> Take Attendance
+          </Link>
+        </div>
+      </div>
+
+      <div className="bp-stats tr-stats">
+        <div className="bp-stat" style={{ "--i": 0 }}>
+          <div className="bp-stat-top">
+            <p className="bp-stat-label tb-label">TRAINER</p>
+            <span className="tb-stat-icon navy"><UserRound size={20} /></span>
+          </div>
+          <p className="bp-stat-value bd-stat-text">{batch.trainer_name || "Unassigned"}</p>
+          <p className="tr-stat-sub">Lead trainer for this cohort</p>
+        </div>
+        <div className="bp-stat" style={{ "--i": 1 }}>
+          <div className="bp-stat-top">
+            <p className="bp-stat-label tb-label">BATCH TIMELINE</p>
+            <span className="tb-stat-icon green"><CalendarDays size={20} /></span>
+          </div>
+          <p className="bp-stat-value">{progress != null ? `${progress}%` : "—"}</p>
+          <div className="tr-progress thin"><span style={{ width: `${progress ?? 0}%` }} /></div>
+          <p className="tb-foot"><span>{fmt(batch.start_date)}</span> → <span>{fmt(batch.end_date)}</span></p>
+        </div>
+        <div className="bp-stat" style={{ "--i": 2 }}>
+          <div className="bp-stat-top">
+            <p className="bp-stat-label tb-label">STUDENTS ENROLLED</p>
+            <span className="tb-stat-icon blue"><Users size={20} /></span>
+          </div>
+          <p className="bp-stat-value">{batch.students_enrolled} <small className="tb-unit">/ {batch.capacity ?? "—"} seats</small></p>
+          <div className="tr-progress thin warm"><span style={{ width: `${seatsPct ?? 0}%` }} /></div>
+          <p className="tb-foot"><span className="bp-chip blue">{seatsPct != null ? `${seatsPct}% filled` : "No capacity set"}</span></p>
+        </div>
+        <div className="bp-stat" style={{ "--i": 3 }}>
+          <div className="bp-stat-top">
+            <p className="bp-stat-label tb-label">AVERAGE ATTENDANCE</p>
+            <span className="tb-stat-icon orange"><Activity size={20} /></span>
+          </div>
+          <p className="bp-stat-value tr-orange">{avgAttendance != null ? `${avgAttendance}%` : "—"}</p>
+          <p className="tr-stat-sub">Across {rates.length} of {roster.length} students</p>
+          <p className="tb-foot"><span className="bp-chip green">{topicLogs.length} topics</span> <span>logged so far</span></p>
+        </div>
+      </div>
+
+      {actionError && <p className="bd-alert">{actionError}</p>}
+
+      <section className="bp-panel tr-card">
+        <div className="tr-card-head">
+          <div>
+            <h3><BookOpen size={18} /> Topics Covered</h3>
+            <p>Log what was taught in each session to keep curriculum pacing visible</p>
+          </div>
+          <span className="bp-chip blue">{topicLogs.length} entries</span>
+        </div>
+
+        <form onSubmit={addTopicLog} className="bd-log-form">
+          <label className="bp-field">
+            <span>Date</span>
+            <input type="date" value={logDate} onChange={(e) => setLogDate(e.target.value)} />
+          </label>
+          <label className="bp-field bd-grow">
+            <span>Topic covered</span>
             <input
               value={logTopic}
               onChange={(e) => setLogTopic(e.target.value)}
               placeholder="e.g. React Hooks — useState, useEffect"
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
             />
-          </div>
-          <button
-            type="submit"
-            disabled={logging}
-            className="bg-gray-900 text-white px-4 py-2 rounded-md text-sm font-semibold disabled:opacity-60"
-          >
-            {logging ? "Adding…" : "Add Entry"}
+          </label>
+          <button type="submit" disabled={logging || !logTopic.trim()} className="bp-btn navy bd-submit">
+            <Plus size={16} /> {logging ? "Adding…" : "Add Entry"}
           </button>
         </form>
 
         {topicLogs.length === 0 ? (
-          <p className="px-5 pb-5 text-gray-400 text-sm">No topics logged yet.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
-                <tr>
-                  <th className="px-5 py-2 text-left">Date</th>
-                  <th className="px-5 py-2 text-left">Topic</th>
-                  <th className="px-5 py-2 text-left">Logged By</th>
-                  <th className="px-5 py-2"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {topicLogs.map((l) => (
-                  <tr key={l.topic_log_id} className="border-t border-gray-100">
-                    <td className="px-5 py-3 font-mono">{l.date}</td>
-                    <td className="px-5 py-3 font-medium text-gray-900">{l.topic}</td>
-                    <td className="px-5 py-3 text-gray-500">{l.logged_by || "—"}</td>
-                    <td className="px-5 py-3">
-                      <button
-                        onClick={() => deleteLog(l.topic_log_id)}
-                        className="text-red-600 hover:underline text-xs font-semibold"
-                      >
-                        Remove
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="bd-empty">
+            <Flag size={22} />
+            <p>No topics logged yet. Add the first session above.</p>
           </div>
+        ) : (
+          <ol className="bd-timeline">
+            {topicLogs.map((l, i) => (
+              <li key={l.topic_log_id} style={{ "--row": i }}>
+                <span className="bd-dot" />
+                <div className="bd-tl-body">
+                  <div className="bd-tl-top">
+                    <span className="bd-tl-date"><CalendarDays size={13} /> {fmt(l.date)}</span>
+                    <button type="button" className="bd-remove" onClick={() => deleteLog(l.topic_log_id)} title="Remove entry">
+                      <Trash2 size={14} /> Remove
+                    </button>
+                  </div>
+                  <p className="bd-tl-topic">{l.topic}</p>
+                  <p className="bd-tl-by">Logged by {l.logged_by || "—"}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
         )}
-      </div>
+      </section>
 
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100">
-          <h3 className="font-semibold text-gray-900">Enrolled Students</h3>
+      <section className="bp-panel">
+        <div className="tr-card-head bd-roster-head">
+          <div>
+            <h3><GraduationCap size={18} /> Enrolled Students</h3>
+            <p>{roster.length} students on this batch roster</p>
+          </div>
+          <label className="bp-search bd-search">
+            <Search size={15} />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search student or email…" />
+          </label>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
+        <div className="bp-table-wrap">
+          <table className="bp-table">
+            <thead>
               <tr>
-                <th className="px-5 py-2 text-left">Student</th>
-                <th className="px-5 py-2 text-left">Email</th>
-                <th className="px-5 py-2 text-left">Status</th>
-                <th className="px-5 py-2 text-left">Attendance %</th>
+                <th>Student</th>
+                <th>Phone</th>
+                <th>Enrolled On</th>
+                <th>Status</th>
+                <th>Attendance</th>
               </tr>
             </thead>
             <tbody>
-              {roster.length === 0 ? (
-                <tr><td colSpan={4} className="px-5 py-6 text-center text-gray-400">No students enrolled yet.</td></tr>
+              {visibleRoster.length === 0 ? (
+                <tr className="bp-empty-row">
+                  <td colSpan={5}>{roster.length === 0 ? "No students enrolled yet." : "No students match your search."}</td>
+                </tr>
               ) : (
-                roster.map((r) => (
-                  <tr key={r.enrollment_id} className="border-t border-gray-100">
-                    <td className="px-5 py-3 font-medium text-gray-900">{r.student_name}</td>
-                    <td className="px-5 py-3 text-gray-500">{r.email}</td>
-                    <td className="px-5 py-3">
-                      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${r.status === "ACTIVE" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
-                        {r.status}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3 font-mono">
-                      {r.attendance_percentage !== null ? `${r.attendance_percentage}%` : "—"}
-                    </td>
-                  </tr>
-                ))
+                visibleRoster.map((r, i) => {
+                  const pct = r.attendance_percentage;
+                  const hasPct = pct !== null && pct !== undefined;
+                  return (
+                    <tr key={r.enrollment_id} style={{ "--row": i }}>
+                      <td>
+                        <div className="bp-person">
+                          <span className={`bp-avatar t${(i % 3) + 1}`}>{initials(r.student_name)}</span>
+                          <div>
+                            <p className="bp-person-name">{r.student_name}</p>
+                            <p className="bp-person-sub">{r.email || "—"}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="bp-muted">{r.phone || "—"}</td>
+                      <td className="bp-muted">{fmt(r.enrollment_date)}</td>
+                      <td>
+                        <span className={`bp-chip ${r.status === "ACTIVE" ? "green" : r.status === "DROPPED" ? "red" : "gray"}`}>
+                          {r.status}
+                        </span>
+                      </td>
+                      <td>
+                        {hasPct ? (
+                          <div className="bp-att">
+                            <div className="bp-meter">
+                              <span className={Number(pct) < 75 ? "orange" : ""} style={{ width: `${Math.min(100, Number(pct))}%` }} />
+                            </div>
+                            <b>{pct}%</b>
+                          </div>
+                        ) : (
+                          <span className="bp-muted">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
-      </div>
+      </section>
     </div>
   );
 }

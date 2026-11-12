@@ -1,6 +1,18 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Building2, CalendarDays, FolderPlus, Flag, UserRound, FileText } from "lucide-react";
 import client from "../../../api/client";
+import PmHeader from "../components/PmHeader";
+import "../../training/styles/BusinessPages.css";
+import "../../training/styles/TrainerDashboard.css";
+import "../styles/PmPages.css";
+
+const PRIORITIES = [
+  { value: "LOW", label: "Low" },
+  { value: "MEDIUM", label: "Medium" },
+  { value: "HIGH", label: "High" },
+  { value: "CRITICAL", label: "Critical" },
+];
 
 function CreateProject() {
   const navigate = useNavigate();
@@ -32,7 +44,8 @@ function CreateProject() {
       .finally(() => setLoading(false));
   }, []);
 
-  const createProject = async () => {
+  const createProject = async (event) => {
+    event.preventDefault();
     if (!clientId || !pmUserId || !projectCode.trim() || !projectName.trim() || !startDate) {
       setError("Client, Project Manager, code, name, and start date are all required.");
       return;
@@ -58,109 +71,110 @@ function CreateProject() {
     }
   };
 
-  if (loading) return <p className="p-6 text-gray-400">Loading…</p>;
+  if (loading) return <p className="bp-loading">Loading…</p>;
+
+  const selectedClient = clients.find((c) => String(c.client_id) === String(clientId));
+  const selectedPm = users.find((u) => String(u.user_id) === String(pmUserId));
 
   return (
-    <div className="p-6 max-w-2xl mx-auto">
-      <h1 className="text-xl font-bold text-gray-900 mb-6">Create Project</h1>
+    <div className="bp-page tr-page pm-page">
+      <PmHeader
+        eyebrow="Project Workspace"
+        section="New Project"
+        title="Create Project"
+        subtitle="Set up a project for a client and assign its Project Manager. You'll build the team next."
+        back="/project/dashboard"
+        backLabel="Project Dashboard"
+      />
 
-      {error && <p className="text-red-600 mb-4">{error}</p>}
-
-      <div className="bg-white border border-gray-200 rounded-xl p-5">
-        <label className="text-xs text-gray-600 block mb-1">Client</label>
-        <select
-          value={clientId}
-          onChange={(e) => setClientId(e.target.value)}
-          className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm mb-4"
-        >
-          <option value="">Select client…</option>
-          {clients.map((c) => (
-            <option key={c.client_id} value={c.client_id}>{c.client_name}</option>
-          ))}
-        </select>
-
-        <label className="text-xs text-gray-600 block mb-1">Project Manager</label>
-        <select
-          value={pmUserId}
-          onChange={(e) => setPmUserId(e.target.value)}
-          className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm mb-4"
-        >
-          <option value="">Select project manager…</option>
-          {users.map((u) => (
-            <option key={u.user_id} value={u.user_id}>{u.name}</option>
-          ))}
-        </select>
-
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          <div>
-            <label className="text-xs text-gray-600 block mb-1">Project code</label>
-            <input
-              placeholder="e.g. PRJ-HYUNDAI-01"
-              value={projectCode}
-              onChange={(e) => setProjectCode(e.target.value)}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-            />
+      <div className="pm-grid">
+        <form className="bp-panel tr-card" onSubmit={createProject}>
+          <div className="tr-card-head">
+            <div>
+              <h3><FolderPlus size={18} /> Project details</h3>
+              <p>Fields marked * are required.</p>
+            </div>
           </div>
-          <div>
-            <label className="text-xs text-gray-600 block mb-1">Project name</label>
-            <input
-              placeholder="e.g. Hyundai Website Redesign"
-              value={projectName}
-              onChange={(e) => setProjectName(e.target.value)}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-            />
-          </div>
-        </div>
 
-        <label className="text-xs text-gray-600 block mb-1">Description</label>
-        <textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          rows={3}
-          className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm mb-4"
-        />
+          <div className="bp-form-grid">
+            <label className="bp-field">
+              <span>Client *</span>
+              <select value={clientId} onChange={(e) => setClientId(e.target.value)}>
+                <option value="">Select client…</option>
+                {clients.map((c) => (
+                  <option key={c.client_id} value={c.client_id}>{c.client_name}</option>
+                ))}
+              </select>
+            </label>
+            <label className="bp-field">
+              <span>Project Manager *</span>
+              <select value={pmUserId} onChange={(e) => setPmUserId(e.target.value)}>
+                <option value="">Select project manager…</option>
+                {users.map((u) => (
+                  <option key={u.user_id} value={u.user_id}>{u.name}</option>
+                ))}
+              </select>
+            </label>
+            <label className="bp-field">
+              <span>Project code *</span>
+              <input placeholder="e.g. PRJ-HYUNDAI-01" value={projectCode} onChange={(e) => setProjectCode(e.target.value)} />
+            </label>
+            <label className="bp-field">
+              <span>Project name *</span>
+              <input placeholder="e.g. Hyundai Website Redesign" value={projectName} onChange={(e) => setProjectName(e.target.value)} />
+            </label>
+            <label className="bp-field full">
+              <span>Description</span>
+              <textarea rows={4} placeholder="Scope, goals and key deliverables…" value={description} onChange={(e) => setDescription(e.target.value)} />
+            </label>
+            <label className="bp-field">
+              <span>Start date *</span>
+              <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+            </label>
+            <label className="bp-field">
+              <span>Planned end date</span>
+              <input type="date" value={plannedEndDate} min={startDate || undefined} onChange={(e) => setPlannedEndDate(e.target.value)} />
+            </label>
+          </div>
 
-        <div className="grid grid-cols-3 gap-3 mb-6">
-          <div>
-            <label className="text-xs text-gray-600 block mb-1">Start date</label>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-            />
+          <div className="bp-field">
+            <span>Priority</span>
+            <div className="bp-tabs pm-fit">
+              {PRIORITIES.map((p) => (
+                <button key={p.value} type="button" className={`bp-tab ${priority === p.value ? "active" : ""}`} onClick={() => setPriority(p.value)}>
+                  {p.label}
+                </button>
+              ))}
+            </div>
           </div>
-          <div>
-            <label className="text-xs text-gray-600 block mb-1">Planned end date</label>
-            <input
-              type="date"
-              value={plannedEndDate}
-              onChange={(e) => setPlannedEndDate(e.target.value)}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-            />
-          </div>
-          <div>
-            <label className="text-xs text-gray-600 block mb-1">Priority</label>
-            <select
-              value={priority}
-              onChange={(e) => setPriority(e.target.value)}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-            >
-              <option value="LOW">Low</option>
-              <option value="MEDIUM">Medium</option>
-              <option value="HIGH">High</option>
-              <option value="CRITICAL">Critical</option>
-            </select>
-          </div>
-        </div>
 
-        <button
-          onClick={createProject}
-          disabled={creating}
-          className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-semibold disabled:opacity-60"
-        >
-          {creating ? "Creating…" : "Create Project"}
-        </button>
+          {error && <p className="bp-form-error">{error}</p>}
+
+          <div className="bp-actions">
+            <button type="submit" className="bp-btn orange" disabled={creating}>
+              <FolderPlus size={16} /> {creating ? "Creating…" : "Create Project"}
+            </button>
+            <button type="button" className="bp-btn outline" onClick={() => navigate(-1)}>Cancel</button>
+          </div>
+        </form>
+
+        <aside className="bp-panel tr-card pm-fit">
+          <div className="tr-card-head">
+            <div>
+              <h3><FileText size={18} /> Summary</h3>
+              <p>What will be created</p>
+            </div>
+          </div>
+          <dl className="pm-facts">
+            <div><dt>Client</dt><dd><Building2 size={13} style={{ verticalAlign: "-2px" }} /> {selectedClient?.client_name || "—"}</dd></div>
+            <div><dt>Manager</dt><dd><UserRound size={13} style={{ verticalAlign: "-2px" }} /> {selectedPm?.name || "—"}</dd></div>
+            <div><dt>Code</dt><dd>{projectCode || "—"}</dd></div>
+            <div><dt>Priority</dt><dd><span className={`pm-priority ${priority}`}><Flag size={13} /> {PRIORITIES.find((p) => p.value === priority)?.label}</span></dd></div>
+            <div><dt>Start</dt><dd><CalendarDays size={13} style={{ verticalAlign: "-2px" }} /> {startDate || "—"}</dd></div>
+            <div><dt>Planned end</dt><dd><CalendarDays size={13} style={{ verticalAlign: "-2px" }} /> {plannedEndDate || "—"}</dd></div>
+          </dl>
+          <p className="pm-small bp-muted">After creating, you'll land on the project's Team page to add members.</p>
+        </aside>
       </div>
     </div>
   );

@@ -1,7 +1,14 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
+import {
+  ArrowLeft, CheckCircle2, Download, IndianRupee, KeyRound, Mail, MessageCircle, Receipt,
+  RotateCcw, Save, ShieldAlert, UserPlus, Wallet, CalendarClock,
+} from "lucide-react";
 import client from "../../../api/client";
-import "../styles/TrainingDashboard.css";
+import "../styles/BusinessPages.css";
+import "../styles/TrainerDashboard.css";
+import "../styles/TrainingBatches.css";
+import "../styles/FeeConvertDetail.css";
 
 function FeeConvertDetail() {
   const { enquiryId } = useParams();
@@ -165,7 +172,7 @@ function FeeConvertDetail() {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(blobUrl);
-    } catch (err) {
+    } catch {
       setError("Couldn't download invoice.");
     }
   };
@@ -200,269 +207,281 @@ function FeeConvertDetail() {
         const message = `Hi ${studentName}, please find your invoice attached (downloaded to your device — please attach it here).`;
         window.open(`https://wa.me/${number}?text=${encodeURIComponent(message)}`, "_blank");
       }
-    } catch (err) {
+    } catch {
       setError("Couldn't share invoice.");
     }
   };
 
-  if (loading) return <p className="td-empty">Loading…</p>;
+  if (loading) return <p className="bp-loading">Loading…</p>;
 
   const hasAnyPaid = plan?.installments?.some((i) => i.paid);
+  const installments = plan?.installments || [];
+  const paidCount = installments.filter((i) => i.paid).length;
+  const paidAmount = installments.filter((i) => i.paid).reduce((s, i) => s + Number(i.amount || 0), 0);
+  const total = Number(plan?.total_with_gst || 0);
+  const paidPct = total ? Math.min(100, Math.round((paidAmount / total) * 100)) : 0;
+  const rupee = (v) => `₹${Number(v || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 
   return (
-    <div className="td-screen">
-      <Link to="/training/fee-conversion" style={{ fontSize: "13px", color: "#5b6478" }}>
-        ← Back to Fee & Conversion
+    <div className="bp-page tr-page">
+      <Link to="/training/fee-conversion" className="fcd-back">
+        <ArrowLeft size={15} /> Back to Fee &amp; Conversion
       </Link>
-      <h1>Set Fee & Convert{enquiry ? ` — ${enquiry.name}` : ""}</h1>
 
-      {error && <p className="td-error">{error}</p>}
+      <div className="bp-head">
+        <div>
+          <p className="bp-crumb">Business Team / Fee &amp; Conversion / <span>{enquiry?.name || "Enquiry"}</span></p>
+          <h1 className="bp-title">Set Fee &amp; Convert{enquiry ? ` — ${enquiry.name}` : ""}</h1>
+          <p className="bp-sub">Create the fee plan, record payments, then open the student's VetriOS account.</p>
+        </div>
+        {enquiry?.account_created && <span className="bp-chip green fcd-head-chip"><CheckCircle2 size={13} /> Account created</span>}
+      </div>
+
+      {error && <p className="fcd-alert">{error}</p>}
+
+      <ol className="fcd-steps">
+        <li className={planExists ? "done" : "current"}><b>1</b> Fee plan</li>
+        <li className={hasAnyPaid ? "done" : planExists ? "current" : ""}><b>2</b> First payment</li>
+        <li className={enquiry?.account_created ? "done" : hasAnyPaid ? "current" : ""}><b>3</b> Student account</li>
+      </ol>
 
       {!planExists ? (
-        <form className="td-panel fc-form" onSubmit={createPlan}>
-          <h3>Set Fee Plan</h3>
+        <form className="bp-panel tr-card" onSubmit={createPlan}>
+          <div className="tr-card-head">
+            <div>
+              <h3><Wallet size={18} /> Set Fee Plan</h3>
+              <p>GST is added on top of the base fee. Installment plans split the total evenly.</p>
+            </div>
+          </div>
 
-          <div className="fc-field-grid">
-            <div className="fc-field">
-              <label>Base fee (before GST)</label>
+          <div className="bp-form-grid">
+            <label className="bp-field">
+              <span>Base fee (before GST) *</span>
               <input
-                type="number" step="0.01" required
+                type="number" step="0.01" required placeholder="e.g. 45000"
                 value={form.base_fee}
                 onChange={(e) => setForm({ ...form, base_fee: e.target.value })}
               />
-            </div>
-
-            <div className="fc-field">
-              <label>GST %</label>
+            </label>
+            <label className="bp-field">
+              <span>GST %</span>
               <input
                 type="number" step="0.01"
                 value={form.gst_percentage}
                 onChange={(e) => setForm({ ...form, gst_percentage: e.target.value })}
               />
-            </div>
-
-            <div className="fc-field">
-              <label>Plan type</label>
-              <select
-                value={form.plan_type}
-                onChange={(e) => setForm({ ...form, plan_type: e.target.value })}
-              >
+            </label>
+            <label className="bp-field">
+              <span>Plan type</span>
+              <select value={form.plan_type} onChange={(e) => setForm({ ...form, plan_type: e.target.value })}>
                 <option value="full">Full payment</option>
                 <option value="emi">Installments</option>
               </select>
-            </div>
-
+            </label>
             {form.plan_type === "emi" && (
-              <div className="fc-field">
-                <label>Number of installments</label>
+              <label className="bp-field">
+                <span>Number of installments</span>
                 <input
                   type="number" min="2"
                   value={form.installment_count}
                   onChange={(e) => setForm({ ...form, installment_count: e.target.value })}
                 />
-              </div>
+              </label>
             )}
           </div>
 
-          <div className="fc-submit-row">
-            <button type="submit" className="rp-btn-accent" disabled={creating}>
-              {creating ? "Saving…" : "Create Fee Plan"}
+          {form.base_fee && (
+            <p className="fcd-preview">
+              Total with GST: <b>{rupee(Number(form.base_fee) * (1 + Number(form.gst_percentage || 0) / 100))}</b>
+            </p>
+          )}
+
+          <div className="bp-actions">
+            <button type="submit" className="bp-btn orange" disabled={creating}>
+              <Save size={16} /> {creating ? "Saving…" : "Create Fee Plan"}
             </button>
           </div>
         </form>
       ) : (
         <>
-          <div className="td-panel" style={{ padding: 20, marginBottom: 20 }}>
-            <h3>Fee Plan</h3>
-            <p>
-              Base: ₹{plan.base_fee} + {plan.gst_percentage}% GST = <strong>₹{plan.total_with_gst}</strong>
-              {" "}({plan.plan_type === "emi" ? `${plan.installment_count} installments` : "full payment"})
-            </p>
+          <div className="bp-stats tr-stats">
+            <div className="bp-stat" style={{ "--i": 0 }}>
+              <div className="bp-stat-top">
+                <p className="bp-stat-label tb-label">TOTAL FEE (INCL. GST)</p>
+                <span className="tb-stat-icon navy"><IndianRupee size={20} /></span>
+              </div>
+              <p className="bp-stat-value">{rupee(plan.total_with_gst)}</p>
+              <p className="tr-stat-sub">Base {rupee(plan.base_fee)} + {plan.gst_percentage}% GST</p>
+            </div>
+            <div className="bp-stat" style={{ "--i": 1 }}>
+              <div className="bp-stat-top">
+                <p className="bp-stat-label tb-label">PLAN</p>
+                <span className="tb-stat-icon blue"><CalendarClock size={20} /></span>
+              </div>
+              <p className="bp-stat-value">{plan.plan_type === "emi" ? plan.installment_count : 1} <small className="tb-unit">{plan.plan_type === "emi" ? "installments" : "full payment"}</small></p>
+              <p className="tb-foot"><span className="bp-chip blue">{paidCount} of {installments.length} paid</span></p>
+            </div>
+            <div className="bp-stat" style={{ "--i": 2 }}>
+              <div className="bp-stat-top">
+                <p className="bp-stat-label tb-label">COLLECTED</p>
+                <span className="tb-stat-icon green"><Receipt size={20} /></span>
+              </div>
+              <p className="bp-stat-value">{rupee(paidAmount)}</p>
+              <div className="tr-progress thin"><span style={{ width: `${paidPct}%` }} /></div>
+              <p className="tb-foot"><span>{paidPct}% of total</span></p>
+            </div>
           </div>
 
-          <div className="td-panel">
-            <div className="td-panel-head"><h3>Installments</h3></div>
-            <div className="td-table-scroll">
-              <table className="td-table">
+          <section className="bp-panel">
+            <div className="tr-card-head fcd-panel-head">
+              <div>
+                <h3><Receipt size={18} /> Installments</h3>
+                <p>Mark payments as they arrive; invoices unlock once paid.</p>
+              </div>
+            </div>
+            <div className="bp-table-wrap">
+              <table className="bp-table">
                 <thead>
                   <tr>
-                    <th>#</th><th>Amount</th><th>Due Date</th><th>Status</th><th></th><th>Invoice</th>
+                    <th>#</th><th>Amount</th><th>Due Date</th><th>Status</th><th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {plan.installments.map((i) => (
-                    <tr key={i.student_fee_installment_id}>
-                      <td className="td-mono">{i.installment_number}</td>
-                      <td className="td-mono">₹{i.amount}</td>
-                      <td className="td-mono">{i.due_date}</td>
+                  {installments.map((i, idx) => (
+                    <tr key={i.student_fee_installment_id} style={{ "--row": idx }}>
+                      <td><span className="fcd-num">{i.installment_number}</span></td>
+                      <td className="bp-strong">{rupee(i.amount)}</td>
+                      <td className="bp-muted">{i.due_date}</td>
                       <td>
-                        <span className={"td-pill " + (i.paid ? "on" : "off")}>
+                        <span className={`bp-chip ${i.paid ? "green" : "orange"}`}>
                           {i.paid ? `Paid ${i.paid_on}` : "Unpaid"}
                         </span>
                       </td>
                       <td>
-                        {!i.paid && (
-                          <button
-                            className="td-pill on" style={{ border: "none", cursor: "pointer" }}
-                            onClick={() => markPaid(i.student_fee_installment_id)}
-                          >
-                            Mark Paid
-                          </button>
-                        )}
-                      </td>
-                      <td style={{ display: "flex", gap: 6 }}>
-                        {i.paid && (
-                          <>
-                            <button
-                              className="td-pill on" style={{ border: "none", cursor: "pointer" }}
-                              onClick={() => downloadInvoice(i.student_fee_installment_id, enquiry.name)}
-                            >
-                              Download
+                        <div className="fcd-actions">
+                          {!i.paid ? (
+                            <button type="button" className="bp-btn navy small" onClick={() => markPaid(i.student_fee_installment_id)}>
+                              <CheckCircle2 size={13} /> Mark Paid
                             </button>
-                            <button
-                              className="td-pill on" style={{ border: "none", cursor: "pointer" }}
-                              onClick={() => shareInvoiceViaWhatsApp(i.student_fee_installment_id, enquiry.name, enquiry.whatsapp_number)}
-                            >
-                              Share on WhatsApp
-                            </button>
-                          </>
-                        )}
+                          ) : (
+                            <>
+                              <button type="button" className="bp-btn outline small" onClick={() => downloadInvoice(i.student_fee_installment_id, enquiry.name)}>
+                                <Download size={13} /> Invoice
+                              </button>
+                              <button
+                                type="button" className="bp-btn soft small"
+                                onClick={() => shareInvoiceViaWhatsApp(i.student_fee_installment_id, enquiry.name, enquiry.whatsapp_number)}
+                              >
+                                <MessageCircle size={13} /> WhatsApp
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          </div>
+          </section>
 
-          <div className="td-panel" style={{ padding: 20, marginTop: 20 }}>
-            <h3>Student Account</h3>
+          <section className="bp-panel tr-card">
+            <div className="tr-card-head">
+              <div>
+                <h3><UserPlus size={18} /> Student Account</h3>
+                <p>VetriOS login and official email for this student.</p>
+              </div>
+            </div>
 
             {credentialReveal ? (
-              <div>
-                <p className="td-sub">
-                  ⚠️ These are shown only once and cannot be retrieved again — share them now.
-                </p>
-                <p><strong>Username:</strong> {credentialReveal.username}</p>
-                <p><strong>Login Password:</strong> {credentialReveal.password}</p>
-                {credentialReveal.official_email && (
-                  <p><strong>Official Email:</strong> {credentialReveal.official_email}</p>
-                )}
-                {credentialReveal.official_email_password && (
-                  <p><strong>Official Email Password:</strong> {credentialReveal.official_email_password}</p>
-                )}
-                <a
-                  href={whatsappShareUrl(credentialReveal)}
-                  target="_blank" rel="noreferrer"
-                  className="rp-btn-accent"
-                  style={{ display: "inline-block", textDecoration: "none", marginTop: 8 }}
-                >
-                  Share via WhatsApp
-                </a>
+              <div className="fcd-reveal">
+                <p className="fcd-warn"><ShieldAlert size={15} /> These are shown only once and cannot be retrieved again — share them now.</p>
+                <dl className="fcd-creds">
+                  <div><dt>Username</dt><dd>{credentialReveal.username}</dd></div>
+                  <div><dt>Login password</dt><dd>{credentialReveal.password}</dd></div>
+                  {credentialReveal.official_email && <div><dt>Official email</dt><dd>{credentialReveal.official_email}</dd></div>}
+                  {credentialReveal.official_email_password && <div><dt>Official email password</dt><dd>{credentialReveal.official_email_password}</dd></div>}
+                </dl>
+                <div className="bp-actions">
+                  <a href={whatsappShareUrl(credentialReveal)} target="_blank" rel="noreferrer" className="bp-btn orange">
+                    <MessageCircle size={16} /> Share via WhatsApp
+                  </a>
+                </div>
               </div>
             ) : enquiry?.account_created ? (
-              <div>
-                <p className="td-sub">
-                  Account already exists — username: <strong>{enquiry.username}</strong>.
-                  {enquiry.official_email && <> Official email: <strong>{enquiry.official_email}</strong>.</>}
-                  {" "}Password isn't stored, so it can't be shown again. Reset it to generate a new one.
+              <div className="fcd-existing">
+                <p className="fcd-info">
+                  Account already exists — username <b>{enquiry.username}</b>.
+                  {enquiry.official_email && <> Official email <b>{enquiry.official_email}</b>.</>}
+                  {" "}Passwords aren't stored, so they can't be shown again. Reset to generate a new one.
                 </p>
 
-                <div className="fc-account-form">
-                  <div className="fc-field">
-                    <label>{enquiry.official_email ? "Update Official Email" : "Set Official Email"} <span className="td-sub">(from Hostinger)</span></label>
+                <div className="bp-form-grid">
+                  <label className="bp-field">
+                    <span><Mail size={12} style={{ verticalAlign: "-1px" }} /> {enquiry.official_email ? "Update official email" : "Set official email"} <small className="bp-muted">(from Hostinger)</small></span>
                     <input
                       type="email"
                       value={officialEmailInput}
                       onChange={(e) => setOfficialEmailInput(e.target.value)}
                       placeholder={enquiry.official_email || "name@vetritech.in"}
                     />
-                  </div>
-                  <div className="fc-field">
-                    <label>Official Email Password</label>
+                  </label>
+                  <label className="bp-field">
+                    <span>Official email password</span>
                     <input
                       type="text"
                       value={officialEmailPasswordInput}
                       onChange={(e) => setOfficialEmailPasswordInput(e.target.value)}
                       placeholder="not stored — used once, for sharing only"
                     />
-                  </div>
+                  </label>
                 </div>
 
-                <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                  <button
-                    className="td-pill on" style={{ border: "none", cursor: "pointer" }}
-                    onClick={saveOfficialEmail} disabled={savingEmail}
-                  >
-                    {savingEmail ? "Saving…" : "Save Official Email"}
+                <div className="bp-actions">
+                  <button type="button" className="bp-btn navy" onClick={saveOfficialEmail} disabled={savingEmail}>
+                    <Save size={16} /> {savingEmail ? "Saving…" : "Save Official Email"}
                   </button>
-
                   <a
-                    href={whatsappShareUrlForExisting(
-                      enquiry,
-                      officialEmailInput || enquiry.official_email,
-                      officialEmailPasswordInput
-                    )}
-                    target="_blank" rel="noreferrer"
-                    className="td-pill on"
-                    style={{ textDecoration: "none" }}
+                    href={whatsappShareUrlForExisting(enquiry, officialEmailInput || enquiry.official_email, officialEmailPasswordInput)}
+                    target="_blank" rel="noreferrer" className="bp-btn soft"
                   >
-                    Share via WhatsApp
+                    <MessageCircle size={16} /> Share via WhatsApp
                   </a>
-                </div>
-
-                <div style={{ marginTop: 16 }}>
-                  <button className="rp-btn-accent" onClick={resetPassword} disabled={resetting}>
-                    {resetting ? "Resetting…" : "Reset Password"}
+                  <button type="button" className="bp-btn outline fcd-reset" onClick={resetPassword} disabled={resetting}>
+                    <RotateCcw size={16} /> {resetting ? "Resetting…" : "Reset Password"}
                   </button>
                 </div>
               </div>
             ) : !hasAnyPaid ? (
-              <p className="td-sub">At least one installment must be paid before creating the account.</p>
+              <p className="fcd-info"><KeyRound size={15} style={{ verticalAlign: "-3px" }} /> At least one installment must be paid before creating the account.</p>
             ) : (
-              <form onSubmit={convertToStudent}>
-                <div className="fc-account-form">
-                  <div className="fc-field">
-                    <label>Username</label>
-                    <input
-                      required
-                      value={convertForm.username}
-                      onChange={(e) => setConvertForm({ ...convertForm, username: e.target.value })}
-                    />
-                  </div>
-                  <div className="fc-field">
-                    <label>Temporary password</label>
-                    <input
-                      type="text" required
-                      value={convertForm.password}
-                      onChange={(e) => setConvertForm({ ...convertForm, password: e.target.value })}
-                    />
-                  </div>
-                  <div className="fc-field">
-                    <label>Official Email Address <span className="td-sub">(from Hostinger)</span></label>
-                    <input
-                      type="email"
-                      value={convertForm.official_email}
-                      onChange={(e) => setConvertForm({ ...convertForm, official_email: e.target.value })}
-                    />
-                  </div>
-                  <div className="fc-field">
-                    <label>Official Email Password</label>
-                    <input
-                      type="text"
-                      value={convertForm.official_email_password}
-                      onChange={(e) => setConvertForm({ ...convertForm, official_email_password: e.target.value })}
-                    />
-                  </div>
+              <form onSubmit={convertToStudent} className="fcd-existing">
+                <div className="bp-form-grid">
+                  <label className="bp-field">
+                    <span>Username *</span>
+                    <input required value={convertForm.username} onChange={(e) => setConvertForm({ ...convertForm, username: e.target.value })} />
+                  </label>
+                  <label className="bp-field">
+                    <span>Temporary password *</span>
+                    <input type="text" required value={convertForm.password} onChange={(e) => setConvertForm({ ...convertForm, password: e.target.value })} />
+                  </label>
+                  <label className="bp-field">
+                    <span>Official email address <small className="bp-muted">(from Hostinger)</small></span>
+                    <input type="email" value={convertForm.official_email} onChange={(e) => setConvertForm({ ...convertForm, official_email: e.target.value })} />
+                  </label>
+                  <label className="bp-field">
+                    <span>Official email password</span>
+                    <input type="text" value={convertForm.official_email_password} onChange={(e) => setConvertForm({ ...convertForm, official_email_password: e.target.value })} />
+                  </label>
                 </div>
-                <div className="fc-account-submit">
-                  <button type="submit" className="rp-btn-accent" disabled={converting}>
-                    {converting ? "Creating…" : "Create Student Account"}
+                <div className="bp-actions">
+                  <button type="submit" className="bp-btn orange" disabled={converting}>
+                    <UserPlus size={16} /> {converting ? "Creating…" : "Create Student Account"}
                   </button>
                 </div>
               </form>
             )}
-          </div>
+          </section>
         </>
       )}
     </div>

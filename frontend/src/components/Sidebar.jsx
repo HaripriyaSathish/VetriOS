@@ -2,6 +2,7 @@
 import { NavLink, useLocation } from "react-router-dom";
 import client from "../api/client";
 import {
+  X,
   LayoutDashboard,
   ShieldCheck,
   ShieldAlert,
@@ -85,7 +86,9 @@ const CLIENT_MGMT_PATHS = [
   "/clients/payments", "/clients/approval-documents", "/clients/my-clients",
 ];
 
-function Sidebar() {
+// `open` / `onClose` only matter on phones/tablets, where the sidebar is a
+// slide-in drawer opened from the topbar menu button (AppLayout).
+function Sidebar({ open = false, onClose }) {
   const user = JSON.parse(localStorage.getItem("user") || "null");
   const location = useLocation();
   const [trainingOpen, setTrainingOpen] = useState(true);
@@ -229,7 +232,10 @@ function Sidebar() {
   const isPmView = !isSystemAdministrator && activeWorkspace === "project" && isProjectTeamMember;
 
   return (
-    <aside className="sidebar">
+    <aside className={"sidebar" + (open ? " open" : "")}>
+      <button type="button" className="sidebar-close" onClick={onClose} aria-label="Close menu">
+        <X size={18} />
+      </button>
       <div className="sidebar-brand">
         {figmaImage("vetri-logo") ? (
           <img className="sidebar-logo" src={figmaImage("vetri-logo")} alt="Vetri IT Systems" />

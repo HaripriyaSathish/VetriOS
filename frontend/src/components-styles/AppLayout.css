@@ -235,3 +235,93 @@
 .app-confirm-cancel { background: #eef2f8; color: #51607a; }
 .app-confirm-cancel:hover { background: #e3e9f3; }
 .app-confirm-ok { background: linear-gradient(135deg, #e7510c, #ff8a4c); color: #fff; box-shadow: 0 6px 14px rgba(231, 81, 12, .3); }
+
+/* ---------- Phones & tablets: drawer sidebar + compact topbar ---------- */
+.app-menu-btn,
+.sidebar-close { display: none; }
+
+@media (max-width: 900px) {
+  /* Sidebar slides in from the left instead of taking 288px of the row */
+  .app-shell > .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 120;
+    width: min(288px, 86vw);
+    height: 100dvh;
+    transform: translateX(-105%);
+    transition: transform 0.3s var(--vt-ease);
+    box-shadow: none;
+  }
+  .app-shell > .sidebar.open {
+    transform: none;
+    box-shadow: 0 24px 60px -10px rgba(0, 26, 82, 0.55);
+  }
+  .app-shell.nav-open { overflow: hidden; height: 100dvh; }
+
+  .app-nav-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 110;
+    background: rgba(0, 26, 82, 0.45);
+    backdrop-filter: blur(2px);
+    animation: app-fade 0.2s ease both;
+  }
+
+  .sidebar-close {
+    position: absolute;
+    top: 14px;
+    right: 12px;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    cursor: pointer;
+  }
+
+  .app-menu-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 40px;
+    height: 40px;
+    border: 1px solid var(--vt-border);
+    border-radius: 11px;
+    background: #fff;
+    color: var(--vt-navy);
+    cursor: pointer;
+  }
+  .app-menu-btn:hover { border-color: var(--vt-navy-700); }
+
+  .app-topbar { gap: 10px; padding: 10px 16px; }
+  .app-topbar-right { gap: 8px; }
+  .app-content { padding: 20px 16px; }
+  .app-search { width: auto; flex: 1; min-width: 0; }
+}
+
+@media (max-width: 640px) {
+  /* Name/role text and the "Log out" label collapse to icons */
+  .app-topbar-identity,
+  .app-user-chevron,
+  .app-logout-text { display: none; }
+  .app-user-trigger { padding: 4px; }
+  .app-logout { padding: 8px 10px; }
+  .app-topbar-empcode { padding: 4px 8px; font-size: 11px; }
+  .app-content { padding: 16px 12px; }
+  .app-search { display: none; }
+  .app-user-dropdown { right: 0; }
+}
+
+@media (max-width: 380px) {
+  .app-topbar-empcode { display: none; }
+}
+
+@keyframes app-fade { from { opacity: 0; } to { opacity: 1; } }

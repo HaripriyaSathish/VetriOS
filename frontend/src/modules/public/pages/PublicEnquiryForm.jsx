@@ -137,7 +137,7 @@ function PublicEnquiryForm() {
     }
   };
 
-  const logo = figmaImage("vetri-logo");
+  const logo = figmaImage("vts-logo");
   const selectedCourse = courses.find((c) => String(c.course_id) === String(form.course_id));
 
   return (
@@ -149,10 +149,12 @@ function PublicEnquiryForm() {
 
         <div className="pf-hero-inner">
           <div className="pf-brand">
-            {logo ? <img src={logo} alt="Vetri IT Systems" /> : <GraduationCap size={26} />}
+            {logo
+              ? <img className="pf-brand-logo" src={logo} alt="Vetri Technology Solutions" />
+              : <span className="pf-brand-mark" aria-hidden="true"><GraduationCap size={24} /></span>}
             <div>
-              <b>Vetri IT Systems</b>
-              <small>Learn · Grow · Succeed</small>
+              <b>Vetri Technology Solutions</b>
+              <small>Course Learning Platform</small>
             </div>
           </div>
 
@@ -252,7 +254,7 @@ function PublicEnquiryForm() {
             <button type="submit" disabled={submitting} className="pf-submit">
               {submitting ? <><LoaderCircle size={17} className="pf-spin" /> Submitting…</> : <>Submit Enquiry <ArrowRight size={17} /></>}
             </button>
-            <p className="pf-privacy"><ShieldCheck size={13} /> Your details are only used by the Vetri admissions team to contact you.</p>
+            <p className="pf-privacy"><ShieldCheck size={13} /> Your details are only used by the Vetri Technology Solutions admissions team to contact you.</p>
           </form>
         )}
       </main>

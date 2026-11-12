@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
-import { ChevronDown, User, Settings, LogOut, Search } from "lucide-react";
+import { ChevronDown, User, Settings, LogOut, Search, Menu } from "lucide-react";
 import Sidebar from "./Sidebar";
 import "../components-styles/AppLayout.css";
 import "../modules/student/styles/StudentTheme.css";
@@ -64,7 +64,16 @@ function AppLayout() {
   const user = JSON.parse(localStorage.getItem("user") || "null");
   const [menuOpen, setMenuOpen] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
+  // Phone/tablet only: the sidebar becomes a slide-in drawer (see AppLayout.css).
+  const [navOpen, setNavOpen] = useState(false);
+  const [navPath, setNavPath] = useState(location.pathname);
   const menuRef = useRef(null);
+
+  // Close the drawer whenever the route changes (a nav link was tapped).
+  if (navPath !== location.pathname) {
+    setNavPath(location.pathname);
+    setNavOpen(false);
+  }
   const [photoUrl, setPhotoUrl] = useState(null);
   const [search, setSearch] = useState("");
   const isStudentArea = location.pathname.startsWith("/student");
@@ -90,7 +99,10 @@ function AppLayout() {
       if (menuRef.current && !menuRef.current.contains(event.target)) setMenuOpen(false);
     };
     const handleEscape = (event) => {
-      if (event.key === "Escape") setLogoutOpen(false);
+      if (event.key === "Escape") {
+        setLogoutOpen(false);
+        setNavOpen(false);
+      }
     };
     document.addEventListener("mousedown", handleClickOutside);
     document.addEventListener("keydown", handleEscape);
@@ -125,11 +137,21 @@ function AppLayout() {
   const avatarInitial = (user?.full_name || "?").trim().charAt(0).toUpperCase();
 
   return (
-    <div className="app-shell">
-      <Sidebar />
+    <div className={"app-shell" + (navOpen ? " nav-open" : "")}>
+      <Sidebar open={navOpen} onClose={() => setNavOpen(false)} />
+      {navOpen && <div className="app-nav-backdrop" onClick={() => setNavOpen(false)} aria-hidden="true" />}
 
       <div className="app-main">
         <header className="app-topbar">
+          <button
+            type="button"
+            className="app-menu-btn"
+            onClick={() => setNavOpen(true)}
+            aria-label="Open menu"
+            aria-expanded={navOpen}
+          >
+            <Menu size={20} />
+          </button>
           {user?.employee_code && <span className="app-topbar-empcode">{user.employee_code}</span>}
 
           {(isStudentArea || isProjectArea) && (
@@ -185,9 +207,9 @@ function AppLayout() {
               )}
             </div>
 
-            <button className="app-logout" onClick={() => setLogoutOpen(true)}>
+            <button className="app-logout" onClick={() => setLogoutOpen(true)} aria-label="Log out">
               <LogOut size={15} />
-              Log out
+              <span className="app-logout-text">Log out</span>
             </button>
           </div>
         </header>

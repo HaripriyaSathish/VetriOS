@@ -47,7 +47,7 @@
   pointer-events: none;
 }
 
-.pf-hero-inner { position: relative; max-width: 460px; animation: pf-rise 0.6s var(--vt-ease) both; }
+.pf-hero-inner { position: relative; width: 100%; min-width: 0; max-width: 460px;animation: pf-rise 0.6s var(--vt-ease) both; }
 
 .pf-brand { display: flex; align-items: center; gap: 12px; margin-bottom: 44px; }
 .pf-brand-logo {
@@ -324,6 +324,9 @@
 
 @media (max-width: 560px) {
   .pf-grid-2 { grid-template-columns: 1fr; }
+  /* 16px stops iOS Safari zooming the page when a field is focused */
+  .pf-control input, .pf-control select, .pf-control textarea, .pf-prefix { font-size: 16px; }
+  .pf-control input.pf-has-prefix { padding-left: 74px; }
   .pf-card-head h2 { font-size: 21px; }
   .pf-thankyou { padding: 36px 20px; }
 }

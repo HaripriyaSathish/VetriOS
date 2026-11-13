@@ -27,7 +27,6 @@ import {
   UserCheck,
   TrendingUp,
   Link2,
-  LogOut,
   FolderKanban,
   PieChart,
   Library,
@@ -36,6 +35,7 @@ import {
   Mail,
   Send,
   CheckCircle2,
+  MailOpen,
 } from "lucide-react";
 import { NAV_ITEMS, hasAccess } from "../config/nav";
 import { figmaImage } from "../assets/figmaImages";
@@ -67,7 +67,7 @@ function NavImage({ name, fallback: Fallback }) {
 // "/dashboard" is deliberately excluded — it's the universal post-login
 // landing page, so including it would force this group open on every
 // login/refresh for a System Administrator regardless of prior toggle state.
-const SYSADMIN_PATHS = ["/identity/users", "/identity/roles", "/identity/permissions", "/system-admin/approvals"];
+const SYSADMIN_PATHS = ["/identity/users", "/identity/login-requests", "/identity/roles", "/identity/permissions", "/system-admin/approvals"];
 const HR_PATHS = ["/hr"];
 const BUSINESS_TEAM_PATHS = [
   "/training/students", "/training/internship-approvals", "/training/enquiries",
@@ -109,7 +109,7 @@ function Sidebar({ open = false, onClose }) {
   }, []);
 
   // Pending "Create login credentials for ..." requests specifically —
-  // shown as "User & Accounts (N)" so a System Administrator sees it's
+  // shown as "Login requests (N)" so a System Administrator sees it's
   // waiting without opening Request Access at all (that page no longer
   // has anything login-request-specific; this lives only here and in
   // the Login requests panel on User & Accounts itself). No dedicated
@@ -495,6 +495,16 @@ function Sidebar({ open = false, onClose }) {
                   <Users size={14} />
                 </span>
                 User & Accounts
+              </NavLink>
+
+              <NavLink
+                to="/identity/login-requests"
+                className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
+              >
+                <span className="nav-icon">
+                  <MailOpen size={14} />
+                </span>
+                Login requests
                 {pendingLoginRequestCount > 0 && (
                   <span className="nav-count-badge">{pendingLoginRequestCount}</span>
                 )}
@@ -642,16 +652,6 @@ function Sidebar({ open = false, onClose }) {
                   <Link2 size={14} />
                 </span>
                 Payroll References
-              </NavLink>
-
-              <NavLink
-                to="/hr/exit-management"
-                className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
-              >
-                <span className="nav-icon">
-                  <LogOut size={14} />
-                </span>
-                Exit Management
               </NavLink>
 
               <NavLink

@@ -325,3 +325,6 @@
 }
 
 @keyframes app-fade { from { opacity: 0; } to { opacity: 1; } }
+
+/* breadcrumb row above System Admin / HR Admin pages */
+.route-crumbs { margin-bottom: 4px; }

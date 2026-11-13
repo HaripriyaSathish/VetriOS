@@ -439,11 +439,10 @@ class AttendanceTodayView(APIView):
                 status="APPROVED", start_date__lte=today, end_date__gte=today
             ).values_list("employee_id", flat=True)
         )
-        person_ids_with_login = set(
-            UserAccount.objects.filter(person_id__in=[e.person_id for e in employees]).values_list(
-                "person_id", flat=True
-            )
-        )
+        accounts = list(UserAccount.objects.filter(person_id__in=[e.person_id for e in employees]))
+        person_ids_with_login = {a.person_id for a in accounts}
+        # Login roles (Employee, HR Administrator, ...) shown under each name.
+        roles_by_person = {a.person_id: list(a.active_role_names()) for a in accounts}
 
         records = []
         present = half_day = missing_checkout = on_leave = absent = no_login = 0
@@ -475,6 +474,7 @@ class AttendanceTodayView(APIView):
                     "person_id": emp.person_id,
                     "full_name": str(emp.person),
                     "department_name": _department_name(emp.person_id),
+                    "role_names": roles_by_person.get(emp.person_id, []),
                     "check_in_time": att.check_in_time if att else None,
                     "check_out_time": att.check_out_time if att else None,
                     "hours": hours,

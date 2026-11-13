@@ -3,6 +3,9 @@ import Login from "./modules/identity-access/pages/Login";
 import Dashboard from "./pages/Dashboard";
 import ModulePlaceholder from "./pages/ModulePlaceholder";
 import UserAccounts from "./modules/identity-access/pages/UserAccounts";
+import NewAccount from "./modules/identity-access/pages/NewAccount";
+import EditAccount from "./modules/identity-access/pages/EditAccount";
+import LoginRequests from "./modules/identity-access/pages/LoginRequests";
 import RolesPermissions from "./modules/identity-access/pages/RolesPermissions";
 import Permissions from "./modules/identity-access/pages/Permissions";
 import UserPermissions from "./modules/identity-access/pages/UserPermissions";
@@ -19,7 +22,6 @@ import Onboarding from "./modules/hr/pages/Onboarding";
 import Promotions from "./modules/hr/pages/Promotions";
 import PromotionApprovals from "./modules/hr/pages/PromotionApprovals";
 import PayrollReferences from "./modules/hr/pages/PayrollReferences";
-import ExitManagement from "./modules/hr/pages/ExitManagement";
 import HRReports from "./modules/hr/pages/Reports";
 import MyAttendance from "./modules/hr/pages/MyAttendance";
 import MyLeave from "./modules/hr/pages/MyLeave";
@@ -184,6 +186,30 @@ function App() {
           element={
             <PermissionGate requirement={{ type: "role", value: "System Administrator" }}>
               <UserAccounts />
+            </PermissionGate>
+          }
+        />
+        <Route
+          path="/identity/users/new"
+          element={
+            <PermissionGate requirement={{ type: "role", value: "System Administrator" }}>
+              <NewAccount />
+            </PermissionGate>
+          }
+        />
+        <Route
+          path="/identity/login-requests"
+          element={
+            <PermissionGate requirement={{ type: "role", value: "System Administrator" }}>
+              <LoginRequests />
+            </PermissionGate>
+          }
+        />
+        <Route
+          path="/identity/users/:id/edit"
+          element={
+            <PermissionGate requirement={{ type: "role", value: "System Administrator" }}>
+              <EditAccount />
             </PermissionGate>
           }
         />
@@ -611,14 +637,6 @@ function App() {
           element={
             <PermissionGate requirement={{ type: "role", value: ["HR Administrator", "System Administrator"] }}>
               <PayrollReferences />
-            </PermissionGate>
-          }
-        />
-        <Route
-          path="/hr/exit-management"
-          element={
-            <PermissionGate requirement={{ type: "role", value: ["HR Administrator", "System Administrator"] }}>
-              <ExitManagement />
             </PermissionGate>
           }
         />

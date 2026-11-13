@@ -41,9 +41,9 @@ const EMPTY_FILTERS = {
   joined_to: "",
 };
 
-// Which optional columns are visible — Email/Phone/Employee code start
+// Which optional columns are visible — Email/Phone/Employee code/Joined start
 // hidden to match the reference design's default compact table.
-const DEFAULT_COLUMNS = { email: false, phone: false, employee_code: false };
+const DEFAULT_COLUMNS = { email: false, phone: false, employee_code: false, joined: false };
 
 const EMPTY_FORM = {
   first_name: "",
@@ -121,6 +121,15 @@ function suggestNextEmployeeCode(employees) {
 }
 
 const isIntern = (e) => /intern/i.test(e.employment_type_name || "");
+
+// Work mode is derived from data we already have (no DB field for it):
+// a WFH employment type = Remote, an assigned branch = Offline (at that
+// branch), neither = Not set.
+const workMode = (e) => {
+  if (/wfh|remote/i.test(e.employment_type_name || "")) return { tone: "remote", label: "Remote" };
+  if (e.branch_name) return { tone: "office", label: `Offline · ${e.branch_name}` };
+  return { tone: "none", label: "Not set" };
+};
 
 function toCsv(rows) {
   const header = ["Name", "Email", "Code", "Designation", "Department", "Branch", "Employment Type", "Joining Date", "Status"];
@@ -418,7 +427,7 @@ function HRDashboard({ view = "employees" }) {
     } catch (err) {
       const data = err.response?.data;
       const firstError = data && Object.values(data)[0];
-      setFormError(Array.isArray(firstError) ? firstError[0] : "Something went wrong.");
+      setFormError(Array.isArray(firstError) ? firstError[0] : typeof firstError === "string" ? firstError : "Something went wrong.");
     } finally {
       setSubmitting(false);
     }
@@ -978,6 +987,7 @@ function HRDashboard({ view = "employees" }) {
                     ["email", "Email"],
                     ["phone", "Phone"],
                     ["employee_code", "Employee code"],
+                    ["joined", "Joined"],
                   ].map(([key, label]) => (
                     <label key={key} className="hr-checkbox-row">
                       <input
@@ -1021,7 +1031,8 @@ function HRDashboard({ view = "employees" }) {
                       {columns.phone && <th>Phone</th>}
                       <th>Department</th>
                       <th>Type</th>
-                      <th>Joined</th>
+                      <th>Work mode</th>
+                      {columns.joined && <th>Joined</th>}
                       <th>Status</th>
                       <th>Actions</th>
                     </tr>
@@ -1066,7 +1077,12 @@ function HRDashboard({ view = "employees" }) {
                               emp.employment_type_name || "—"
                             )}
                           </td>
-                          <td className="hr-mono">{emp.joining_date || "—"}</td>
+                          <td>
+                            <span className={"wm-pill " + workMode(emp).tone}>
+                              <i />{workMode(emp).label}
+                            </span>
+                          </td>
+                          {columns.joined && <td className="hr-mono">{emp.joining_date || "—"}</td>}
                           <td>
                             <span className={"hr-pill " + (emp.status === "ACTIVE" ? "on" : "off")}>
                               {emp.status === "ACTIVE" ? "Active" : emp.status}
@@ -1158,6 +1174,7 @@ function HRDashboard({ view = "employees" }) {
             <dl className="emp-side-list">
               <dt>Department</dt><dd>{selectedEmp.department_name || "Not set"}</dd>
               <dt>Type</dt><dd>{selectedEmp.employment_type_name || "—"}</dd>
+              <dt>Work mode</dt><dd>{workMode(selectedEmp).label}</dd>
               <dt>Branch</dt><dd>{selectedEmp.branch_name || "—"}</dd>
               <dt>Joined</dt><dd>{selectedEmp.joining_date || "—"}</dd>
               <dt>Email</dt><dd>{selectedEmp.email || "—"}</dd>
@@ -1615,6 +1632,7 @@ function HRDashboard({ view = "employees" }) {
                   <div className="emp-view-grid">
                     <div><small>Designation</small><span>{viewEmployee.designation_name || <em>Not set</em>}</span></div>
                     <div><small>Employment type</small><span>{viewEmployee.employment_type_name || <em>Not set</em>}</span></div>
+                    <div><small>Work mode</small><span>{workMode(viewEmployee).label}</span></div>
                     <div><small>Branch</small><span>{viewEmployee.branch_name || <em>Unassigned</em>}</span></div>
                     <div><small>Employee code</small><span>{viewEmployee.employee_code || <em>Not set</em>}</span></div>
                   </div>

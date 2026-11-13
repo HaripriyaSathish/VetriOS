@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Users, UserCheck, GraduationCap, Building2, UserX, CalendarClock, UserPlus, FileText, Award, Bell, PartyPopper, ArrowRight,
+  ShieldCheck, Users, UserCheck, GraduationCap, Building2, UserX, CalendarClock, UserPlus, FileText, Award, Bell, PartyPopper, ArrowRight,
 } from "lucide-react";
 import {
   ResponsiveContainer, PieChart, Pie, Cell,
@@ -28,6 +28,12 @@ const PIPELINE_META = {
   IN_PROGRESS: { label: "In progress", color: "#b45309", bg: "#ffedd5" },
   COMPLETED: { label: "Completed", color: "#16a34a", bg: "#dcfce7" },
 };
+
+// Avatar colours for the HR-administrators row — picked from the name so a
+// person keeps the same colour every time.
+const ADMIN_COLORS = ["#ee6a1f", "#1d4f91", "#16a34a", "#7c3aed", "#0891b2", "#be185d"];
+const colorFor = (name) => ADMIN_COLORS[[...name].reduce((n, c) => n + c.charCodeAt(0), 0) % ADMIN_COLORS.length];
+const initialsOf = (name) => name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() || "").join("");
 
 function greeting() {
   const h = new Date().getHours();
@@ -166,8 +172,12 @@ function HROverview() {
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
   const [employees, setEmployees] = useState([]);
+  const [hrAdmins, setHrAdmins] = useState([]);
 
   useEffect(() => {
+    client.get("/api/identity/admins/", { params: { category: "HR Administrator" } })
+      .then(({ data }) => setHrAdmins(data))
+      .catch(() => setHrAdmins([]));
     client.get("/api/hr/dashboard/")
       .then(({ data }) => setData(data))
       .catch(() => setError("Couldn't load the dashboard right now."));
@@ -268,6 +278,28 @@ function HROverview() {
           </div>
         ))}
       </div>
+
+      {hrAdmins.length > 0 && (
+        <div className="hrd-admins">
+          <span className="hrd-admins-icon"><ShieldCheck size={20} /></span>
+          <div className="hrd-admins-head">
+            <p>HR administrators</p>
+            <span>Who can manage HR</span>
+          </div>
+          <span className="hrd-admins-sep" />
+          <div className="hrd-admins-who">
+            {hrAdmins.map((a) => (
+              <span className="hrd-admin" key={a.user_id}>
+                <i style={{ background: colorFor(a.full_name) }}>{initialsOf(a.full_name)}</i>
+                {a.full_name}
+              </span>
+            ))}
+          </div>
+          <span className="hrd-admins-count">
+            {hrAdmins.length} HR {hrAdmins.length === 1 ? "administrator" : "administrators"}
+          </span>
+        </div>
+      )}
 
       {attention.length > 0 && (
         <div className="hrd-attn">

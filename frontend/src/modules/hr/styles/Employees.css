@@ -330,3 +330,12 @@
 .emp-mini-row.org-stats .emp-mini-text b { grid-column: 2; grid-row: 1; font-size: 26px; line-height: 1; }
 .emp-mini-row.org-stats .emp-mini-text b i { font-size: 13px; }
 .emp-mini-row.org-stats .emp-mini-text > span { grid-column: 1 / -1; grid-row: 2; font-size: 13.5px; line-height: 1.2; }
+
+.wm-pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.wm-pill i { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+.wm-pill.remote { background: #e6f1fb; color: #0c447c; }
+.wm-pill.remote i { background: #378add; }
+.wm-pill.office { background: #eaf3de; color: #27500a; }
+.wm-pill.office i { background: #639922; }
+.wm-pill.none { background: #f1efe8; color: #444441; }
+.wm-pill.none i { background: #888780; }

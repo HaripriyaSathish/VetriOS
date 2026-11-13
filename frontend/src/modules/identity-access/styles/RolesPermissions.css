@@ -603,3 +603,25 @@
 @media (max-width: 680px) {
   .rp-grid { grid-template-columns: 1fr; }
 }
+
+/* four buttons per card now (View, Users, Edit, Deactivate) */
+.rp-actions { flex-wrap: wrap; }
+.rp-actions .rp-action-btn { flex: 1 1 calc(50% - 6px); }
+
+/* Users popup */
+.rp-modal.rp-users-modal { max-width: 720px; width: 100%; }
+.rp-users-search { display: flex; align-items: center; gap: 8px; border: 1px solid var(--vt-border); border-radius: 12px; padding: 2px 12px; margin: 6px 0 10px; color: #98a2b3; }
+.rp-users-search input { flex: 1; border: 0; outline: none; font: inherit; font-size: 14px; padding: 10px 0; background: none; color: var(--vt-navy); }
+.rp-users-list { display: flex; flex-direction: column; gap: 8px; max-height: 52vh; overflow-y: auto; padding-right: 2px; }
+.rp-user-row { display: flex; align-items: center; gap: 12px; border: 1px solid #e6ebf3; border-radius: 12px; padding: 10px 12px; background: #fff; }
+.rp-user-avatar .hr-avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; }
+.rp-user-avatar .hr-avatar-fallback { display: flex; align-items: center; justify-content: center; background: #eef1f7; color: #98a2b3; }
+.rp-user-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.rp-user-text b { font-size: 14.5px; color: var(--vt-navy); }
+.rp-user-text > span { font-size: 12.5px; color: var(--vt-muted); }
+.rp-user-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 3px; }
+.rp-user-chips i { font-style: normal; font-size: 11.5px; font-weight: 600; background: var(--vt-blue-50); color: #0c3a8c; border-radius: 999px; padding: 2px 9px; }
+.rp-user-chips em { font-size: 11.5px; color: #98a2b3; font-style: normal; }
+.rp-user-side { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex: none; }
+.rp-user-side small { font-size: 11.5px; color: var(--vt-muted); }
+.rp-user-side .rp-action-btn { flex: none; padding: 6px 10px; }

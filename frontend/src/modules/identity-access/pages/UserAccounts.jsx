@@ -1,20 +1,18 @@
 import { useEffect, useState } from "react";
 import {
-  ArrowDown, ArrowUp, ArrowUpDown, Ban, Check, Copy, Eye, EyeOff, KeyRound, Lock, MailOpen,
-  MoreHorizontal, Pencil, RotateCcw, Search, ShieldCheck, User, UserCheck, UserPlus, UserX,
+  ArrowDown, ArrowUp, ArrowUpDown, Ban, Copy, KeyRound, Lock,
+  MoreHorizontal, Pencil, RotateCcw, Search, ShieldCheck, UserCheck, UserPlus, UserX,
   Users, X,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import client from "../../../api/client";
+import Breadcrumbs from "../../../components/Breadcrumbs";
+import { formatLastLogin } from "../accountHelpers";
+import { EmployeeAvatar } from "../../hr/components/EmployeeAvatar";
 import Pagination, { paginate } from "../../../components/Pagination";
 import "../../student/styles/StudentDashboard.css";
 import "../../hr/styles/Attendance.css";
 import "../styles/UserAccounts.css";
-
-// Exactly 8 characters: at least one capital letter, one digit, one
-// special (non-alphanumeric) character.
-const PASSWORD_PATTERN = /^(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8}$/;
-const PASSWORD_HINT =
-  "Exactly 8 characters, with at least one capital letter, one number, and one special character.";
 
 // "Role: ... / Designation: ..." summary shown alongside a name in the
 // Edit and Permissions popups — role is the RBAC grant, designation is
@@ -83,14 +81,6 @@ function IconChevron({ collapsed }) {
   return (
     <svg {...svgProps({ width: 16, height: 16 })} style={{ transform: collapsed ? "rotate(180deg)" : "none" }}>
       <polyline points="18 15 12 9 6 15" />
-    </svg>
-  );
-}
-
-function IconCheck() {
-  return (
-    <svg {...svgProps({ width: 13, height: 13 })}>
-      <polyline points="20 6 9 17 4 12" />
     </svg>
   );
 }
@@ -197,28 +187,16 @@ function groupIcon(name) {
   return <Icon />;
 }
 
-const EMPTY_FORM = {
-  username: "",
-  password: "",
-  first_name: "",
-  last_name: "",
-  email: "",
-  phone: "",
-  is_active: true,
-  person_id: "",
-};
-
 // "Today, 10:05 AM" / "Yesterday, ..." / "15 Sep 2026" for the Last login column.
-function formatLastLogin(value) {
-  if (!value) return "Never signed in";
-  const d = new Date(value);
-  const dayStart = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
-  const diff = Math.round((dayStart(new Date()) - dayStart(d)) / 86400000);
-  const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  if (diff === 0) return `Today, ${time}`;
-  if (diff === 1) return `Yesterday, ${time}`;
-  return d.toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" });
-}
+// Most powerful roles first, so a long list can be cut to two + "+N"
+// without hiding the one that matters (e.g. System Administrator).
+const ROLE_ORDER = ["System Administrator", "HR Administrator", "Business Team", "Project Manager", "Employee", "Intern", "Student", "Viewer"];
+const sortRoles = (roles) =>
+  [...roles].sort((a, b) => {
+    const ia = ROLE_ORDER.indexOf(a);
+    const ib = ROLE_ORDER.indexOf(b);
+    return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+  });
 
 const signedInToday = (value) =>
   Boolean(value) && new Date(value).toDateString() === new Date().toDateString();
@@ -227,31 +205,15 @@ function groupOf(code) {
   return code.split("_")[0];
 }
 
-function initials(name) {
-  return (name || "")
-    .split(" ")
-    .filter(Boolean)
-    .map((word) => word[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
-}
-
 // User & Accounts screen — lists every user_account row and lets a
 // System Administrator create, edit, or deactivate one. Matches the
 // Identity & Access mockup's user list/detail screens, wired to the
 // real CRUD API instead of static sample data.
 function UserAccounts() {
+  const navigate = useNavigate();
   const [users, setUsers] = useState([]);
-  const [roles, setRoles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState(null);
-  const [form, setForm] = useState(EMPTY_FORM);
-  const [formError, setFormError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
 
   const [confirmTarget, setConfirmTarget] = useState(null);
   const [confirming, setConfirming] = useState(false);
@@ -262,31 +224,12 @@ function UserAccounts() {
   const [sort, setSort] = useState({ key: "name", dir: "asc" });
   const [rowMenu, setRowMenu] = useState(null); // { user, top, right }
 
-  const [editRoleIds, setEditRoleIds] = useState(new Set());
-  const [roleToggleBusyId, setRoleToggleBusyId] = useState(null);
-  const [createRoleIds, setCreateRoleIds] = useState(new Set());
-
-  const [personMode, setPersonMode] = useState("new"); // "new" | "existing"
-  const [unlinkedPersons, setUnlinkedPersons] = useState([]);
-  const [unlinkedLoading, setUnlinkedLoading] = useState(false);
-  const [personSearch, setPersonSearch] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  // "idle" | "checking" | "available" | "taken" | "invalid" — driven by a
-  // debounced call to the check-username endpoint as the field is typed.
-  const [usernameStatus, setUsernameStatus] = useState("idle");
-  const [usernameStatusMsg, setUsernameStatusMsg] = useState("");
-
-  // "Login requests" — pending "Create login credentials for ..." requests
-  // addressed to this admin (from HR's Employees page), surfaced right
-  // here instead of making the admin go to Request Access for this one
-  // specific kind of request. Read-only list for now — Approve/Reject
-  // comes in a later step.
+  // Number of pending "Create login credentials for ..." requests, for the
+  // "Login requests waiting" card. The requests themselves live on their
+  // own page (System Administrator > Login requests).
   const [loginRequests, setLoginRequests] = useState([]);
-  const [loginRequestsLoading, setLoginRequestsLoading] = useState(false);
-  const [loginRequestsPanelOpen, setLoginRequestsPanelOpen] = useState(false);
 
   const loadLoginRequests = async () => {
-    setLoginRequestsLoading(true);
     try {
       const { data } = await client.get("/api/identity/permission-requests/", {
         params: { box: "received" },
@@ -297,104 +240,7 @@ function UserAccounts() {
         )
       );
     } catch {
-      // Non-fatal — button just shows a 0 count if this fails.
-    } finally {
-      setLoginRequestsLoading(false);
-    }
-  };
-
-  // Which login request Approve is currently mid-flow for — set when the
-  // New Account form is opened from the Login requests panel, so that
-  // once the account is actually created, that specific request (and
-  // this employee's other pending copies, one per System Administrator)
-  // gets marked Approved. Null for the normal "+ New account" flow.
-  const [pendingApprovalRequest, setPendingApprovalRequest] = useState(null);
-  const [loginRequestActionError, setLoginRequestActionError] = useState("");
-  const [rejectingRequestId, setRejectingRequestId] = useState(null);
-
-  // Approve — rather than just flip status, this opens the real "New
-  // account" form pre-filled to the requested person, so creating the
-  // account and approving the request happen as one action. The person
-  // is matched by full name against /persons/unlinked/ (the request's
-  // permission_requested text only carries free text, no structured
-  // person_id link) — if no confident match is found, the admin still
-  // gets the form, just without a pre-selection, and can pick manually.
-  const handleApproveLoginRequest = async (request) => {
-    setLoginRequestActionError("");
-    setLoginRequestsPanelOpen(false);
-    setEditingUser(null);
-    setForm(EMPTY_FORM);
-    setFormError("");
-    setPersonMode("existing");
-    setPersonSearch("");
-    setShowPassword(false);
-    setCreateRoleIds(new Set());
-    setUsernameStatus("idle");
-    setUsernameStatusMsg("");
-    setPendingApprovalRequest(request);
-    setModalOpen(true);
-    setUnlinkedLoading(true);
-    try {
-      const { data } = await client.get("/api/identity/persons/unlinked/");
-      setUnlinkedPersons(data);
-      const match = /^Create login credentials for (.+) \([^)]*\)$/.exec(request.permission_requested);
-      const name = match ? match[1] : "";
-      const found = data.find((p) => p.full_name === name);
-      if (found) {
-        setForm((f) => ({ ...f, person_id: String(found.person_id) }));
-        setPersonSearch(found.full_name);
-      }
-    } catch {
-      // Non-fatal — admin can still search/select the person manually.
-    } finally {
-      setUnlinkedLoading(false);
-    }
-  };
-
-  // Every System Administrator got their own copy of this request (see
-  // HRDashboard's requestLoginCredentials) — once one admin actually
-  // creates the account, the other copies need resolving too, so a
-  // second admin doesn't try to create a duplicate account for the same
-  // person. Matched the same way (identical permission_requested text),
-  // since that's the only link back to "which employee" that exists.
-  const resolveDuplicateLoginRequests = async (approvedRequest) => {
-    try {
-      const { data: received } = await client.get("/api/identity/permission-requests/", {
-        params: { box: "received" },
-      });
-      const duplicates = received.filter(
-        (r) =>
-          r.permission_request_id !== approvedRequest.permission_request_id &&
-          r.status === "PENDING" &&
-          r.permission_requested === approvedRequest.permission_requested
-      );
-      await Promise.all(
-        duplicates.map((r) =>
-          client.post(`/api/identity/permission-requests/${r.permission_request_id}/decide/`, {
-            action: "approve",
-            note: "Auto-resolved — handled by another admin.",
-          })
-        )
-      );
-    } catch {
-      // Non-fatal — worst case a duplicate copy just stays visible to
-      // whichever admin didn't handle it, harmless if actioned again.
-    }
-  };
-
-  const handleRejectLoginRequest = async (request) => {
-    setLoginRequestActionError("");
-    setRejectingRequestId(request.permission_request_id);
-    try {
-      await client.post(`/api/identity/permission-requests/${request.permission_request_id}/decide/`, {
-        action: "reject",
-        note: "",
-      });
-      await loadLoginRequests();
-    } catch {
-      setLoginRequestActionError("Couldn't reject that request.");
-    } finally {
-      setRejectingRequestId(null);
+      // Non-fatal — the card just shows 0.
     }
   };
 
@@ -417,12 +263,8 @@ function UserAccounts() {
     setLoading(true);
     setError("");
     try {
-      const [usersRes, rolesRes] = await Promise.all([
-        client.get("/api/identity/users/"),
-        client.get("/api/identity/roles/"),
-      ]);
-      setUsers(usersRes.data);
-      setRoles(rolesRes.data);
+      const { data } = await client.get("/api/identity/users/");
+      setUsers(data);
     } catch (err) {
       setError("Couldn't load user accounts.");
     } finally {
@@ -448,221 +290,6 @@ function UserAccounts() {
       window.removeEventListener("resize", close);
     };
   }, [rowMenu]);
-
-  // Debounced live "is this username free" check as it's typed — same
-  // rule the actual save enforces, just checked ahead of time. Skips the
-  // call entirely while editing and the field still matches the user's
-  // current username (nothing would change, no point checking).
-  useEffect(() => {
-    if (!modalOpen) return;
-    const username = form.username.trim();
-    if (!username || (editingUser && username === editingUser.username)) {
-      setUsernameStatus("idle");
-      setUsernameStatusMsg("");
-      return;
-    }
-    setUsernameStatus("checking");
-    const timer = setTimeout(async () => {
-      try {
-        const params = { username };
-        if (editingUser) params.exclude = editingUser.user_id;
-        const { data } = await client.get("/api/identity/users/check-username/", { params });
-        if (data.available) {
-          setUsernameStatus("available");
-          setUsernameStatusMsg("Username available");
-        } else {
-          setUsernameStatus(/^3-30 characters/.test(data.reason) ? "invalid" : "taken");
-          setUsernameStatusMsg(data.reason);
-        }
-      } catch (err) {
-        setUsernameStatus("idle");
-        setUsernameStatusMsg("");
-      }
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [form.username, modalOpen, editingUser]);
-
-  const openCreate = async () => {
-    setEditingUser(null);
-    setForm(EMPTY_FORM);
-    setFormError("");
-    setPersonMode("new");
-    setUnlinkedPersons([]);
-    setPersonSearch("");
-    setShowPassword(false);
-    setCreateRoleIds(new Set());
-    setUsernameStatus("idle");
-    setUsernameStatusMsg("");
-    setPendingApprovalRequest(null);
-    setModalOpen(true);
-    setUnlinkedLoading(true);
-    try {
-      const { data } = await client.get("/api/identity/persons/unlinked/");
-      setUnlinkedPersons(data);
-    } catch (err) {
-      // Non-fatal — "link existing person" mode just won't have anyone
-      // to pick from; "new person" mode still works fine.
-    } finally {
-      setUnlinkedLoading(false);
-    }
-  };
-
-  const openEdit = async (user) => {
-    const [first, ...rest] = (user.full_name || "").split(" ");
-    setEditingUser(user);
-    setForm({
-      username: user.username,
-      password: "",
-      first_name: first || "",
-      last_name: rest.join(" "),
-      email: user.email || "",
-      phone: "",
-      is_active: user.is_active,
-    });
-    setFormError("");
-    setEditRoleIds(new Set());
-    setShowPassword(false);
-    setUsernameStatus("idle");
-    setUsernameStatusMsg("");
-    setModalOpen(true);
-    try {
-      const { data } = await client.get("/api/identity/user-roles/");
-      setEditRoleIds(
-        new Set(data.filter((ur) => ur.user_id === user.user_id).map((ur) => ur.role_id))
-      );
-    } catch (err) {
-      setFormError("Couldn't load this user's current roles.");
-    }
-  };
-
-  const toggleEditRole = async (roleId) => {
-    if (!editingUser) return;
-    const has = editRoleIds.has(roleId);
-    setRoleToggleBusyId(roleId);
-    setEditRoleIds((prev) => {
-      const next = new Set(prev);
-      has ? next.delete(roleId) : next.add(roleId);
-      return next;
-    });
-    try {
-      if (has) {
-        await client.delete(`/api/identity/users/${editingUser.user_id}/roles/${roleId}/`);
-      } else {
-        await client.put(`/api/identity/users/${editingUser.user_id}/roles/${roleId}/`);
-      }
-      await loadData();
-    } catch (err) {
-      setFormError("Couldn't update that role.");
-      setEditRoleIds((prev) => {
-        const next = new Set(prev);
-        has ? next.add(roleId) : next.delete(roleId);
-        return next;
-      });
-    } finally {
-      setRoleToggleBusyId(null);
-    }
-  };
-
-  const toggleCreateRole = (roleId) => {
-    setCreateRoleIds((prev) => {
-      const next = new Set(prev);
-      next.has(roleId) ? next.delete(roleId) : next.add(roleId);
-      return next;
-    });
-  };
-
-  const closeModal = () => {
-    setModalOpen(false);
-    setPendingApprovalRequest(null);
-  };
-
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-    setFormError("");
-
-    if (form.password && !PASSWORD_PATTERN.test(form.password)) {
-      setFormError(PASSWORD_HINT);
-      return;
-    }
-
-    // A brand-new account with no role at all can't do anything once
-    // created — same requirement whether it's a plain "+ New account"
-    // or one opened from the Login requests panel's Approve.
-    if (!editingUser && createRoleIds.size === 0) {
-      setFormError("Assign at least one role before creating this account.");
-      return;
-    }
-
-    setSubmitting(true);
-
-    const payload = { ...form };
-    if (!payload.password) delete payload.password;
-    if (!editingUser && personMode === "existing") {
-      delete payload.first_name;
-      delete payload.last_name;
-      delete payload.email;
-      delete payload.phone;
-    } else {
-      delete payload.person_id;
-    }
-    if (!payload.person_id) delete payload.person_id;
-
-    try {
-      let saved;
-      if (editingUser) {
-        ({ data: saved } = await client.patch(`/api/identity/users/${editingUser.user_id}/`, payload));
-      } else {
-        const { data: created } = await client.post("/api/identity/users/", payload);
-        saved = created;
-        // Roles are assigned as separate calls, same endpoint the Edit
-        // modal's checkboxes use — a brand-new account can start with
-        // more than one role, same as any existing one can hold.
-        for (const roleId of createRoleIds) {
-          await client.put(`/api/identity/users/${created.user_id}/roles/${roleId}/`);
-        }
-      }
-
-      // The backend only attempts this send when a password was actually
-      // set (always on create, only if "Reset password" was filled on
-      // edit) — email_sent/email_reason are absent otherwise.
-      if (payload.password) {
-        if (saved.email_sent) {
-          window.alert(`Login credentials sent to ${saved.email_reason}.`);
-        } else if (saved.email_reason === "no_email_on_file") {
-          window.alert("Account saved, but no email is on file for this person — share the credentials directly.");
-        } else if (saved.email_reason === "send_failed") {
-          window.alert("Account saved, but the credentials email failed to send — share the credentials directly.");
-        }
-      }
-      // The account itself is the real "reply" here — the admin will
-      // hand the credentials to the employee directly (call/in person),
-      // never stored in this decision note. Only completes the loop for
-      // the exact request this form was opened from — a plain
-      // "+ New account" create leaves pendingApprovalRequest null.
-      if (!editingUser && pendingApprovalRequest) {
-        try {
-          await client.post(
-            `/api/identity/permission-requests/${pendingApprovalRequest.permission_request_id}/decide/`,
-            { action: "approve", note: "Login created — credentials emailed to the employee." }
-          );
-          await resolveDuplicateLoginRequests(pendingApprovalRequest);
-        } catch {
-          // Account creation still succeeded — worst case the request
-          // stays PENDING and needs manually approving from the panel.
-        }
-        setPendingApprovalRequest(null);
-        await loadLoginRequests();
-      }
-      setModalOpen(false);
-      await loadData();
-    } catch (err) {
-      const data = err.response?.data;
-      const firstError = data && Object.values(data)[0];
-      setFormError(Array.isArray(firstError) ? firstError[0] : "Something went wrong.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
   const requestToggleActive = (user) => setConfirmTarget(user);
   const cancelToggleActive = () => setConfirmTarget(null);
@@ -861,7 +488,7 @@ function UserAccounts() {
       value: loginRequests.length,
       tone: "amber",
       Icon: KeyRound,
-      onClick: () => setLoginRequestsPanelOpen(true),
+      onClick: () => navigate("/identity/login-requests"),
     },
   ];
 
@@ -877,15 +504,17 @@ function UserAccounts() {
     <div className="ua-screen">
       <div className="ua-head">
         <div>
+          <Breadcrumbs
+            items={[
+              { label: "System Administrator", to: "/dashboard", icon: ShieldCheck },
+              { label: "User & Accounts" },
+            ]}
+          />
           <h1>User &amp; Accounts</h1>
           <p>Create accounts, assign roles and manage who can sign in</p>
         </div>
         <div className="ua-head-actions">
-          <button className="ua-btn-outline" onClick={() => setLoginRequestsPanelOpen(true)}>
-            <MailOpen size={15} /> Login requests
-            {loginRequests.length > 0 && <em className="ua-badge">{loginRequests.length}</em>}
-          </button>
-          <button className="ua-btn-accent" onClick={openCreate}>
+          <button className="ua-btn-accent" onClick={() => navigate("/identity/users/new")}>
             <UserPlus size={16} /> New account
           </button>
         </div>
@@ -1028,13 +657,13 @@ function UserAccounts() {
                 </tr>
               </thead>
               <tbody>
-                {paginate(sortedUsers, page).map((user, i) => (
+                {paginate(sortedUsers, page).map((user) => (
                   <tr key={user.user_id} className={user.is_active ? "" : "inactive"}>
                     <td>
                       <div className="ua-cell-user">
                         <span className="ua-avatar-wrap">
-                          <span className={"ua-avatar" + (i % 2 ? " alt" : "") + (user.is_active ? "" : " off")}>
-                            {initials(user.full_name)}
+                          <span className={"ua-avatar" + (user.is_active ? "" : " off")}>
+                            <EmployeeAvatar personId={user.person_id} size={36} />
                           </span>
                           {signedInToday(user.last_login) && <span className="ua-online" title="Signed in today" />}
                         </span>
@@ -1047,16 +676,23 @@ function UserAccounts() {
                         </div>
                       </div>
                     </td>
-                    <td>
+                    <td className="ua-roles-cell">
                       {user.roles.length ? (
-                        user.roles.map((role) => (
-                          <span
-                            className={"ua-role-pill" + (role === "System Administrator" ? " admin" : "")}
-                            key={role}
-                          >
-                            {role}
-                          </span>
-                        ))
+                        <>
+                          {sortRoles(user.roles).slice(0, 2).map((role) => (
+                            <span
+                              className={"ua-role-pill" + (role === "System Administrator" ? " admin" : "")}
+                              key={role}
+                            >
+                              {role}
+                            </span>
+                          ))}
+                          {user.roles.length > 2 && (
+                            <span className="ua-role-pill more" title={sortRoles(user.roles).join(", ")}>
+                              +{user.roles.length - 2}
+                            </span>
+                          )}
+                        </>
                       ) : (
                         <span className="ua-sub">No role assigned</span>
                       )}
@@ -1072,7 +708,7 @@ function UserAccounts() {
                     </td>
                     <td>
                       <div className="ua-actions">
-                        <button className="ua-action-btn" title="Edit" onClick={() => openEdit(user)}>
+                        <button className="ua-action-btn" title="Edit" onClick={() => navigate(`/identity/users/${user.user_id}/edit`)}>
                           <Pencil size={13} /> <span className="ua-btn-label">Edit</span>
                         </button>
                         <button className="ua-action-btn primary" title="Permissions" onClick={() => openPermissions(user)}>
@@ -1111,7 +747,7 @@ function UserAccounts() {
             onClick={() => {
               const user = rowMenu.user;
               setRowMenu(null);
-              openEdit(user);
+              navigate(`/identity/users/${user.user_id}/edit`);
             }}
           >
             <Lock size={14} /> Reset password
@@ -1128,244 +764,6 @@ function UserAccounts() {
             {rowMenu.user.is_active ? <Ban size={14} /> : <RotateCcw size={14} />}
             {rowMenu.user.is_active ? "Deactivate" : "Reactivate"}
           </button>
-        </div>
-      )}
-
-      {modalOpen && (
-        <div className="ua-modal-backdrop" onClick={closeModal}>
-          <form className="ua-modal" onClick={(e) => e.stopPropagation()} onSubmit={handleSubmit}>
-            <button type="button" className="ua-modal-x" onClick={closeModal} aria-label="Close">
-              <X size={14} />
-            </button>
-            <div className="ua-form-head">
-              <span className="ua-form-icon">
-                {editingUser ? <Pencil size={21} /> : <UserPlus size={22} />}
-              </span>
-              <div>
-                <h2>{editingUser ? "Edit account" : "New account"}</h2>
-                <p>
-                  {editingUser
-                    ? "Update details, change roles or reset the password"
-                    : "Create a login for someone in your organisation"}
-                </p>
-              </div>
-            </div>
-            {editingUser && (
-              <p className="ua-modal-identity">
-                <span className="ua-modal-identity-name">{editingUser.full_name}</span>
-                <IdentityLine user={editingUser} />
-              </p>
-            )}
-
-            <div className="ua-sec first"><User size={13} /> Person</div>
-            {!editingUser && (
-              <div className="ua-person-mode">
-                <button
-                  type="button"
-                  className={"ua-mode-btn" + (personMode === "new" ? " active" : "")}
-                  onClick={() => setPersonMode("new")}
-                >
-                  New person
-                </button>
-                <button
-                  type="button"
-                  className={"ua-mode-btn" + (personMode === "existing" ? " active" : "")}
-                  onClick={() => {
-                    setPersonMode("existing");
-                    setPersonSearch("");
-                  }}
-                >
-                  Existing person — no login yet
-                </button>
-              </div>
-            )}
-
-            {!editingUser && personMode === "existing" && (
-              <>
-                <div className="ua-person-label-row">
-                  <label>Person</label>
-                  {(personSearch || form.person_id) && (
-                    <button
-                      type="button"
-                      className="ua-person-clear"
-                      onClick={() => {
-                        setPersonSearch("");
-                        setForm((f) => ({ ...f, person_id: "" }));
-                      }}
-                    >
-                      Clear
-                    </button>
-                  )}
-                </div>
-                <input
-                  className="ua-person-search"
-                  placeholder="Search by name or email…"
-                  value={personSearch}
-                  onChange={(e) => setPersonSearch(e.target.value)}
-                />
-                <select
-                  className="ua-person-select"
-                  value={form.person_id}
-                  onChange={(e) => setForm({ ...form, person_id: e.target.value })}
-                  onDoubleClick={(e) => {
-                    const person = unlinkedPersons.find(
-                      (p) => String(p.person_id) === e.currentTarget.value
-                    );
-                    if (person) setPersonSearch(person.full_name);
-                  }}
-                  required
-                  size={Math.min(6, Math.max(3, unlinkedPersons.length || 1))}
-                >
-                  {unlinkedLoading && <option value="">Loading…</option>}
-                  {!unlinkedLoading &&
-                    unlinkedPersons
-                      .filter((p) => {
-                        const q = personSearch.trim().toLowerCase();
-                        if (!q) return true;
-                        return (
-                          p.full_name.toLowerCase().includes(q) ||
-                          (p.email || "").toLowerCase().includes(q)
-                        );
-                      })
-                      .map((p) => (
-                        <option key={p.person_id} value={p.person_id}>
-                          {p.full_name} {p.email ? `(${p.email})` : ""}
-                        </option>
-                      ))}
-                </select>
-                {!unlinkedLoading && unlinkedPersons.length === 0 && (
-                  <p className="ua-perm-hint">
-                    No person without a login was found — everyone in the system already has one.
-                  </p>
-                )}
-              </>
-            )}
-
-            {(editingUser || personMode === "new") && (
-              <>
-                <div className="ua-form-row">
-                  <div>
-                    <label>First name</label>
-                    <input
-                      value={form.first_name}
-                      onChange={(e) => setForm({ ...form, first_name: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label>Last name</label>
-                    <input
-                      value={form.last_name}
-                      onChange={(e) => setForm({ ...form, last_name: e.target.value })}
-                    />
-                  </div>
-                </div>
-
-                <label>Email</label>
-                <input
-                  type="email"
-                  value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                />
-
-                <label>Phone</label>
-                <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
-              </>
-            )}
-
-            <div className="ua-sec"><Lock size={13} /> Sign-in</div>
-            <label>Username</label>
-            <input
-              value={form.username}
-              onChange={(e) => setForm({ ...form, username: e.target.value })}
-              required
-            />
-            {usernameStatus !== "idle" && (
-              <p className={"ua-username-status ua-username-status-" + usernameStatus}>
-                {usernameStatus === "available" && <IconCheck />}
-                {usernameStatus === "checking" ? "Checking availability…" : usernameStatusMsg}
-              </p>
-            )}
-
-            <label>{editingUser ? "Reset password (optional)" : "Password"}</label>
-            <div className="ua-password-field">
-              <input
-                type={showPassword ? "text" : "password"}
-                value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
-                required={!editingUser}
-                pattern={form.password ? PASSWORD_PATTERN.source : undefined}
-                title={PASSWORD_HINT}
-                maxLength={8}
-              />
-              <button
-                type="button"
-                className="ua-password-toggle"
-                onClick={() => setShowPassword((prev) => !prev)}
-                tabIndex={-1}
-                title={showPassword ? "Hide password" : "Show password"}
-              >
-                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
-            </div>
-            <p className="ua-perm-hint">{PASSWORD_HINT}</p>
-
-            <div className="ua-sec"><ShieldCheck size={13} /> Roles</div>
-            <div className="ua-role-checks">
-              {roles.map((role) => {
-                const checked = editingUser
-                  ? editRoleIds.has(role.role_id)
-                  : createRoleIds.has(role.role_id);
-                const busy = editingUser && roleToggleBusyId === role.role_id;
-                return (
-                  <label className="ua-role-check" key={role.role_id}>
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      disabled={busy}
-                      onChange={() =>
-                        editingUser ? toggleEditRole(role.role_id) : toggleCreateRole(role.role_id)
-                      }
-                    />
-                    {role.role_name}
-                    {busy && " …"}
-                  </label>
-                );
-              })}
-            </div>
-            <p className="ua-perm-hint">
-              A user can hold more than one role{editingUser ? " — changes apply immediately." : "."}
-            </p>
-
-            <label className="ua-toggle-row">
-              <span>
-                <b>Active</b>
-                <small>Can sign in right away</small>
-              </span>
-              <input
-                type="checkbox"
-                className="ua-switch"
-                checked={form.is_active}
-                onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
-              />
-            </label>
-
-            {formError && <p className="ua-error">{formError}</p>}
-
-            <div className="ua-modal-actions">
-              <button type="button" className="ua-btn-sm" onClick={closeModal}>
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="ua-btn-accent"
-                disabled={submitting || usernameStatus === "taken" || usernameStatus === "invalid"}
-              >
-                <Check size={16} />
-                {submitting ? "Saving…" : editingUser ? "Save changes" : "Create account"}
-              </button>
-            </div>
-          </form>
         </div>
       )}
 
@@ -1420,7 +818,7 @@ function UserAccounts() {
             </div>
 
             <div className="ua-perm-identity">
-              <div className="ua-perm-avatar">{initials(permUser.full_name)}</div>
+              <div className="ua-perm-avatar"><EmployeeAvatar personId={permUser.person_id} size={52} /></div>
               <div>
                 <div className="ua-modal-identity-name">{permUser.full_name}</div>
                 <IdentityLine user={permUser} />
@@ -1500,95 +898,6 @@ function UserAccounts() {
 
             <div className="ua-modal-actions">
               <button type="button" className="ua-btn-sm" onClick={closePermissions}>
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {loginRequestsPanelOpen && (
-        <div className="ua-modal-backdrop" onClick={() => setLoginRequestsPanelOpen(false)}>
-          <div className="ua-modal ua-modal-wide" onClick={(e) => e.stopPropagation()}>
-            <button
-              type="button"
-              className="ua-modal-x"
-              onClick={() => setLoginRequestsPanelOpen(false)}
-              aria-label="Close"
-            >
-              <X size={14} />
-            </button>
-            <h2>Login requests</h2>
-            <p className="ua-hint">
-              Requests from HR asking for login credentials to be created for an onboarded employee.
-              Approving opens the New account form pre-filled to that person — creating the account
-              completes the approval. The actual credentials are shared with the employee directly,
-              never stored here.
-            </p>
-
-            {loginRequestActionError && <p className="ua-error">{loginRequestActionError}</p>}
-
-            {loginRequestsLoading ? (
-              <p className="ua-empty">Loading…</p>
-            ) : loginRequests.length === 0 ? (
-              <p className="ua-empty">No pending login requests.</p>
-            ) : (
-              <div className="ua-table-scroll">
-                <table className="ua-table">
-                  <thead>
-                    <tr>
-                      <th>Requested by</th>
-                      <th>Requesting</th>
-                      <th>Reason</th>
-                      <th>Sent</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {loginRequests.map((r) => (
-                      <tr key={r.permission_request_id}>
-                        <td>{r.requester_name}</td>
-                        <td>{r.permission_requested}</td>
-                        <td>{r.reason}</td>
-                        <td className="ua-mono">
-                          {new Date(r.created_at).toLocaleString(undefined, {
-                            day: "2-digit",
-                            month: "short",
-                            year: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </td>
-                        <td>
-                          <div style={{ display: "flex", gap: 8 }}>
-                            <button
-                              type="button"
-                              className="ua-btn-accent"
-                              style={{ padding: "6px 12px", fontSize: 12.5 }}
-                              onClick={() => handleApproveLoginRequest(r)}
-                            >
-                              Approve
-                            </button>
-                            <button
-                              type="button"
-                              className="ua-btn-sm ua-btn-danger"
-                              style={{ padding: "6px 12px", fontSize: 12.5 }}
-                              disabled={rejectingRequestId === r.permission_request_id}
-                              onClick={() => handleRejectLoginRequest(r)}
-                            >
-                              {rejectingRequestId === r.permission_request_id ? "…" : "Reject"}
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            <div className="ua-modal-actions">
-              <button type="button" className="ua-btn-sm" onClick={() => setLoginRequestsPanelOpen(false)}>
                 Close
               </button>
             </div>

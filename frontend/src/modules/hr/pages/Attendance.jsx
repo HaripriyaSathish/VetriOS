@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Search, SlidersHorizontal, UserCheck, Clock, AlertTriangle, CalendarOff, UserX, KeyRound, LogIn, LogOut, CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, SlidersHorizontal, UserCheck, ShieldCheck, AlertTriangle, CalendarOff, UserX, KeyRound, LogIn, LogOut, CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell, LabelList, CartesianGrid } from "recharts";
 import client from "../../../api/client";
 import Pagination, { paginate } from "../../../components/Pagination";
@@ -12,6 +12,7 @@ import "../styles/Attendance.css";
 const STATUS_LABEL = {
   PRESENT: "Present",
   HALF_DAY: "Half day",
+  PERMISSION: "On permission",
   EXCUSED: "Excused",
   WORK_FROM_HOME: "WFH",
   ON_LEAVE: "On leave",
@@ -22,6 +23,7 @@ const STATUS_LABEL = {
 const STATUS_CLASS = {
   PRESENT: "present",
   HALF_DAY: "half",
+  PERMISSION: "leave",
   EXCUSED: "leave",
   WORK_FROM_HOME: "present",
   ON_LEAVE: "leave",
@@ -47,7 +49,7 @@ const EMPTY_FILTERS = { department: "", status: "" };
 // checked in but not out yet.
 const CARDS = [
   { key: "PRESENT", stat: "present", label: "Present", tone: "green", Icon: UserCheck },
-  { key: "HALF_DAY", stat: "half_day", label: "Half day", tone: "blue", Icon: Clock },
+  { key: "PERMISSION", stat: "permission", label: "Permission", tone: "blue", Icon: ShieldCheck },
   { key: "MISSING", stat: "missing_checkout", label: "Missing checkout", tone: "amber", Icon: AlertTriangle },
   { key: "ON_LEAVE", stat: "on_leave", label: "On leave", tone: "violet", Icon: CalendarOff },
   { key: "ABSENT", stat: "absent", label: "Absent", tone: "red", Icon: UserX },
@@ -84,7 +86,7 @@ const BLUE = "#1d4f91";
 const ORANGE = "#e8791f";
 const CHART_BARS = [
   { stat: "present", label: "Present", color: BLUE },
-  { stat: "half_day", label: "Half day", color: BLUE },
+  { stat: "permission", label: "Permission", color: BLUE },
   { stat: "on_leave", label: "On leave", color: BLUE },
   { stat: "missing_checkout", label: "Missing checkout", color: ORANGE },
   { stat: "absent", label: "Absent", color: ORANGE },
@@ -171,7 +173,7 @@ function Attendance() {
     const count = (fn) => recs.filter(fn).length;
     const parts = [
       { label: "Present", tone: "green", n: count((r) => r.status === "PRESENT" || r.status === "WORK_FROM_HOME") },
-      { label: "Half day", tone: "blue", n: count((r) => r.status === "HALF_DAY") },
+      { label: "Permission", tone: "blue", n: count((r) => r.status === "PERMISSION") },
       { label: "On leave", tone: "violet", n: count((r) => r.status === "ON_LEAVE" || r.status === "EXCUSED") },
       { label: "Absent", tone: "red", n: count((r) => r.status === "ABSENT") },
       { label: "No login", tone: "grey", n: count((r) => r.status === "NO_LOGIN") },
@@ -226,7 +228,7 @@ function Attendance() {
           >
             <span className="att2-card-top">
               <span className="att2-card-icon"><Icon size={16} /></span>
-              <b>{data?.stats[stat] ?? "—"}</b>
+              <b>{data ? (data.stats[stat] ?? 0) : "—"}</b>
             </span>
             <span className="att2-card-label">{label}</span>
           </button>
@@ -369,7 +371,10 @@ function Attendance() {
                       <td>
                         <div className="hr-cell-user">
                           <EmployeeAvatar personId={r.person_id} size={34} />
-                          <div className="hr-name">{r.full_name}</div>
+                          <div>
+                            <div className="hr-name">{r.full_name}</div>
+                            {r.role_names?.length > 0 && <div className="hr-sub">{r.role_names.join(", ")}</div>}
+                          </div>
                         </div>
                       </td>
                       <td>{r.department_name || "—"}</td>

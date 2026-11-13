@@ -13,6 +13,7 @@ from .views import (
 from .views import SubmitPerformanceReviewView, MyPerformanceView, ProjectLeadInternPerformanceView
 from .views import MyProjectView
 from .completion_views import (
+    HRPendingConversionsView, HRApproveConversionView, HRRejectConversionView, RejectCompletionView, HRInternHistoryView,
     RecommendCompletionView, PendingCompletionsView, ApproveCompletionView,
     RecommendExtensionView, PendingExtensionsView, ActOnExtensionView,
     MyLeadInternsView,
@@ -56,9 +57,15 @@ urlpatterns = [
     path("<int:intern_id>/completion/recommend/", RecommendCompletionView.as_view()),
     path("completions/pending/", PendingCompletionsView.as_view()),
     path("completions/<int:completion_id>/approve/", ApproveCompletionView.as_view()),
+    path("completions/<int:completion_id>/reject/", RejectCompletionView.as_view()),
     path("<int:intern_id>/extension/recommend/", RecommendExtensionView.as_view()),
     path("extensions/pending/", PendingExtensionsView.as_view()),
     path("extensions/<int:extension_id>/act/", ActOnExtensionView.as_view()),
+    # HR: intern -> employee conversion approvals (HR "Intern Management" page)
+    path("hr/history/", HRInternHistoryView.as_view()),
+    path("hr/conversions/pending/", HRPendingConversionsView.as_view()),
+    path("hr/conversions/<int:completion_id>/approve/", HRApproveConversionView.as_view()),
+    path("hr/conversions/<int:completion_id>/reject/", HRRejectConversionView.as_view()),
     path("lead/interns/", MyLeadInternsView.as_view()),
     path("lead/message-threads/", MyMessageThreadsView.as_view()),
     path("testing-report/<int:report_id>/resolve/", SubmitTestingReportFixView.as_view()),

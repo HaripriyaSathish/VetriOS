@@ -27,7 +27,7 @@ from .views import (
      ClientCommunicationViewSet, ConvertClientRequestToRequirementView,DeploymentStatusUpdateView
 )
 from .views import MyTeamTasksView
-from .views import AskProjectLeadThreadView
+from .views import MyProjectChatsView, ProjectGroupChatView
 from .views import MyProjectTestingReportsView, MyFiledTestingReportsView
 from .views import TaskSubmissionsView
 from .views import MarkDocumentClientApprovedView
@@ -82,7 +82,8 @@ urlpatterns = [
     path("clients/<int:client_id>/follow-ups/", ClientCommunicationViewSet.as_view()),
     path('client-requests/<int:request_id>/convert/', ConvertClientRequestToRequirementView.as_view()),
     path('deployments/<int:deployment_id>/status/', DeploymentStatusUpdateView.as_view()),
-    path("<int:project_id>/ask-lead/", AskProjectLeadThreadView.as_view()),
+    path("team-chats/", MyProjectChatsView.as_view()),
+    path("<int:project_id>/team-chat/", ProjectGroupChatView.as_view()),
     path("my-testing-reports/", MyProjectTestingReportsView.as_view()),
     path("my-filed-testing-reports/", MyFiledTestingReportsView.as_view()),
     path("documents/<int:document_id>/client-approve/", MarkDocumentClientApprovedView.as_view()),

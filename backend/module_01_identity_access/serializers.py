@@ -4,6 +4,7 @@ from django.utils import timezone
 from rest_framework import serializers
 
 from module_02_hr.models import DepartmentLead, Employee, PersonDepartmentHistory
+from module_02_hr.work_schedule import get_schedule
 from module_06_documents.models import Document
 
 from .models import (
@@ -221,10 +222,21 @@ class UserAccountListSerializer(serializers.ModelSerializer):
     email = serializers.SerializerMethodField()
     roles = serializers.SerializerMethodField()
     designation = serializers.SerializerMethodField()
+    work_login_time = serializers.SerializerMethodField()
+    work_logout_time = serializers.SerializerMethodField()
 
     class Meta:
         model = UserAccount
-        fields = ["user_id", "username", "full_name", "email", "is_active", "last_login", "roles", "designation"]
+        fields = [
+            "user_id", "username", "full_name", "email", "is_active", "last_login", "roles", "designation",
+            "work_login_time", "work_logout_time",
+        ]
+
+    def get_work_login_time(self, obj):
+        return get_schedule(obj.person_id)["login_time"]
+
+    def get_work_logout_time(self, obj):
+        return get_schedule(obj.person_id)["logout_time"]
 
     def get_full_name(self, obj):
         return str(obj.person)

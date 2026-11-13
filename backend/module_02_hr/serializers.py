@@ -31,6 +31,7 @@ class AttendanceRecordSerializer(serializers.Serializer):
     person_id = serializers.IntegerField()
     full_name = serializers.CharField()
     department_name = serializers.CharField(allow_null=True)
+    role_names = serializers.ListField(child=serializers.CharField(), required=False)
     check_in_time = serializers.DateTimeField(allow_null=True)
     check_out_time = serializers.DateTimeField(allow_null=True)
     hours = serializers.FloatField(allow_null=True)

@@ -1304,9 +1304,6 @@
 /* ---------- Exit records page ---------- */
 .ex2 .hr-table td { padding: 12px 16px; font-size: 14px; }
 .ex2 .hr-name { font-size: 14.5px; }
-.ex2 tr.ex2-pending td:first-child { box-shadow: inset 3px 0 0 var(--vt-orange); }
-.ex2-date { display: inline-flex; align-items: center; gap: 7px; }
-.ex2-date svg { color: #8a95a5; }
 .ex2 .att-pill { font-size: 12.5px; padding: 4px 12px; }
 .ex2 .att-pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; margin-right: 6px; }
 .ex2 .hr-stats-head { margin-bottom: 10px; }

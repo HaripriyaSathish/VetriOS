@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   ArrowDown, ArrowUp, ArrowUpDown, Ban, Check, Copy, Eye, EyeOff, KeyRound, Lock, MailOpen,
-  MoreHorizontal, Pencil, RotateCcw, Search, ShieldCheck, User, UserCheck, UserPlus, UserX,
+  MoreHorizontal, Pencil, RotateCcw, Search, UserCheck, UserPlus, UserX,
   Users, X,
 } from "lucide-react";
 import client from "../../../api/client";
@@ -206,7 +206,28 @@ const EMPTY_FORM = {
   phone: "",
   is_active: true,
   person_id: "",
+  work_login_time: "",
+  work_logout_time: "",
 };
+
+// "09:30" -> "9:30 AM"; length of the working day between two HH:MM times.
+const fmtClock = (t) => {
+  if (!t) return "";
+  const [h, m] = t.split(":").map(Number);
+  if (Number.isNaN(h) || Number.isNaN(m)) return t;
+  return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
+};
+const workDuration = (a, b) => {
+  if (!a || !b || b <= a) return "";
+  const [h1, m1] = a.split(":").map(Number);
+  const [h2, m2] = b.split(":").map(Number);
+  const mins = h2 * 60 + m2 - (h1 * 60 + m1);
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return m ? `${h}h ${m}m` : `${h} hrs`;
+};
+const initialsOf = (name) =>
+  (name || "").trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() || "").join("") || "?";
 
 // "Today, 10:05 AM" / "Yesterday, ..." / "15 Sep 2026" for the Last login column.
 function formatLastLogin(value) {
@@ -518,6 +539,8 @@ function UserAccounts() {
       email: user.email || "",
       phone: "",
       is_active: user.is_active,
+      work_login_time: user.work_login_time || "",
+      work_logout_time: user.work_logout_time || "",
     });
     setFormError("");
     setEditRoleIds(new Set());
@@ -595,7 +618,7 @@ function UserAccounts() {
 
     setSubmitting(true);
 
-    const payload = { ...form };
+    const { work_login_time, work_logout_time, ...payload } = form;
     if (!payload.password) delete payload.password;
     if (!editingUser && personMode === "existing") {
       delete payload.first_name;
@@ -620,6 +643,19 @@ function UserAccounts() {
         for (const roleId of createRoleIds) {
           await client.put(`/api/identity/users/${created.user_id}/roles/${roleId}/`);
         }
+      }
+
+      // Assigned check-in / check-out time: saved on its own, after the
+      // account exists (System Administrator only, settings file).
+      const timesChanged = editingUser
+        ? (work_login_time || "") !== (editingUser.work_login_time || "") ||
+          (work_logout_time || "") !== (editingUser.work_logout_time || "")
+        : !!(work_login_time || work_logout_time);
+      if (timesChanged) {
+        await client.put(`/api/identity/users/${saved.user_id}/work-schedule/`, {
+          login_time: work_login_time || "",
+          logout_time: work_logout_time || "",
+        });
       }
 
       // The backend only attempts this send when a password was actually
@@ -658,7 +694,7 @@ function UserAccounts() {
     } catch (err) {
       const data = err.response?.data;
       const firstError = data && Object.values(data)[0];
-      setFormError(Array.isArray(firstError) ? firstError[0] : "Something went wrong.");
+      setFormError(Array.isArray(firstError) ? firstError[0] : typeof firstError === "string" ? firstError : "Something went wrong.");
     } finally {
       setSubmitting(false);
     }
@@ -1133,11 +1169,11 @@ function UserAccounts() {
 
       {modalOpen && (
         <div className="ua-modal-backdrop" onClick={closeModal}>
-          <form className="ua-modal" onClick={(e) => e.stopPropagation()} onSubmit={handleSubmit}>
+          <form className="ua-modal ua2-modal" onClick={(e) => e.stopPropagation()} onSubmit={handleSubmit}>
             <button type="button" className="ua-modal-x" onClick={closeModal} aria-label="Close">
               <X size={14} />
             </button>
-            <div className="ua-form-head">
+            <div className="ua-form-head ua2-head">
               <span className="ua-form-icon">
                 {editingUser ? <Pencil size={21} /> : <UserPlus size={22} />}
               </span>
@@ -1145,214 +1181,271 @@ function UserAccounts() {
                 <h2>{editingUser ? "Edit account" : "New account"}</h2>
                 <p>
                   {editingUser
-                    ? "Update details, change roles or reset the password"
+                    ? "Update sign-in, roles and work timings"
                     : "Create a login for someone in your organisation"}
                 </p>
               </div>
             </div>
-            {editingUser && (
-              <p className="ua-modal-identity">
-                <span className="ua-modal-identity-name">{editingUser.full_name}</span>
-                <IdentityLine user={editingUser} />
-              </p>
-            )}
 
-            <div className="ua-sec first"><User size={13} /> Person</div>
-            {!editingUser && (
-              <div className="ua-person-mode">
-                <button
-                  type="button"
-                  className={"ua-mode-btn" + (personMode === "new" ? " active" : "")}
-                  onClick={() => setPersonMode("new")}
-                >
-                  New person
-                </button>
-                <button
-                  type="button"
-                  className={"ua-mode-btn" + (personMode === "existing" ? " active" : "")}
-                  onClick={() => {
-                    setPersonMode("existing");
-                    setPersonSearch("");
-                  }}
-                >
-                  Existing person — no login yet
-                </button>
-              </div>
-            )}
-
-            {!editingUser && personMode === "existing" && (
-              <>
-                <div className="ua-person-label-row">
-                  <label>Person</label>
-                  {(personSearch || form.person_id) && (
+            <div className="ua2-body">
+              <div className="ua2-main">
+                <section className="ua2-sec">
+                  <h3><span className="ua2-n">1</span>Person<span className="ua2-ln" /></h3>
+                {!editingUser && (
+                  <div className="ua-person-mode">
                     <button
                       type="button"
-                      className="ua-person-clear"
+                      className={"ua-mode-btn" + (personMode === "new" ? " active" : "")}
+                      onClick={() => setPersonMode("new")}
+                    >
+                      New person
+                    </button>
+                    <button
+                      type="button"
+                      className={"ua-mode-btn" + (personMode === "existing" ? " active" : "")}
                       onClick={() => {
+                        setPersonMode("existing");
                         setPersonSearch("");
-                        setForm((f) => ({ ...f, person_id: "" }));
                       }}
                     >
-                      Clear
+                      Existing person — no login yet
                     </button>
-                  )}
-                </div>
-                <input
-                  className="ua-person-search"
-                  placeholder="Search by name or email…"
-                  value={personSearch}
-                  onChange={(e) => setPersonSearch(e.target.value)}
-                />
-                <select
-                  className="ua-person-select"
-                  value={form.person_id}
-                  onChange={(e) => setForm({ ...form, person_id: e.target.value })}
-                  onDoubleClick={(e) => {
-                    const person = unlinkedPersons.find(
-                      (p) => String(p.person_id) === e.currentTarget.value
-                    );
-                    if (person) setPersonSearch(person.full_name);
-                  }}
-                  required
-                  size={Math.min(6, Math.max(3, unlinkedPersons.length || 1))}
-                >
-                  {unlinkedLoading && <option value="">Loading…</option>}
-                  {!unlinkedLoading &&
-                    unlinkedPersons
-                      .filter((p) => {
-                        const q = personSearch.trim().toLowerCase();
-                        if (!q) return true;
-                        return (
-                          p.full_name.toLowerCase().includes(q) ||
-                          (p.email || "").toLowerCase().includes(q)
+                  </div>
+                )}
+
+                {!editingUser && personMode === "existing" && (
+                  <>
+                    <div className="ua-person-label-row">
+                      <label>Person</label>
+                      {(personSearch || form.person_id) && (
+                        <button
+                          type="button"
+                          className="ua-person-clear"
+                          onClick={() => {
+                            setPersonSearch("");
+                            setForm((f) => ({ ...f, person_id: "" }));
+                          }}
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                    <input
+                      className="ua-person-search"
+                      placeholder="Search by name or email…"
+                      value={personSearch}
+                      onChange={(e) => setPersonSearch(e.target.value)}
+                    />
+                    <select
+                      className="ua-person-select"
+                      value={form.person_id}
+                      onChange={(e) => setForm({ ...form, person_id: e.target.value })}
+                      onDoubleClick={(e) => {
+                        const person = unlinkedPersons.find(
+                          (p) => String(p.person_id) === e.currentTarget.value
                         );
-                      })
-                      .map((p) => (
-                        <option key={p.person_id} value={p.person_id}>
-                          {p.full_name} {p.email ? `(${p.email})` : ""}
-                        </option>
-                      ))}
-                </select>
-                {!unlinkedLoading && unlinkedPersons.length === 0 && (
-                  <p className="ua-perm-hint">
-                    No person without a login was found — everyone in the system already has one.
+                        if (person) setPersonSearch(person.full_name);
+                      }}
+                      required
+                      size={Math.min(6, Math.max(3, unlinkedPersons.length || 1))}
+                    >
+                      {unlinkedLoading && <option value="">Loading…</option>}
+                      {!unlinkedLoading &&
+                        unlinkedPersons
+                          .filter((p) => {
+                            const q = personSearch.trim().toLowerCase();
+                            if (!q) return true;
+                            return (
+                              p.full_name.toLowerCase().includes(q) ||
+                              (p.email || "").toLowerCase().includes(q)
+                            );
+                          })
+                          .map((p) => (
+                            <option key={p.person_id} value={p.person_id}>
+                              {p.full_name} {p.email ? `(${p.email})` : ""}
+                            </option>
+                          ))}
+                    </select>
+                    {!unlinkedLoading && unlinkedPersons.length === 0 && (
+                      <p className="ua-perm-hint">
+                        No person without a login was found — everyone in the system already has one.
+                      </p>
+                    )}
+                  </>
+                )}
+
+                {(editingUser || personMode === "new") && (
+                  <>
+                    <div className="ua-form-row">
+                      <div>
+                        <label>First name</label>
+                        <input
+                          value={form.first_name}
+                          onChange={(e) => setForm({ ...form, first_name: e.target.value })}
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label>Last name</label>
+                        <input
+                          value={form.last_name}
+                          onChange={(e) => setForm({ ...form, last_name: e.target.value })}
+                        />
+                      </div>
+                    </div>
+
+                    <label>Email</label>
+                    <input
+                      type="email"
+                      value={form.email}
+                      onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    />
+
+                    <label>Phone</label>
+                    <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+                  </>
+                )}
+
+                </section>
+
+                <section className="ua2-sec">
+                  <h3><span className="ua2-n">2</span>Sign-in<span className="ua2-ln" /></h3>
+                <label>Username</label>
+                <input
+                  value={form.username}
+                  onChange={(e) => setForm({ ...form, username: e.target.value })}
+                  required
+                />
+                {usernameStatus !== "idle" && (
+                  <p className={"ua-username-status ua-username-status-" + usernameStatus}>
+                    {usernameStatus === "available" && <IconCheck />}
+                    {usernameStatus === "checking" ? "Checking availability…" : usernameStatusMsg}
                   </p>
                 )}
-              </>
-            )}
 
-            {(editingUser || personMode === "new") && (
-              <>
-                <div className="ua-form-row">
-                  <div>
-                    <label>First name</label>
-                    <input
-                      value={form.first_name}
-                      onChange={(e) => setForm({ ...form, first_name: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label>Last name</label>
-                    <input
-                      value={form.last_name}
-                      onChange={(e) => setForm({ ...form, last_name: e.target.value })}
-                    />
-                  </div>
+                <label>{editingUser ? "Reset password (optional)" : "Password"}</label>
+                <div className="ua-password-field">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={form.password}
+                    onChange={(e) => setForm({ ...form, password: e.target.value })}
+                    required={!editingUser}
+                    pattern={form.password ? PASSWORD_PATTERN.source : undefined}
+                    title={PASSWORD_HINT}
+                    maxLength={8}
+                  />
+                  <button
+                    type="button"
+                    className="ua-password-toggle"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    tabIndex={-1}
+                    title={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
                 </div>
+                <p className="ua-perm-hint">{PASSWORD_HINT}</p>
 
-                <label>Email</label>
-                <input
-                  type="email"
-                  value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                />
+                </section>
 
-                <label>Phone</label>
-                <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
-              </>
-            )}
+                <section className="ua2-sec">
+                  <h3><span className="ua2-n">3</span>Roles<span className="ua2-ln" /></h3>
+                  <div className="ua2-chips">
+                    {roles.map((role) => {
+                      const checked = editingUser ? editRoleIds.has(role.role_id) : createRoleIds.has(role.role_id);
+                      const busy = editingUser && roleToggleBusyId === role.role_id;
+                      return (
+                        <button
+                          type="button"
+                          key={role.role_id}
+                          className={"ua2-chip" + (checked ? " on" : "") + (role.role_name === "System Administrator" ? " admin" : "")}
+                          disabled={busy}
+                          aria-pressed={checked}
+                          onClick={() => (editingUser ? toggleEditRole(role.role_id) : toggleCreateRole(role.role_id))}
+                        >
+                          {checked && <Check size={12} />}
+                          {role.role_name}
+                          {busy && " …"}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="ua-perm-hint">
+                    A user can hold more than one role{editingUser ? " — role changes apply immediately." : "."}
+                  </p>
+                </section>
 
-            <div className="ua-sec"><Lock size={13} /> Sign-in</div>
-            <label>Username</label>
-            <input
-              value={form.username}
-              onChange={(e) => setForm({ ...form, username: e.target.value })}
-              required
-            />
-            {usernameStatus !== "idle" && (
-              <p className={"ua-username-status ua-username-status-" + usernameStatus}>
-                {usernameStatus === "available" && <IconCheck />}
-                {usernameStatus === "checking" ? "Checking availability…" : usernameStatusMsg}
-              </p>
-            )}
+                <section className="ua2-sec">
+                  <h3><span className="ua2-n">4</span>Work timings<span className="ua2-ln" /></h3>
+                  <div className="ua2-times">
+                    <div>
+                      <label>Check-in time</label>
+                      <input
+                        type="time"
+                        value={form.work_login_time}
+                        onChange={(e) => setForm({ ...form, work_login_time: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <label>Check-out time</label>
+                      <input
+                        type="time"
+                        value={form.work_logout_time}
+                        onChange={(e) => setForm({ ...form, work_logout_time: e.target.value })}
+                      />
+                    </div>
+                    {workDuration(form.work_login_time, form.work_logout_time) && (
+                      <span className="ua2-dur">{workDuration(form.work_login_time, form.work_logout_time)}</span>
+                    )}
+                  </div>
+                  <p className="ua-perm-hint">
+                    The time this person is expected to check in and out. Leave both empty to clear.
+                  </p>
+                </section>
 
-            <label>{editingUser ? "Reset password (optional)" : "Password"}</label>
-            <div className="ua-password-field">
-              <input
-                type={showPassword ? "text" : "password"}
-                value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
-                required={!editingUser}
-                pattern={form.password ? PASSWORD_PATTERN.source : undefined}
-                title={PASSWORD_HINT}
-                maxLength={8}
-              />
-              <button
-                type="button"
-                className="ua-password-toggle"
-                onClick={() => setShowPassword((prev) => !prev)}
-                tabIndex={-1}
-                title={showPassword ? "Hide password" : "Show password"}
-              >
-                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
+                <label className="ua-toggle-row">
+                  <span>
+                    <b>Active</b>
+                    <small>Can sign in right away</small>
+                  </span>
+                  <input
+                    type="checkbox"
+                    className="ua-switch"
+                    checked={form.is_active}
+                    onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
+                  />
+                </label>
+              </div>
+
+              <aside className="ua2-side">
+                {(() => {
+                  const sideName = editingUser
+                    ? editingUser.full_name
+                    : `${form.first_name} ${form.last_name}`.trim() || "New account";
+                  const roleCount = editingUser ? editRoleIds.size : createRoleIds.size;
+                  return (
+                    <>
+                      <span className="ua2-avatar">{initialsOf(sideName === "New account" ? "" : sideName)}</span>
+                      <b>{sideName}</b>
+                      <small>{editingUser ? editingUser.designation || "No designation" : "New login"}</small>
+                      <div className="ua2-kv">
+                        <div><span>Roles</span><span>{roleCount}</span></div>
+                        <div><span>Check in</span><span>{fmtClock(form.work_login_time) || "Not set"}</span></div>
+                        <div><span>Check out</span><span>{fmtClock(form.work_logout_time) || "Not set"}</span></div>
+                        {editingUser && (
+                          <div><span>Last login</span><span>{formatLastLogin(editingUser.last_login)}</span></div>
+                        )}
+                        <div><span>Status</span><span>{form.is_active ? "Active" : "Inactive"}</span></div>
+                      </div>
+                    </>
+                  );
+                })()}
+              </aside>
             </div>
-            <p className="ua-perm-hint">{PASSWORD_HINT}</p>
 
-            <div className="ua-sec"><ShieldCheck size={13} /> Roles</div>
-            <div className="ua-role-checks">
-              {roles.map((role) => {
-                const checked = editingUser
-                  ? editRoleIds.has(role.role_id)
-                  : createRoleIds.has(role.role_id);
-                const busy = editingUser && roleToggleBusyId === role.role_id;
-                return (
-                  <label className="ua-role-check" key={role.role_id}>
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      disabled={busy}
-                      onChange={() =>
-                        editingUser ? toggleEditRole(role.role_id) : toggleCreateRole(role.role_id)
-                      }
-                    />
-                    {role.role_name}
-                    {busy && " …"}
-                  </label>
-                );
-              })}
-            </div>
-            <p className="ua-perm-hint">
-              A user can hold more than one role{editingUser ? " — changes apply immediately." : "."}
-            </p>
+            {formError && <p className="ua-error ua2-error">{formError}</p>}
 
-            <label className="ua-toggle-row">
-              <span>
-                <b>Active</b>
-                <small>Can sign in right away</small>
-              </span>
-              <input
-                type="checkbox"
-                className="ua-switch"
-                checked={form.is_active}
-                onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
-              />
-            </label>
-
-            {formError && <p className="ua-error">{formError}</p>}
-
-            <div className="ua-modal-actions">
+            <div className="ua-modal-actions ua2-foot">
               <button type="button" className="ua-btn-sm" onClick={closeModal}>
                 Cancel
               </button>

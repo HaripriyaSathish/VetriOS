@@ -207,9 +207,9 @@ function AppLayout() {
               )}
             </div>
 
-            <button className="app-logout" onClick={() => setLogoutOpen(true)} aria-label="Log out">
+            <button className="app-logout" onClick={() => setLogoutOpen(true)} aria-label="Sign out">
               <LogOut size={15} />
-              <span className="app-logout-text">Log out</span>
+              <span className="app-logout-text">Sign out</span>
             </button>
           </div>
         </header>
@@ -218,11 +218,11 @@ function AppLayout() {
           <div className="app-confirm-backdrop" onClick={() => setLogoutOpen(false)}>
             <div className="app-confirm" role="dialog" aria-modal="true" aria-labelledby="app-logout-title" onClick={(e) => e.stopPropagation()}>
               <span className="app-confirm-icon"><LogOut size={20} /></span>
-              <h2 id="app-logout-title">Log out of VetriOS?</h2>
+              <h2 id="app-logout-title">Sign out of VetriOS?</h2>
               <p>You'll need to sign in again to continue.</p>
               <div className="app-confirm-actions">
                 <button type="button" className="app-confirm-cancel" autoFocus onClick={() => setLogoutOpen(false)}>Stay signed in</button>
-                <button type="button" className="app-confirm-ok" onClick={handleLogout}>Log out</button>
+                <button type="button" className="app-confirm-ok" onClick={handleLogout}>Sign out</button>
               </div>
             </div>
           </div>

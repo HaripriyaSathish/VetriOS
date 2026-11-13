@@ -27,7 +27,6 @@ import {
   UserCheck,
   TrendingUp,
   Link2,
-  LogOut,
   FolderKanban,
   PieChart,
   Library,
@@ -636,16 +635,6 @@ function Sidebar({ open = false, onClose }) {
                   <Link2 size={14} />
                 </span>
                 Payroll References
-              </NavLink>
-
-              <NavLink
-                to="/hr/exit-management"
-                className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
-              >
-                <span className="nav-icon">
-                  <LogOut size={14} />
-                </span>
-                Exit Management
               </NavLink>
 
               <NavLink

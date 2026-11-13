@@ -4,7 +4,7 @@ from django.utils import timezone
 from rest_framework import serializers
 
 from module_02_hr.models import DepartmentLead, Employee, PersonDepartmentHistory
-from module_02_hr.work_schedule import get_schedule
+from module_02_hr.work_schedule import all_schedules
 from module_06_documents.models import Document
 
 from .models import (
@@ -234,11 +234,18 @@ class UserAccountListSerializer(serializers.ModelSerializer):
             "designation", "work_login_time", "work_logout_time",
         ]
 
+    # One query per request, not one per row: the list serializer reuses
+    # this child instance for every account, so load the table once.
+    def _schedule(self, obj):
+        if not hasattr(self, "_schedules_cache"):
+            self._schedules_cache = all_schedules()
+        return self._schedules_cache.get(obj.person_id, {})
+
     def get_work_login_time(self, obj):
-        return get_schedule(obj.person_id)["login_time"]
+        return self._schedule(obj).get("login_time")
 
     def get_work_logout_time(self, obj):
-        return get_schedule(obj.person_id)["logout_time"]
+        return self._schedule(obj).get("logout_time")
 
     def get_full_name(self, obj):
         return str(obj.person)

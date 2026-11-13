@@ -23,6 +23,3 @@ dist/
 # OS/editor junk
 .vscode/
 .DS_Store
-
-# Assigned employee work timings (settings file, not in the DB)
-backend/work_schedules.json

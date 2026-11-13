@@ -14,6 +14,15 @@ from module_08_audit.models import AuditLog
 from .models import Batch, Enrollment
 
 DASHBOARD_ROLES = {"Business Team", "System Administrator"}
+# Internship completion / extension / employee-conversion approvals and
+# reporting-manager assignment are HR's job. They are left out of
+# Business Team's screens entirely; HR/System Admin get them here.
+HR_ACTION_ROLES = {"HR Administrator", "System Administrator"}
+
+
+def _hr_permissions(user):
+    is_hr = bool(user.active_role_names() & HR_ACTION_ROLES)
+    return {"can_approve_conversion": is_hr, "can_assign_manager": is_hr}
 CLOSED_INTERN_STATUSES = {"COMPLETED", "CONVERTED", "TERMINATED", "INACTIVE"}
 
 
@@ -38,6 +47,11 @@ class BusinessDashboardView(APIView):
     def get(self, request):
         if not (request.user.active_role_names() & DASHBOARD_ROLES):
             return Response({"detail": "Not authorized."}, status=403)
+
+        # Fee reminders: email students whose installment is due within
+        # 3 days (each once) whenever Business Team opens this screen.
+        from local_extensions.fee_reminders import send_due_fee_reminders
+        send_due_fee_reminders()
 
         today = date.today()
         month_start = today.replace(day=1)
@@ -103,7 +117,7 @@ class BusinessDashboardView(APIView):
             Enrollment.objects.filter(batch=b, status="ACTIVE").count() for b in upcoming if b.capacity
         )
 
-        # ---- Approvals (same pending definitions as the approval pages) ----
+        # ---- Approvals: internship recommendations only (Business Team's) ----
         approvals = []
         for r in InternshipRecommendation.objects.filter(status="PENDING_APPROVAL").select_related("student__person"):
             approvals.append({
@@ -112,20 +126,8 @@ class BusinessDashboardView(APIView):
                 "detail": r.recommendation_note or "Recommended for internship",
                 "created_at": r.created_at,
             })
-        for c in InternshipCompletion.objects.filter(approved_by_user__isnull=True).select_related("intern__student__person"):
-            approvals.append({
-                "kind": "completion", "id": c.completion_id,
-                "name": _person_name(c.intern.student.person),
-                "detail": (c.outcome or "").replace("_", " ").title(),
-                "created_at": c.created_at,
-            })
-        for x in InternshipExtension.objects.filter(status="PENDING").select_related("intern__student__person"):
-            approvals.append({
-                "kind": "extension", "id": x.extension_id,
-                "name": _person_name(x.intern.student.person),
-                "detail": f"{x.original_end_date} → {x.new_end_date}",
-                "created_at": x.created_at,
-            })
+        # Completions / extensions / conversions are approved by HR — not
+        # shown on the Business Team dashboard.
         approvals.sort(key=lambda a: str(a["created_at"] or ""), reverse=True)
 
         # ---- Fees ----
@@ -152,7 +154,8 @@ class BusinessDashboardView(APIView):
                 "reminder_sent": i.reminder_sent,
             })
 
-        # ---- Interns without a current reporting manager ----
+        # ---- Interns without a current reporting manager (HR/Admin only) ----
+        perms = _hr_permissions(request.user)
         managed_ids = set(
             InternReportingManagerHistory.objects.filter(is_current=True).values_list("intern_id", flat=True)
         )
@@ -164,7 +167,7 @@ class BusinessDashboardView(APIView):
             }
             for it in Intern.objects.select_related("student__person").order_by("-created_at")
             if it.intern_id not in managed_ids and (it.status or "").upper() not in CLOSED_INTERN_STATUSES
-        ]
+        ] if perms["can_assign_manager"] else []
 
         # ---- Audit ----
         audit = [
@@ -210,6 +213,7 @@ class BusinessDashboardView(APIView):
             "capacity_total": capacity_total,
             "capacity_filled": capacity_filled,
             "audit": audit,
+            "permissions": perms,
         })
 
 
@@ -356,6 +360,11 @@ class BusinessFeesView(APIView):
     def get(self, request):
         if not (request.user.active_role_names() & DASHBOARD_ROLES):
             return Response({"detail": "Not authorized."}, status=403)
+
+        # Fee reminders: email students whose installment is due within
+        # 3 days (each once) whenever Business Team opens this screen.
+        from local_extensions.fee_reminders import send_due_fee_reminders
+        send_due_fee_reminders()
 
         today = date.today()
         period = request.query_params.get("period", "month")
@@ -606,17 +615,28 @@ class BusinessInternshipApprovalsView(APIView):
             for r in reviewed if r.created_at and r.reviewed_at
         ]
 
-        decisions = [
-            {
+        # Full decision history (approved + rejected), newest first — feeds
+        # the History tab. Intern code shows which approvals became interns.
+        intern_codes = dict(Intern.objects.values_list("student_id", "intern_code"))
+        decisions = []
+        for r in reviewed.order_by("-reviewed_at"):
+            snap = _student_snapshot(r.student)
+            decisions.append({
                 "recommendation_id": r.recommendation_id,
+                "person_id": r.student.person.person_id,
                 "student_name": _person_name(r.student.person),
+                "student_code": r.student.student_code,
+                "course_name": snap["course_name"],
+                "batch_name": snap["batch_name"],
                 "status": r.status,
+                "intern_code": intern_codes.get(r.student.student_id) if r.status == "APPROVED" else None,
+                "recommended_by": _user_name(r.recommended_by) if r.recommended_by else None,
+                "recommendation_note": r.recommendation_note,
+                "recommended_at": r.created_at,
                 "reviewed_by": _user_name(r.reviewed_by) if r.reviewed_by else None,
                 "review_note": r.review_note,
                 "reviewed_at": r.reviewed_at,
-            }
-            for r in reviewed.order_by("-reviewed_at")[:20]
-        ]
+            })
 
         return Response({
             "stats": {
@@ -635,12 +655,13 @@ class BusinessLifecycleApprovalsView(APIView):
     """GET: Completion & Extension Approvals — pending completions (no
     approver yet) and pending extensions, with intern code, batch, latest
     internship project and the lead's note, plus monthly counts.
-    Approving/rejecting stays on module_04_interns endpoints."""
+    HR / System Admin only — approving/rejecting stays on the
+    module_04_interns endpoints, which are HR-only too."""
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        if not (request.user.active_role_names() & DASHBOARD_ROLES):
-            return Response({"detail": "Not authorized."}, status=403)
+        if not (request.user.active_role_names() & HR_ACTION_ROLES):
+            return Response({"detail": "Internship completions and extensions are handled by HR."}, status=403)
 
         from module_04_interns.models import InternshipProject
 
@@ -702,12 +723,14 @@ class BusinessManagerAssignmentView(APIView):
     """GET: Assign Reporting Manager — every active intern with batch,
     latest project and current manager (from intern_reporting_manager_history),
     plus each manager's current intern load. Assigning stays on
-    /api/interns/<id>/assign-manager/."""
+    /api/interns/<id>/assign-manager/ (HR only)."""
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        if not (request.user.active_role_names() & DASHBOARD_ROLES):
-            return Response({"detail": "Not authorized."}, status=403)
+        # HR / System Admin only — feeds HR's reporting-manager screen.
+        # Business Team no longer sees reporting-manager assignment.
+        if not (request.user.active_role_names() & HR_ACTION_ROLES):
+            return Response({"detail": "Only HR can view reporting-manager assignments."}, status=403)
 
         from module_04_interns.models import InternshipProject
 
@@ -757,4 +780,5 @@ class BusinessManagerAssignmentView(APIView):
             },
             "interns": interns,
             "managers": [{**m, "count": len(m["interns"])} for m in managers],
+            "permissions": _hr_permissions(request.user),
         })

@@ -12,7 +12,8 @@ const initialsOf = (name) =>
 const fmtDate = (d) =>
   d ? new Date(`${String(d).slice(0, 10)}T00:00:00`).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 
-function AssignReportingManager() {
+// embedded: rendered as a tab inside HR's Intern Management page.
+function AssignReportingManager({ embedded = false }) {
   const [data, setData] = useState(null);
   const [users, setUsers] = useState([]);
   const [error, setError] = useState("");
@@ -28,10 +29,15 @@ function AssignReportingManager() {
       .then(({ data }) => setData(data))
       .catch((err) => setError(err.response?.data?.detail || "Couldn't load interns."));
 
+  useEffect(() => { load(); }, []);
+
+  // Assigning is HR's job — Business Team sees this page read-only.
+  // The backend says who may assign; only then is the user list needed.
+  const canAssign = !!data?.permissions?.can_assign_manager;
   useEffect(() => {
-    load();
+    if (!canAssign) return;
     client.get("/api/projects/users-lookup/").then(({ data }) => setUsers(data || [])).catch(() => {});
-  }, []);
+  }, [canAssign]);
 
   const assign = async (internId) => {
     const managerId = selection[internId];
@@ -73,12 +79,16 @@ function AssignReportingManager() {
   const maxLoad = Math.max(1, ...data.managers.map((m) => m.count));
 
   return (
-    <div className="bp-page">
-      <div className="bp-head">
+    <div className={embedded ? "bp-embed" : "bp-page"}>
+      <div className="bp-head" style={embedded ? { display: "none" } : undefined}>
         <div>
           <p className="bp-crumb">Workforce Allocation › <span>Manager Mapping</span></p>
           <h1 className="bp-title">Assign Reporting Manager</h1>
-          <p className="bp-sub">Pair interns with the employee they report to. This drives who can submit their testing reports and performance reviews.</p>
+          <p className="bp-sub">
+            {canAssign
+              ? "Pair interns with the employee they report to. This drives who can submit their testing reports and performance reviews."
+              : "Who each intern reports to. Reporting managers are assigned by HR — this view is read-only."}
+          </p>
         </div>
       </div>
 
@@ -96,7 +106,7 @@ function AssignReportingManager() {
         <div className="bp-stat" style={{ "--i": 1 }}>
           <div className="bp-stat-top">
             <p className="bp-stat-label"><span className="bp-stat-icon am-inline"><UsersRound size={15} /></span> Active Reporting Managers</p>
-            <span className="bp-chip blue">{users.length} available</span>
+            {canAssign && <span className="bp-chip blue">{users.length} available</span>}
           </div>
           <p className="bp-stat-value">{st.active_managers} <small className="am-small">managing {st.interns - st.unassigned} intern{st.interns - st.unassigned === 1 ? "" : "s"}</small></p>
         </div>
@@ -137,14 +147,14 @@ function AssignReportingManager() {
                 <th>Domain</th>
                 <th>Cohort / Batch</th>
                 <th>Allocated Project</th>
-                <th>Assign Manager</th>
+                <th>{canAssign ? "Assign Manager" : "Reporting Manager"}</th>
                 <th>Status / SLA</th>
-                <th></th>
+                {canAssign && <th></th>}
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr className="bp-empty-row"><td colSpan={7}>{data.interns.length === 0 ? "No active interns found." : "No interns match."}</td></tr>
+                <tr className="bp-empty-row"><td colSpan={canAssign ? 7 : 6}>{data.interns.length === 0 ? "No active interns found." : "No interns match."}</td></tr>
               ) : filtered.map((i, idx) => {
                 const waiting = !i.manager_user_id && i.days_since_start != null;
                 const late = waiting && i.days_since_start > 2;
@@ -167,6 +177,7 @@ function AssignReportingManager() {
                         : <span className="bp-muted">Not allocated</span>}
                     </td>
                     <td>
+                      {canAssign ? (
                       <label className="bp-select am-select">
                         <select
                           value={selection[i.intern_id] ?? ""}
@@ -178,6 +189,11 @@ function AssignReportingManager() {
                         </select>
                         <ChevronDown size={14} />
                       </label>
+                      ) : i.manager_name ? (
+                        <span className="bp-strong">{i.manager_name}</span>
+                      ) : (
+                        <span className="bp-muted">Awaiting HR</span>
+                      )}
                     </td>
                     <td>
                       {i.manager_user_id ? (
@@ -188,11 +204,13 @@ function AssignReportingManager() {
                         </span>
                       ) : <span className="bp-chip gray">Unassigned</span>}
                     </td>
-                    <td>
-                      <button type="button" className="bp-btn navy small" disabled={saving === i.intern_id || !selection[i.intern_id]} onClick={() => assign(i.intern_id)}>
-                        {saving === i.intern_id ? "Saving…" : i.manager_user_id ? "Reassign" : "Confirm Assignment"}
-                      </button>
-                    </td>
+                    {canAssign && (
+                      <td>
+                        <button type="button" className="bp-btn navy small" disabled={saving === i.intern_id || !selection[i.intern_id]} onClick={() => assign(i.intern_id)}>
+                          {saving === i.intern_id ? "Saving…" : i.manager_user_id ? "Reassign" : "Confirm Assignment"}
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 );
               })}
@@ -201,7 +219,7 @@ function AssignReportingManager() {
         </div>
 
         <div className="bp-pager">
-          <span className="am-note"><Info size={13} /> Changing a manager closes the old assignment and starts a new one from today.</span>
+          <span className="am-note"><Info size={13} /> {canAssign ? "Changing a manager closes the old assignment and starts a new one from today." : "Reporting managers are assigned by HR. Contact HR to change one."}</span>
           <span>Showing <b>{filtered.length}</b> of <b>{data.interns.length}</b> interns</span>
         </div>
       </div>

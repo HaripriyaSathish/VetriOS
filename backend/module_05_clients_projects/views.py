@@ -11,7 +11,7 @@ from .models import (
     Project, ProjectStatus, ProjectTeamMember, ProjectTeamHierarchy,
     ProjectRequirement, ProjectMilestone, ProjectRepository, ProjectTechnology,
     ProjectDeployment, Task, ProjectTask, TaskAssignee, ChangeRequest,
-    DocumentProject, DocumentApproval, TaskSubmission,
+    DocumentProject, DocumentApproval, TaskSubmission, ProjectMessage,
 )
 from .serializers import (
     ClientSerializer, ClientLiteSerializer, ClientContactSerializer,
@@ -1137,68 +1137,120 @@ class ConvertClientRequestToRequirementView(APIView):
         return Response(ProjectRequirementSerializer(requirement).data, status=201)
 
 from django.db.models import Q
-from local_extensions.models import Message
+def _chat_members(project):
+    """Everyone in the project's group chat: active team members + PM."""
+    members = {}
+    rows = ProjectTeamMember.objects.filter(
+        project=project, is_active=True
+    ).select_related("user__person")
+    for m in rows:
+        members[m.user_id] = {
+            "user_id": m.user_id,
+            "name": person_name(m.user) or m.user.username,
+            "role": m.project_role,
+        }
+    pm = project.project_manager_user
+    if pm and pm.user_id not in members:
+        members[pm.user_id] = {
+            "user_id": pm.user_id,
+            "name": person_name(pm) or pm.username,
+            "role": "Project Manager",
+        }
+    elif pm:
+        members[pm.user_id]["role"] = "Project Manager"
+    return list(members.values())
 
 
-def _my_lead_on_project(user, project_id):
-    """This user's reports-to lead on a specific project, or None if
-    they're not on the project or have no lead set."""
-    my_membership = ProjectTeamMember.objects.filter(
-        project_id=project_id, user=user, is_active=True
-    ).first()
-    if not my_membership:
-        return None
-
-    hierarchy = ProjectTeamHierarchy.objects.filter(
-        team_member=my_membership
-    ).select_related("reports_to_team_member__user").first()
-
-    if not hierarchy or not hierarchy.reports_to_team_member:
-        return None
-
-    return hierarchy.reports_to_team_member.user
+def _can_chat(user, project):
+    """Group chat is strictly for the people on the project — active
+    team members and the PM. Admins who aren't on the team don't see it."""
+    return is_pm_of(user, project) or bool(user_membership(user, project.project_id))
 
 
-class AskProjectLeadThreadView(APIView):
-    """GET: my message thread with my lead on this project.
-    POST: send a message to them. Mirrors the intern module's
-    AskProjectLeadThreadView, but resolves the lead via
-    ProjectTeamHierarchy instead of InternReportingManagerHistory."""
+def _serialize_message(m):
+    return {
+        "message_id": m.project_message_id,
+        "sender": m.sender_id,
+        "sender_name": (person_name(m.sender) or m.sender.username) if m.sender else "Former member",
+        "content": m.content,
+        "created_at": m.created_at,
+    }
+
+
+class MyProjectChatsView(APIView):
+    """One group chat per project the user is on (member or PM), newest
+    activity first."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        project_ids = set(
+            ProjectTeamMember.objects.filter(user=request.user, is_active=True)
+            .values_list("project_id", flat=True)
+        )
+        project_ids |= set(
+            Project.objects.filter(project_manager_user=request.user).values_list("project_id", flat=True)
+        )
+        projects = Project.objects.filter(project_id__in=project_ids).select_related("project_manager_user")
+
+        member_counts = {}
+        for pid in ProjectTeamMember.objects.filter(project_id__in=project_ids, is_active=True).values_list("project_id", flat=True):
+            member_counts[pid] = member_counts.get(pid, 0) + 1
+
+        data = []
+        for p in projects:
+            last = ProjectMessage.objects.filter(project=p).select_related("sender__person").order_by("-created_at").first()
+            count = member_counts.get(p.project_id, 0)
+            if p.project_manager_user_id and not ProjectTeamMember.objects.filter(
+                project=p, user_id=p.project_manager_user_id, is_active=True
+            ).exists():
+                count += 1
+            data.append({
+                "project_id": p.project_id,
+                "project_name": p.project_name,
+                "project_code": p.project_code,
+                "member_count": count,
+                "last_message": last.content[:80] if last else None,
+                "last_sender_name": (person_name(last.sender) or last.sender.username) if last and last.sender else None,
+                "last_message_at": last.created_at if last else None,
+            })
+        data.sort(key=lambda d: (d["last_message_at"] is not None, d["last_message_at"] or timezone.now()), reverse=True)
+        return Response(data)
+
+
+class ProjectGroupChatView(APIView):
+    """GET: the project's group thread + member list (?after=<message_id>
+    returns only newer messages). POST: send a message to the whole team."""
     permission_classes = [IsAuthenticated]
 
     def get(self, request, project_id):
-        lead = _my_lead_on_project(request.user, project_id)
-        if not lead:
-            return Response({"detail": "No reporting lead assigned on this project."}, status=404)
+        project = get_object_or_404(Project.objects.select_related("project_manager_user__person"), pk=project_id)
+        if not _can_chat(request.user, project):
+            return Response({"detail": "Only members of this project can view its team chat."}, status=403)
 
-        me = request.user.user_id
-        messages = Message.objects.filter(
-            Q(sender_id=me, recipient=lead) | Q(sender=lead, recipient_id=me),
-            batch__isnull=True,
-        ).select_related("sender").order_by("created_at")
+        qs = ProjectMessage.objects.filter(project=project).select_related("sender__person")
+        after = request.query_params.get("after")
+        if after and after.isdigit():
+            qs = qs.filter(project_message_id__gt=int(after))
 
-        return Response([
-            {
-                "message_id": m.message_id, "sender": m.sender_id,
-                "sender_username": m.sender.username, "content": m.content,
-                "created_at": m.created_at,
-            }
-            for m in messages
-        ])
+        return Response({
+            "project_id": project.project_id,
+            "project_name": project.project_name,
+            "project_code": project.project_code,
+            "members": _chat_members(project),
+            "messages": [_serialize_message(m) for m in qs.order_by("created_at")],
+        })
 
     def post(self, request, project_id):
-        lead = _my_lead_on_project(request.user, project_id)
-        if not lead:
-            return Response({"detail": "No reporting lead assigned on this project."}, status=404)
+        project = get_object_or_404(Project, pk=project_id)
+        if not _can_chat(request.user, project):
+            return Response({"detail": "Only members of this project can post in its team chat."}, status=403)
 
-        content = request.data.get("content", "").strip()
+        content = (request.data.get("content") or "").strip()
         if not content:
             return Response({"detail": "content is required."}, status=400)
 
-        msg = Message.objects.create(
-            batch=None, sender=request.user, recipient=lead, content=content,
-        )
-        return Response({"message_id": msg.message_id, "created_at": msg.created_at}, status=201)    
+        msg = ProjectMessage.objects.create(project=project, sender=request.user, content=content)
+        return Response(_serialize_message(msg), status=201)
 
 
 class MyProjectTestingReportsView(APIView):

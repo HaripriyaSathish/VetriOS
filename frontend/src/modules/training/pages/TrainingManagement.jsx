@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   BookOpen, GraduationCap, Pencil, Plus, Search, UserRound, Users, ClipboardList, ChevronDown,
 } from "lucide-react";
@@ -15,7 +15,8 @@ const STATUS_CHIP = { ACTIVE: "green", PLANNED: "blue", UPCOMING: "blue", COMPLE
 function TrainingManagement() {
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState("batches");
+  const [params] = useSearchParams();
+  const [tab, setTab] = useState(params.get("tab") === "trainers" ? "trainers" : "batches");
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
 
@@ -189,7 +190,7 @@ function TrainingManagement() {
                       <div className="bp-person">
                         <span className={`bp-avatar t${(i % 3) + 1}`}>{initials(t.trainer_name)}</span>
                         <div>
-                          <p className="bp-person-name">{t.trainer_name}</p>
+                          <Link to={`/training/management/trainers/${t.trainer_id}`} className="bp-person-name tm-link" title="View this trainer's batches and progress">{t.trainer_name}</Link>
                           <p className="bp-person-sub">{t.email || "—"}</p>
                         </div>
                       </div>

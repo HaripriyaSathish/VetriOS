@@ -9,6 +9,9 @@ from local_extensions.models import Message, StudentTask, TopicLog
 from .models import Batch, Enrollment, StudentAttendance, TrainerProfile
 
 CLOSED_BATCH_STATUSES = {"COMPLETED", "CANCELLED", "CLOSED", "INACTIVE"}
+# Who may open another trainer's overview (?trainer_id=) — read-only,
+# for the trainer-wise view under Training Management.
+TRAINER_VIEWER_ROLES = {"Business Team", "System Administrator"}
 
 
 def _person_name(person):
@@ -30,13 +33,26 @@ class TrainerOverviewView(APIView):
     """GET /api/training/trainer/overview/ — everything on the Trainer
     Overview dashboard for the signed-in trainer, read from existing
     tables (batches, enrollments, student attendance, topic log, student
-    tasks, messages). No writes, no new tables."""
+    tasks, messages). No writes, no new tables.
+
+    ?trainer_id=<id>: Business Team / System Administrator view any
+    trainer's overview (trainer-wise Training Management). Private
+    trainer<->student messages are not included in that case."""
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        trainer = TrainerProfile.objects.filter(user=request.user).first()
-        if not trainer:
-            return Response({"detail": "No trainer profile found for this account."}, status=404)
+        trainer_id = request.query_params.get("trainer_id")
+        if trainer_id:
+            if not (request.user.active_role_names() & TRAINER_VIEWER_ROLES):
+                return Response({"detail": "Only Business Team can view other trainers."}, status=403)
+            trainer = TrainerProfile.objects.select_related("user__person").filter(trainer_id=trainer_id).first()
+            if not trainer:
+                return Response({"detail": "Trainer not found."}, status=404)
+        else:
+            trainer = TrainerProfile.objects.filter(user=request.user).first()
+            if not trainer:
+                return Response({"detail": "No trainer profile found for this account."}, status=404)
+        viewing_other = trainer.user_id != request.user.user_id
 
         today = timezone.localdate()
         batches = list(Batch.objects.filter(trainer=trainer).select_related("course").order_by("start_date"))
@@ -107,8 +123,8 @@ class TrainerOverviewView(APIView):
             })
 
         messages = (
-            Message.objects.filter(recipient=request.user)
-            .exclude(sender=request.user)
+            Message.objects.filter(recipient=trainer.user)
+            .exclude(sender=trainer.user)
             .select_related("sender__person", "batch")
             .order_by("-created_at")
         )
@@ -124,11 +140,14 @@ class TrainerOverviewView(APIView):
                 "created_at": m.created_at,
             }
             for m in messages[:4]
-        ]
+        ] if not viewing_other else []
 
         return Response({
-            "full_name": _person_name(request.user.person),
+            "trainer_id": trainer.trainer_id,
+            "full_name": _person_name(trainer.user.person),
+            "email": trainer.user.person.email if trainer.user.person else None,
             "specialization": trainer.specialization,
+            "viewing_other": viewing_other,
             "today": today,
             "stats": {
                 "active_batches": len(active),

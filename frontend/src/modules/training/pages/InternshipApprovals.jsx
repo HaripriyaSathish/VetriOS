@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  RotateCcwClock, Search, ChevronDown, Download, CircleCheck, Clock3, TrendingUp, X, Check, FunnelX, MessageSquareText,
+  RotateCcwClock, Search, ChevronDown, Download, CircleCheck, Clock3, TrendingUp, X, FunnelX, MessageSquareText,
 } from "lucide-react";
 import client from "../../../api/client";
 import "../styles/BusinessPages.css";
@@ -40,16 +40,34 @@ function downloadCsv(rows) {
   URL.revokeObjectURL(url);
 }
 
+const fmtDate = (d) =>
+  d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+
+function downloadHistoryCsv(rows) {
+  const head = ["Student", "Code", "Course", "Batch", "Decision", "Intern code", "Recommended by", "Recommended on", "Decided by", "Decided on", "Trainer note", "Review note"];
+  const lines = rows.map((d) => [
+    d.student_name, d.student_code, d.course_name, d.batch_name, d.status, d.intern_code, d.recommended_by,
+    d.recommended_at, d.reviewed_by, d.reviewed_at, d.recommendation_note, d.review_note,
+  ].map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`).join(","));
+  const url = URL.createObjectURL(new Blob([[head.join(","), ...lines].join("\n")], { type: "text/csv" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `internship_decisions_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 function InternshipApprovals() {
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [processing, setProcessing] = useState(null);
   const [startDates, setStartDates] = useState({});
-  const [managerIds, setManagerIds] = useState({});
-  const [users, setUsers] = useState([]);
   const [openId, setOpenId] = useState(null);
-  const [showLog, setShowLog] = useState(false);
+  // "pending" = requests waiting for a decision; "history" = every
+  // approved / rejected recommendation (newest first).
+  const [view, setView] = useState("pending");
+  const [decision, setDecision] = useState("");
   const [search, setSearch] = useState("");
   const [track, setTrack] = useState("");
   const [tier, setTier] = useState("");
@@ -60,27 +78,18 @@ function InternshipApprovals() {
       .then(({ data }) => setData(data))
       .catch((err) => setError(err.response?.data?.detail || "Couldn't load pending recommendations."));
 
-  useEffect(() => {
-    load();
-    client.get("/api/projects/users-lookup/").then(({ data }) => setUsers(data)).catch(() => {});
-  }, []);
+  useEffect(() => { load(); }, []);
 
+  // The reporting manager is assigned by HR after approval (HR is notified).
   const approve = async (recommendationId) => {
-    const managerId = managerIds[recommendationId];
-    if (!managerId) {
-      setError("Please select a reporting manager before approving.");
-      setOpenId(recommendationId);
-      return;
-    }
     setProcessing(recommendationId);
     setError("");
     try {
       const startDate = startDates[recommendationId] || new Date().toISOString().slice(0, 10);
       const { data: res } = await client.post(`/api/interns/${recommendationId}/approve/`, {
         internship_start_date: startDate,
-        manager_user_id: managerId,
       });
-      setMessage(`Approved — intern code ${res.intern_code} created.`);
+      setMessage(`Approved — intern code ${res.intern_code} created. HR has been asked to assign a reporting manager.`);
       setOpenId(null);
       await load();
     } catch (err) {
@@ -117,14 +126,36 @@ function InternshipApprovals() {
     });
   }, [data, search, track, tier]);
 
+  const history = useMemo(() => {
+    if (!data) return [];
+    const q = search.trim().toLowerCase();
+    return data.decisions.filter((d) => {
+      if (track && d.course_name !== track) return false;
+      if (decision && d.status !== decision) return false;
+      if (!q) return true;
+      return [d.student_name, d.student_code, d.batch_name, d.intern_code, d.recommended_by, d.reviewed_by]
+        .some((v) => (v || "").toLowerCase().includes(q));
+    });
+  }, [data, search, track, decision]);
+
+  const switchView = (next) => {
+    setView(next);
+    setPage(1);
+    setOpenId(null);
+  };
+
   if (!data && !error) return <p className="bp-loading">Loading approvals…</p>;
   if (!data) return <p className="bp-error">{error}</p>;
 
   const st = data.stats;
-  const tracks = [...new Set(data.pending.map((r) => r.course_name).filter(Boolean))];
-  const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const isHistory = view === "history";
+  const tracks = [...new Set([...data.pending, ...data.decisions].map((r) => r.course_name).filter(Boolean))];
+  const rows = isHistory ? history : filtered;
+  const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const current = Math.min(page, pages);
   const shown = filtered.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
+  const shownHistory = history.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
+  const approvedTotal = data.decisions.filter((d) => d.status === "APPROVED").length;
 
   return (
     <div className="bp-page">
@@ -135,7 +166,7 @@ function InternshipApprovals() {
           <p className="bp-sub">Review and authorize students eligible to transition into live industry internships. Verify benchmark assessments and mock ratings before deployment.</p>
         </div>
         <div className="bp-actions">
-          <button type="button" className={`bp-btn ${showLog ? "navy" : "outline"}`} onClick={() => setShowLog((v) => !v)}>
+          <button type="button" className={`bp-btn ${isHistory ? "navy" : "outline"}`} onClick={() => switchView(isHistory ? "pending" : "history")}>
             <RotateCcwClock size={15} /> Decision Log
           </button>
         </div>
@@ -180,36 +211,16 @@ function InternshipApprovals() {
         </div>
       </div>
 
-      {showLog && (
-        <div className="bp-panel">
-          <div className="ap-panel-head">
-            <h3>Decision Log</h3>
-            <span className="bp-chip gray">Last {data.decisions.length}</span>
-          </div>
-          {data.decisions.length === 0 ? <p className="ap-empty">No decisions recorded yet.</p> : (
-            <div className="ap-log">
-              {data.decisions.map((d, i) => (
-                <div key={d.recommendation_id} className="ap-log-row" style={{ "--row": i }}>
-                  <span className={`ap-log-dot ${d.status === "APPROVED" ? "green" : "red"}`}>
-                    {d.status === "APPROVED" ? <Check size={12} strokeWidth={3} /> : <X size={12} strokeWidth={3} />}
-                  </span>
-                  <div className="ap-log-text">
-                    <p className="bp-person-name">{d.student_name}</p>
-                    <p className="bp-person-sub">
-                      {d.status === "APPROVED" ? "Approved" : "Rejected"} by {d.reviewed_by || "—"}
-                      {d.review_note ? ` · “${d.review_note}”` : ""}
-                    </p>
-                  </div>
-                  <span className="bp-muted ap-when">{new Date(d.reviewed_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
       <div className="bp-panel">
         <div className="bp-filters">
+          <div className="bp-tabs" role="tablist" aria-label="Internship approvals view">
+            <button type="button" role="tab" aria-selected={!isHistory} className={`bp-tab ${!isHistory ? "active" : ""}`} onClick={() => switchView("pending")}>
+              Pending <small>({data.pending.length})</small>
+            </button>
+            <button type="button" role="tab" aria-selected={isHistory} className={`bp-tab ${isHistory ? "active" : ""}`} onClick={() => switchView("history")}>
+              History <small>({data.decisions.length})</small>
+            </button>
+          </div>
           <label className="bp-search">
             <Search size={15} />
             <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Search by student name, ID or batch..." aria-label="Search students" />
@@ -221,6 +232,16 @@ function InternshipApprovals() {
             </select>
             <ChevronDown size={14} />
           </label>
+          {isHistory ? (
+          <label className="bp-select">
+            <select value={decision} onChange={(e) => { setDecision(e.target.value); setPage(1); }} aria-label="Decision">
+              <option value="">Decision: All</option>
+              <option value="APPROVED">Approved</option>
+              <option value="REJECTED">Rejected</option>
+            </select>
+            <ChevronDown size={14} />
+          </label>
+          ) : (
           <label className="bp-select">
             <select value={tier} onChange={(e) => { setTier(e.target.value); setPage(1); }} aria-label="Score">
               <option value="">Score: All</option>
@@ -231,15 +252,74 @@ function InternshipApprovals() {
             </select>
             <ChevronDown size={14} />
           </label>
+          )}
           <button type="button" className="bp-btn outline small" title="Clear filters" aria-label="Clear filters"
-            onClick={() => { setSearch(""); setTrack(""); setTier(""); setPage(1); }}>
+            onClick={() => { setSearch(""); setTrack(""); setTier(""); setDecision(""); setPage(1); }}>
             <FunnelX size={15} />
           </button>
-          <button type="button" className="bp-btn outline small" onClick={() => downloadCsv(filtered)} disabled={filtered.length === 0}>
+          <button type="button" className="bp-btn outline small" onClick={() => (isHistory ? downloadHistoryCsv(history) : downloadCsv(filtered))} disabled={rows.length === 0}>
             <Download size={14} /> Export CSV
           </button>
         </div>
 
+        {isHistory ? (
+        <div className="bp-table-wrap">
+          <table className="bp-table">
+            <thead>
+              <tr>
+                <th>Student Details</th>
+                <th>Training Track &amp; Batch</th>
+                <th>Decision</th>
+                <th>Recommended By</th>
+                <th>Decided By</th>
+                <th>Note</th>
+              </tr>
+            </thead>
+            <tbody>
+              {shownHistory.length === 0 ? (
+                <tr className="bp-empty-row">
+                  <td colSpan={6}>{data.decisions.length === 0 ? "No decisions recorded yet — approved and rejected recommendations will appear here." : "No decisions match these filters."}</td>
+                </tr>
+              ) : shownHistory.map((d, i) => (
+                <tr key={d.recommendation_id} style={{ "--row": i }}>
+                  <td>
+                    <div className="bp-person">
+                      <span className={`bp-avatar t${i % 4}`}>{initialsOf(d.student_name)}</span>
+                      <div>
+                        <Link to={`/training/students/${d.person_id}`} className="bp-person-name ap-name">{d.student_name}</Link>
+                        <p className="bp-person-sub">#{d.student_code}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <p className="bp-strong" style={{ margin: 0 }}>{d.course_name || "—"}</p>
+                    <p className="bp-person-sub">{d.batch_name || ""}</p>
+                  </td>
+                  <td>
+                    <span className={`bp-chip ${d.status === "APPROVED" ? "green" : "red"}`}>
+                      {d.status === "APPROVED" ? <CircleCheck size={11} /> : <X size={11} />} {d.status === "APPROVED" ? "Approved" : "Rejected"}
+                    </span>
+                    {d.intern_code && <p className="bp-person-sub">Intern #{d.intern_code}</p>}
+                  </td>
+                  <td>
+                    <p className="bp-strong" style={{ margin: 0 }}>{d.recommended_by || "—"}</p>
+                    <p className="bp-person-sub">{fmtDate(d.recommended_at)}</p>
+                  </td>
+                  <td>
+                    <p className="bp-strong" style={{ margin: 0 }}>{d.reviewed_by || "—"}</p>
+                    <p className="bp-person-sub">{fmtDate(d.reviewed_at)}</p>
+                  </td>
+                  <td className="bp-muted">
+                    {d.review_note || d.recommendation_note
+                      ? <span title={d.recommendation_note ? `Trainer: ${d.recommendation_note}` : undefined}>{d.review_note || `Trainer: ${d.recommendation_note}`}</span>
+                      : "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        ) : (
         <div className="bp-table-wrap">
           <table className="bp-table">
             <thead>
@@ -299,7 +379,7 @@ function InternshipApprovals() {
                           Reject
                         </button>
                         <button type="button" className="bp-btn navy small" disabled={processing === r.recommendation_id}
-                          onClick={() => (open && managerIds[r.recommendation_id] ? approve(r.recommendation_id) : setOpenId(open ? null : r.recommendation_id))}>
+                          onClick={() => (open ? approve(r.recommendation_id) : setOpenId(r.recommendation_id))}>
                           <CircleCheck size={13} /> {processing === r.recommendation_id ? "Approving…" : open ? "Confirm" : "Approve"}
                         </button>
                       </div>
@@ -317,15 +397,8 @@ function InternshipApprovals() {
                             <input type="date" value={startDates[r.recommendation_id] || ""}
                               onChange={(e) => setStartDates((prev) => ({ ...prev, [r.recommendation_id]: e.target.value }))} />
                           </label>
-                          <label className="bp-field">
-                            <span>Reporting manager</span>
-                            <select value={managerIds[r.recommendation_id] || ""}
-                              onChange={(e) => setManagerIds((prev) => ({ ...prev, [r.recommendation_id]: e.target.value }))}>
-                              <option value="">Select manager…</option>
-                              {users.map((u) => <option key={u.user_id} value={u.user_id}>{u.name}</option>)}
-                            </select>
-                          </label>
-                          <button type="button" className="bp-btn navy" disabled={processing === r.recommendation_id || !managerIds[r.recommendation_id]}
+                          <p className="bp-person-sub" style={{ margin: 0 }}>HR assigns the reporting manager after approval.</p>
+                          <button type="button" className="bp-btn navy" disabled={processing === r.recommendation_id}
                             onClick={() => approve(r.recommendation_id)}>
                             <CircleCheck size={14} /> Approve internship
                           </button>
@@ -339,9 +412,14 @@ function InternshipApprovals() {
             </tbody>
           </table>
         </div>
+        )}
 
         <div className="bp-pager">
-          <span>Showing <b>{shown.length}</b> of <b>{filtered.length}</b> pending requests</span>
+          <span>
+            {isHistory
+              ? <>Showing <b>{shownHistory.length}</b> of <b>{history.length}</b> decisions · {approvedTotal} approved, {data.decisions.length - approvedTotal} rejected</>
+              : <>Showing <b>{shown.length}</b> of <b>{filtered.length}</b> pending requests</>}
+          </span>
           <div className="bp-pages">
             <button type="button" className="bp-page-btn" disabled={current === 1} onClick={() => setPage(current - 1)}>‹ Previous</button>
             {Array.from({ length: pages }, (_, idx) => idx + 1).map((p) => (

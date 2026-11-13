@@ -9,6 +9,7 @@ import UserPermissions from "./modules/identity-access/pages/UserPermissions";
 import RequestAccess from "./modules/identity-access/pages/RequestAccess";
 import TrainingRouter from "./modules/training/pages/TrainingRouter";
 import TrainingManagement from "./modules/training/pages/TrainingManagement";
+import TrainerWiseView from "./modules/training/pages/TrainerWiseView";
 import HRDashboard from "./modules/hr/pages/HRDashboard";
 import HROverview from "./modules/hr/pages/HROverview";
 import Attendance from "./modules/hr/pages/Attendance";
@@ -54,7 +55,6 @@ import StudentReports from "./modules/student/pages/Reports";
 import AllStudentsList from "./modules/training/pages/AllStudentsList";
 import StudentDetail from "./modules/training/pages/StudentDetail";
 import InternshipApprovals from "./modules/training/pages/InternshipApprovals";
-import CompletionExtensionApprovals from "./modules/training/pages/CompletionExtensionApprovals";
 import MyInternship from "./modules/interns/pages/MyInternship";
 import InternDashboard from "./modules/interns/pages/InternDashboard";
 import MyInternAttendance from "./modules/interns/pages/MyAttendance";
@@ -117,11 +117,11 @@ import RecommendInternshipAction from "./modules/clients-projects/pages/Recommen
 import Assistant from "./modules/ai-rag/pages/Assistant";
 import LeadTeamTasks from "./modules/clients-projects/pages/LeadTeamTasks";
 import LeadPerformanceReview from "./modules/interns/pages/LeadPerformanceReview";
-import AssignReportingManager from "./modules/interns/pages/AssignReportingManager";
+import HRInternManagement from "./modules/interns/pages/HRInternManagement";
 import Profile from "./pages/Profile";
 import Settings from "./pages/Settings";
-import AskProjectLead from "./modules/clients-projects/pages/AskProjectLead";
 import TeamMessages from "./modules/clients-projects/pages/TeamMessages";
+import TeamMessagesProjects from "./modules/clients-projects/pages/TeamMessagesProjects";
 import AuditLogs from "./modules/audit/pages/AuditLogs";
 import ProjectTestingReports from "./modules/clients-projects/pages/TestingReports";
 
@@ -141,13 +141,11 @@ import ProjectTestingReports from "./modules/clients-projects/pages/TestingRepor
 // a 403 response. Client Management routes keep PermissionGate — those
 // stay PM/System Administrator only, which IS a simple role check.
 
-// AskProjectLead (project-team version) needs the :projectId route
-// param as a prop, since a team member can be on multiple projects
-// with different leads on each — unlike the intern version, which has
-// one overall reporting manager.
-function AskProjectLeadPage() {
+// The old 1-on-1 "Ask Project Lead" page for project teams was replaced
+// by per-project group chats on Team Messages — keep old links working.
+function AskProjectLeadRedirect() {
   const { projectId } = useParams();
-  return <AskProjectLead projectId={projectId} />;
+  return <Navigate to={`/project/${projectId}/team-messages`} replace />;
 }
 
 function App() {
@@ -241,6 +239,11 @@ function App() {
             <TrainingManagement />
           </PermissionGate>
         } />
+        <Route path="/training/management/trainers/:trainerId" element={
+          <PermissionGate requirement={{ type: "role", value: ["Business Team", "System Administrator"] }}>
+            <TrainerWiseView />
+          </PermissionGate>
+        } />
         <Route path="/training/enquiries" element={
           <PermissionGate requirement={{ type: "perm", value: "TRAINING_VIEW" }}>
             <EnquiryList />
@@ -281,16 +284,10 @@ function App() {
             <InternshipApprovals />
           </PermissionGate>
         } />
-        <Route path="/training/assign-reporting-manager" element={
-          <PermissionGate requirement={{ type: "role", value: ["Business Team", "System Administrator"] }}>
-            <AssignReportingManager />
-          </PermissionGate>
-        } />
-        <Route path="/training/completion-extension-approvals" element={
-          <PermissionGate requirement={{ type: "role", value: ["Business Team", "System Administrator"] }}>
-            <CompletionExtensionApprovals />
-          </PermissionGate>
-        } />
+        {/* Reporting-manager assignment and completion/extension approvals
+            moved to HR's Intern Management page — old links redirect there. */}
+        <Route path="/training/assign-reporting-manager" element={<Navigate to="/hr/intern-management?tab=managers" replace />} />
+        <Route path="/training/completion-extension-approvals" element={<Navigate to="/hr/intern-management?tab=approvals" replace />} />
         <Route path="/training/batches" element={
           <PermissionGate requirement={{ type: "role", value: "Employee" }}>
             <TrainingBatches />
@@ -428,7 +425,7 @@ function App() {
 <Route path="/project/dashboard" element={<ProjectDashboard />} />
 <Route path="/project/team" element={<TeamProjects />} />
 <Route path="/project/:projectId/team" element={<ProjectTeam />} />
-<Route path="/project/:projectId/ask-lead" element={<AskProjectLeadPage />} />
+<Route path="/project/:projectId/ask-lead" element={<AskProjectLeadRedirect />} />
 <Route path="/project/documents" element={<ProjectDocumentsProjects />} />
 <Route path="/project/:projectId/documents" element={<ProjectDocuments />} />
 <Route path="/project/kanban" element={<KanbanProjects />} />
@@ -444,7 +441,8 @@ function App() {
 <Route path="/project/:projectId/tech-stack" element={<TechStack />} />
 <Route path="/project/change-requests" element={<ChangeRequestsProjects />} />
 <Route path="/project/:projectId/change-requests" element={<ChangeRequests />} />
-<Route path="/project/team-messages" element={<TeamMessages />} />
+<Route path="/project/team-messages" element={<TeamMessagesProjects />} />
+<Route path="/project/:projectId/team-messages" element={<TeamMessages />} />
 <Route path="/project/testing-reports" element={<ProjectTestingReports />} />
 
 {/* ---- Client Management routes: KEEP PermissionGate ----
@@ -573,6 +571,14 @@ function App() {
           element={
             <PermissionGate requirement={{ type: "role", value: ["HR Administrator", "System Administrator"] }}>
               <Worklogs />
+            </PermissionGate>
+          }
+        />
+        <Route
+          path="/hr/intern-management"
+          element={
+            <PermissionGate requirement={{ type: "role", value: ["HR Administrator", "System Administrator"] }}>
+              <HRInternManagement />
             </PermissionGate>
           }
         />

@@ -72,7 +72,6 @@ const HR_PATHS = ["/hr"];
 const BUSINESS_TEAM_PATHS = [
   "/training/students", "/training/internship-approvals", "/training/enquiries",
   "/training/fee-conversion", "/training/batches/new", "/training/welcome-emails",
-  "/training/completion-extension-approvals",
 ];
 const DOCUMENTS_PATHS = ["/documents"];
 const EMAIL_PATHS = ["/email"];
@@ -267,11 +266,8 @@ function Sidebar({ open = false, onClose }) {
           <NavLink to="/training/internship-approvals" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
             <span className="nav-icon"><MsIcon name="verified" /></span> Internship Approvals
           </NavLink>
-          <NavLink to="/training/completion-extension-approvals" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
-            <span className="nav-icon"><MsIcon name="assignment_turned_in" /></span> Completion &amp; Extension Approvals
-          </NavLink>
-          <NavLink to="/training/assign-reporting-manager" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
-            <span className="nav-icon"><MsIcon name="manage_accounts" /></span> Assign Reporting Manager
+          <NavLink to="/training/management" className={({ isActive }) => "nav-item" + (isActive || location.pathname.startsWith("/training/management/") ? " active" : "")}>
+            <span className="nav-icon"><MsIcon name="school" /></span> Training Management
           </NavLink>
           <NavLink to="/training/batches/new" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
             <span className="nav-icon"><MsIcon name="add_circle" /></span> New Batch
@@ -619,6 +615,16 @@ function Sidebar({ open = false, onClose }) {
               </NavLink>
 
               <NavLink
+                to="/hr/intern-management"
+                className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
+              >
+                <span className="nav-icon">
+                  <UserCheck size={14} />
+                </span>
+                Intern Management
+              </NavLink>
+
+              <NavLink
                 to="/hr/promotions"
                 className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
               >
@@ -903,14 +909,6 @@ function Sidebar({ open = false, onClose }) {
                 <span className="nav-icon"><UserCheck size={14} /></span>
                 Internship Approvals
               </NavLink>
-              <NavLink to="/training/completion-extension-approvals" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
-                <span className="nav-icon"><UserCheck size={14} /></span>
-                Completion & Extension Approvals
-              </NavLink>
-              <NavLink to="/training/assign-reporting-manager" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
-                <span className="nav-icon"><UserCheck size={14} /></span>
-                Assign Reporting Manager
-              </NavLink>
               <NavLink to="/training/enquiries" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
                 <span className="nav-icon"><ClipboardList size={14} /></span>
                 Enquiries
@@ -1021,7 +1019,7 @@ function Sidebar({ open = false, onClose }) {
           <NavLink to="/project/dashboard" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
             <span className="nav-icon"><MsIcon name="dashboard" /></span> Project Dashboard
           </NavLink>
-          <NavLink to="/project/team" className={({ isActive }) => "nav-item" + (isActive || /^\/project\/\d+\/(team|ask-lead)/.test(location.pathname) ? " active" : "")}>
+          <NavLink to="/project/team" className={({ isActive }) => "nav-item" + (isActive || /^\/project\/\d+\/team(\/|$)/.test(location.pathname) ? " active" : "")}>
             <span className="nav-icon"><MsIcon name="group" /></span> Project Team
           </NavLink>
           <NavLink to="/project/requirements" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
@@ -1068,7 +1066,7 @@ function Sidebar({ open = false, onClose }) {
               <span className="nav-icon"><MsIcon name="handshake" /></span> Client Management
             </NavLink>
           )}
-          <NavLink to="/project/team-messages" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+          <NavLink to="/project/team-messages" className={({ isActive }) => "nav-item" + (isActive || /^\/project\/\d+\/team-messages/.test(location.pathname) ? " active" : "")}>
             <span className="nav-icon"><MsIcon name="chat" /></span> Team Messages
           </NavLink>
           {canSeeDocuments && (
@@ -1170,7 +1168,7 @@ function Sidebar({ open = false, onClose }) {
                 <span className="nav-icon"><Layers size={14} /></span>
                 Repository & Tech Stack
               </NavLink>
-              <NavLink to="/project/team-messages" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
+              <NavLink to="/project/team-messages" className={({ isActive }) => "nav-item nav-subitem" + (isActive || /^\/project\/\d+\/team-messages/.test(location.pathname) ? " active" : "")}>
                 <span className="nav-icon"><MessageCircle size={14} /></span>
                 Team Messages
               </NavLink>

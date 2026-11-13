@@ -80,16 +80,16 @@ is an Employee who teaches a training batch. The work done by a Trainer is:
 Business Team
 handles the student and internship business side. The work done by the Business Team is:
 1.	Views and manages all enrolled students in All Students
-2.	Approves or rejects internship requests in Internship Approvals
-3.	Approves internship completion and extension requests in Completion & Extension Approvals
-4.	Assigns a reporting manager to interns in Assign Reporting Manager
-5.	Handles new student enquiries in Enquiries
-6.	Tracks fee payments and converts enquiries into enrolled students in Fee & Conversion
-7.	Creates new training batches in New Batch
-8.	Sends welcome emails to new students in Welcome Emails
-9.	Views the Audit Logs to see who did what across the system
-10.	Uses the Email module, including Bulk email to students and interns
-11.	Opens, creates and updates documents in the Document Library and Generate
+2.	Approves or rejects trainers' internship recommendations in Internship Approvals, and sees every past decision in its History tab
+3.	Handles new student enquiries in Enquiries
+4.	Tracks fee payments, sends fee reminders (email is automatic, WhatsApp is one click) and converts enquiries into enrolled students in Fee & Conversion
+5.	Views Training Management: every batch and trainer, and each trainer's batches, attendance and progress (view only)
+6.	Creates new training batches in New Batch and notifies the trainer
+7.	Sends welcome emails to new students in Welcome Emails
+8.	Views the Audit Logs to see who did what across the system
+9.	Uses the Email module, including Bulk email to students and interns
+10.	Opens, creates and updates documents in the Document Library and Generate
+Note: assigning reporting managers and approving internship completion, extension and conversion to employee are HR's job (HR Admin -> Intern Management). Business Team no longer sees those pages. Step-by-step guide: business-team-workflow.md
 
 Login Credentials
 

@@ -536,3 +536,6 @@
 @media (max-width: 560px) {
   .bp-form-grid { grid-template-columns: 1fr; }
 }
+
+/* A page embedded as a tab inside another page (e.g. HR Intern Management) */
+.bp-embed { display: flex; flex-direction: column; gap: 18px; }

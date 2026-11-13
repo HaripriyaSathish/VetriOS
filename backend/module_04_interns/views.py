@@ -7,7 +7,7 @@ from rest_framework.permissions import IsAuthenticated
 from module_03_training.models import Enrollment, Batch, Student
 from module_03_training.views import _is_batch_trainer, _can_access_batch
 from .models import Intern, InternshipRecommendation, InternReportingManagerHistory
-from module_01_identity_access.models import UserAccount
+from module_01_identity_access.models import UserAccount, Role, UserRole
 from module_02_hr.models import Employee, EmployeeWorklog
 from django.db.models import Q
 from local_extensions.models import Message
@@ -20,8 +20,15 @@ from .models import InternPerformance
 from module_05_clients_projects.models import ProjectTeamMember
 from module_05_clients_projects.models import ProjectTask, TaskAssignee, ProjectTeamHierarchy
 from local_extensions.notification_utils import notify
+from .completion_views import lead_link
 def user_is_business_team(user):
     return bool(user.active_role_names() & {"Business Team", "System Administrator"})
+
+
+def user_is_hr(user):
+    """HR Administrator or System Administrator — reporting-manager
+    assignment and intern conversions are HR's decisions."""
+    return bool(user.active_role_names() & {"HR Administrator", "System Administrator"})
 
 
 def _get_intern(user):
@@ -58,7 +65,7 @@ class RecommendForInternshipView(APIView):
             return Response({"detail": "enrollment_id is required."}, status=400)
 
         try:
-            enrollment = Enrollment.objects.select_related("student", "batch").get(enrollment_id=enrollment_id)
+            enrollment = Enrollment.objects.select_related("student__person", "batch").get(enrollment_id=enrollment_id)
         except Enrollment.DoesNotExist:
             return Response({"detail": "Enrollment not found."}, status=404)
 
@@ -78,6 +85,22 @@ class RecommendForInternshipView(APIView):
             recommendation_note=note,
             status="PENDING_APPROVAL",
         )
+
+        # Let Business Team know a student is waiting for internship approval.
+        student_person = enrollment.student.person
+        student_name = f"{student_person.first_name} {student_person.last_name or ''}".strip()
+        trainer_person = getattr(request.user, "person", None)
+        trainer_name = f"{trainer_person.first_name} {trainer_person.last_name or ''}".strip() if trainer_person else request.user.username
+        for u in UserAccount.objects.filter(is_active=True):
+            if "Business Team" in u.active_role_names():
+                notify(
+                    recipient=u, module="TRAINING", notification_type="INTERNSHIP_RECOMMENDED",
+                    title=f"Internship recommendation: {student_name}",
+                    message=f"{trainer_name} recommended {student_name} ({enrollment.batch.batch_name}) for an internship.",
+                    link="/training/internship-approvals",
+                    entity_type="internship_recommendation", entity_id=rec.recommendation_id,
+                    actor=request.user,
+                )
         return Response({"recommendation_id": rec.recommendation_id, "status": rec.status}, status=201)
 
 
@@ -109,6 +132,10 @@ class PendingInternshipRecommendationsView(APIView):
 
 
 class ApproveInternshipRecommendationView(APIView):
+    """Business Team approves a trainer's internship recommendation and
+    the student becomes an intern. Assigning the reporting manager is
+    HR's job, so no manager is set here — HR is notified and assigns one
+    from Assign Reporting Manager (AssignReportingManagerView)."""
     permission_classes = [IsAuthenticated]
 
     def post(self, request, recommendation_id):
@@ -116,16 +143,12 @@ class ApproveInternshipRecommendationView(APIView):
             return Response({"detail": "Not authorized."}, status=403)
 
         try:
-            rec = InternshipRecommendation.objects.select_related("student").get(recommendation_id=recommendation_id)
+            rec = InternshipRecommendation.objects.select_related("student__person").get(recommendation_id=recommendation_id)
         except InternshipRecommendation.DoesNotExist:
             return Response({"detail": "Not found."}, status=404)
 
         if rec.status != "PENDING_APPROVAL":
             return Response({"detail": f"This recommendation is already {rec.status}."}, status=400)
-
-        manager_user_id = request.data.get("manager_user_id")
-        if not manager_user_id:
-            return Response({"detail": "manager_user_id is required."}, status=400)
 
         start_date = request.data.get("internship_start_date") or timezone.now().date()
 
@@ -138,19 +161,37 @@ class ApproveInternshipRecommendationView(APIView):
                 created_at=timezone.now(),
                 updated_at=timezone.now(),
             )
-            InternReportingManagerHistory.objects.create(
-                intern=intern,
-                manager_user_id=manager_user_id,
-                effective_from=start_date,
-                is_current=True,
-                created_at=timezone.now(),
-            )
             rec.status = "APPROVED"
             rec.reviewed_by = request.user
             rec.review_note = request.data.get("review_note", "")
             rec.reviewed_at = timezone.now()
             rec.save()
 
+            # RBAC: give the student's login the Intern role so the intern
+            # pages open for them (Student role is kept — roles are layered).
+            student_account = UserAccount.objects.filter(person=rec.student.person).first()
+            if student_account:
+                intern_role, _ = Role.objects.get_or_create(
+                    role_name="Intern",
+                    defaults={"description": "Converted student now serving an internship.", "is_active": True,
+                              "created_at": timezone.now(), "updated_at": timezone.now()},
+                )
+                UserRole.objects.get_or_create(
+                    user_id=student_account.user_id, role=intern_role,
+                    defaults={"effective_from": timezone.now().date(), "is_active": True, "created_at": timezone.now()},
+                )
+
+        person = rec.student.person
+        name = f"{person.first_name} {person.last_name or ''}".strip()
+        for u in UserAccount.objects.filter(is_active=True):
+            if "HR Administrator" in u.active_role_names():
+                notify(
+                    recipient=u, module="HR", notification_type="INTERN_NEEDS_MANAGER",
+                    title=f"New intern needs a reporting manager: {name}",
+                    message=f"{intern.intern_code} starts on {start_date}. Assign their reporting manager.",
+                    link="/hr/intern-management?tab=managers",
+                    entity_type="intern", entity_id=intern.intern_id, actor=request.user,
+                )
         return Response({"intern_id": intern.intern_id, "intern_code": intern.intern_code}, status=201)
 
 
@@ -1146,13 +1187,13 @@ class MyProjectView(APIView):
         ])
 class AllInternsForManagerAssignmentView(APIView):
     """Every intern, with their current reporting manager if any —
-    lets Business Team/Admin fix missing or outdated assignments
-    without touching the database directly."""
+    HR / System Admin only — reporting-manager assignment is HR's job
+    (see AssignReportingManagerView)."""
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        if not (user_is_business_team(request.user) or user_is_admin(request.user)):
-            return Response({"detail": "Not authorized."}, status=403)
+        if not user_is_hr(request.user):
+            return Response({"detail": "Only HR can view reporting-manager assignments."}, status=403)
 
         interns = Intern.objects.select_related("student__person").all()
         current_links = {
@@ -1180,21 +1221,30 @@ class AllInternsForManagerAssignmentView(APIView):
 class AssignReportingManagerView(APIView):
     """POST {manager_user_id}. Closes any existing current link for
     this intern and creates a new current one — same convention used
-    everywhere else in this app (close old, open new, keep history)."""
+    everywhere else in this app (close old, open new, keep history).
+    HR Administrator / System Administrator only."""
     permission_classes = [IsAuthenticated]
 
     def post(self, request, intern_id):
-        if not (user_is_business_team(request.user) or user_is_admin(request.user)):
-            return Response({"detail": "Not authorized."}, status=403)
+        if not user_is_hr(request.user):
+            return Response({"detail": "Only HR can assign reporting managers."}, status=403)
 
         try:
-            intern = Intern.objects.get(intern_id=intern_id)
+            intern = Intern.objects.select_related("student__person").get(intern_id=intern_id)
         except Intern.DoesNotExist:
             return Response({"detail": "Intern not found."}, status=404)
 
         manager_user_id = request.data.get("manager_user_id")
         if not manager_user_id:
             return Response({"detail": "manager_user_id is required."}, status=400)
+        manager = UserAccount.objects.select_related("person").filter(user_id=manager_user_id, is_active=True).first()
+        if not manager:
+            return Response({"detail": "Selected manager is not an active user."}, status=400)
+        if manager.person_id == intern.student.person_id:
+            return Response({"detail": "An intern can't be their own reporting manager."}, status=400)
+        previous = _current_manager(intern)
+        if previous and previous.user_id == manager.user_id:
+            return Response({"detail": "This person is already the intern's reporting manager."}, status=400)
 
         with transaction.atomic():
             InternReportingManagerHistory.objects.filter(
@@ -1203,12 +1253,30 @@ class AssignReportingManagerView(APIView):
 
             InternReportingManagerHistory.objects.create(
                 intern=intern,
-                manager_user_id=manager_user_id,
+                manager_user_id=manager.user_id,
                 effective_from=timezone.now().date(),
                 is_current=True,
                 created_at=timezone.now(),
             )
 
+        intern_name = f"{intern.student.person.first_name} {intern.student.person.last_name or ''}".strip()
+        notify(
+            recipient=manager, module="INTERNS", notification_type="REPORTING_MANAGER_ASSIGNED",
+            title=f"{intern_name} now reports to you",
+            message=f"HR assigned you as the reporting manager for {intern.intern_code}.",
+            link=lead_link(manager),
+            entity_type="intern", entity_id=intern.intern_id, actor=request.user,
+        )
+        intern_user = UserAccount.objects.filter(person=intern.student.person).first()
+        if intern_user:
+            manager_name = f"{manager.person.first_name} {manager.person.last_name or ''}".strip() if manager.person else manager.username
+            notify(
+                recipient=intern_user, module="INTERNS", notification_type="REPORTING_MANAGER_ASSIGNED",
+                title="Your reporting manager has been updated",
+                message=f"You now report to {manager_name}.",
+                link="/intern/ask-lead",
+                entity_type="intern", entity_id=intern.intern_id, actor=request.user,
+            )
         return Response({"detail": "Reporting manager assigned."}, status=201)     
 
 class MyMessageThreadsView(APIView):

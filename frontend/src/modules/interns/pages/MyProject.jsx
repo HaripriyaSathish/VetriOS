@@ -39,7 +39,7 @@ function MyProject() {
         </div>
         {main && (
           <div className="bp-actions">
-            <Link to={`/project/${main.project_id}/ask-lead`} className="bp-btn outline"><MessageSquare size={16} /> Ask Project Lead</Link>
+            <Link to={`/project/${main.project_id}/team-messages`} className="bp-btn outline"><MessageSquare size={16} /> Team Chat</Link>
             <Link to={`/project/${main.project_id}/kanban`} className="bp-btn navy"><Kanban size={16} /> Open Kanban Board</Link>
           </div>
         )}
@@ -106,7 +106,7 @@ function MyProject() {
                     </div>
                   )}
                   <div className="in-send-row">
-                    <Link to={`/project/${p.project_id}/ask-lead`} className="tr-link"><MessageSquare size={13} /> Ask Project Lead</Link>
+                    <Link to={`/project/${p.project_id}/team-messages`} className="tr-link"><MessageSquare size={13} /> Team Chat</Link>
                     <Link to={`/project/${p.project_id}/kanban`} className="bp-btn soft small">Kanban Board <ArrowRight size={13} /></Link>
                   </div>
                 </section>

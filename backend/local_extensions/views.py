@@ -27,6 +27,7 @@ from .models import ClassRecording, RecordingView, AbsenceNotification
 from module_03_training.models import Enrollment, StudentAttendance
 from .models import Notification
 from local_extensions.notification_utils import notify
+from .fee_reminders import send_due_fee_reminders, email_fee_reminder, already_emailed
 
 LOGO_PATH = os.path.join(os.path.dirname(__file__), "assets", "logo.jpg")
 
@@ -484,6 +485,9 @@ class RemindersDueView(APIView):
         if not user_is_business_team(request.user):
             return Response({"detail": "Not authorized."}, status=403)
 
+        # Email any reminder that's now inside the 3-day window (once each).
+        send_due_fee_reminders()
+
         today = timezone.now().date()
         cutoff = today + timedelta(days=3)
 
@@ -504,6 +508,7 @@ class RemindersDueView(APIView):
                 "amount": i.amount,
                 "due_date": i.due_date,
                 "days_left": days_left,
+                "email_sent": already_emailed(i),
             })
         return Response(data)
 
@@ -520,9 +525,14 @@ class MarkReminderSentView(APIView):
         except StudentFeeInstallment.DoesNotExist:
             return Response({"detail": "Installment not found."}, status=404)
 
+        emailed_now = email_fee_reminder(installment)
         installment.reminder_sent = True
         installment.save()
-        return Response({"detail": "Marked as reminded."})
+        return Response({
+            "detail": "Reminder sent.",
+            "email_sent_now": emailed_now,
+            "email_sent": already_emailed(installment),
+        })
 
 
 # ---------------------------------------------------------------------------
@@ -697,6 +707,13 @@ class GroupIntoBatchView(APIView):
 
         trainer_info = None
         if trainer:
+            notify(
+                recipient=trainer.user, module="TRAINING", notification_type="BATCH_ASSIGNED",
+                title=f"New batch assigned: {batch.batch_name}",
+                message=f"{course.course_name} · starts {batch.start_date} · {len(roster)} student(s).",
+                link="/training/batches",
+                entity_type="batch", entity_id=batch.batch_id, actor=request.user,
+            )
             p = trainer.user.person
             trainer_info = {
                 "trainer_id": trainer.trainer_id,

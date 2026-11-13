@@ -1099,3 +1099,55 @@
 .lr-status.rejected { background: #fee2e2; color: #991b1b; }
 .lr-status.revoked { background: #f1f4f9; color: #51607a; }
 .lr-note-line { font-size: 13.5px; color: #6b7686; font-style: italic; margin-top: 4px; }
+
+/* ---- Leave & attendance settings page ---- */
+.ls-page { display: flex; flex-direction: column; gap: 16px; }
+.ls-card { gap: 10px; }
+.ls-card .na-n svg { color: #fff; }
+.ls-table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+.ls-table th { text-align: left; font-size: 13px; font-weight: 700; color: #6b7686; padding: 8px 10px; border-bottom: 1px solid #eef1f6; }
+.ls-table th svg { vertical-align: -2px; margin-right: 4px; }
+.ls-table td { padding: 10px; border-bottom: 1px solid #f1f4f9; font-size: 15px; vertical-align: top; color: var(--vt-navy); }
+.ls-table input, .ls-inline input, .ls-apply select {
+  border: 1px solid var(--vt-border); border-radius: 10px; padding: 10px 12px; font: inherit; font-size: 15px; width: 130px; color: var(--vt-navy);
+}
+.ls-table input:focus, .ls-inline input:focus, .ls-apply select:focus { outline: none; border-color: var(--vt-navy-700); box-shadow: 0 0 0 3px rgba(0, 38, 115, .1); }
+.ls-apply select { width: 100px; }
+.ls-inline { display: flex; align-items: center; gap: 10px; font-size: 15px; color: #4a5568; }
+.ls-row-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ls-row-actions .ua-btn-sm { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; padding: 8px 12px; }
+.ls-map { display: inline-flex; align-items: center; gap: 5px; font-size: 13.5px; font-weight: 600; color: var(--vt-navy-700); text-decoration: none; }
+.ls-map:hover { color: var(--vt-orange); }
+.ls-geo { display: block; margin-top: 6px; font-size: 12.5px; color: #6b7686; }
+.ls-saved { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 14.5px; font-weight: 600; color: #166534; }
+.ls-foot { display: flex; justify-content: flex-end; padding-bottom: 12px; }
+
+/* info note (work from home / on duty) and the prominent Apply to everyone step */
+.ls-info { display: flex; gap: 10px; align-items: flex-start; margin-top: 12px; padding: 12px 16px; background: #eef5ff; border: 1px solid #cfe0fb; border-radius: 12px; font-size: 14px; color: #1d3f78; }
+.ls-info svg { flex: none; margin-top: 2px; color: #1d4f91; }
+.ls-apply {
+  display: flex; align-items: center; gap: 18px; flex-wrap: wrap; margin-top: 16px; padding: 18px 20px;
+  background: linear-gradient(135deg, #fff7f1 0%, #ffeede 100%); border: 1.5px solid #ffb27a; border-left: 6px solid var(--vt-orange); border-radius: 14px;
+  box-shadow: 0 8px 20px rgba(231, 81, 12, .12);
+}
+.ls-apply-ic { width: 52px; height: 52px; border-radius: 14px; background: linear-gradient(135deg, #e7510c, #ff8a4c); color: #fff; display: flex; align-items: center; justify-content: center; flex: none; }
+.ls-apply-text { flex: 1; min-width: 260px; }
+.ls-apply-text b { display: block; font-family: var(--vt-font-head); font-size: 17px; font-weight: 800; color: var(--vt-navy); }
+.ls-apply-text p { margin: 4px 0 0; font-size: 14px; line-height: 1.5; color: #51607a; }
+.ls-apply-text strong { color: #b4500f; }
+.ls-apply-act { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ls-apply-act select { width: 100px; border: 1px solid #ffb27a; border-radius: 10px; padding: 11px 12px; font: inherit; font-size: 15px; font-weight: 600; background: #fff; color: var(--vt-navy); }
+.ls-apply-btn {
+  display: inline-flex; align-items: center; gap: 8px; border: 0; cursor: pointer; font: inherit; font-size: 15.5px; font-weight: 700; color: #fff;
+  padding: 13px 22px; border-radius: 12px; background: linear-gradient(135deg, #e7510c, #ff8a4c); box-shadow: 0 8px 18px rgba(231, 81, 12, .35);
+}
+.ls-apply-btn:hover:not(:disabled) { filter: brightness(1.05); transform: translateY(-1px); }
+.ls-apply-btn:disabled { opacity: .6; cursor: wait; }
+
+/* holidays form + list */
+.ls-hol-form { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+.ls-hol-form input[type="text"] { flex: 1; min-width: 220px; }
+.ls-hol-form input, .ls-hol-form select { border: 1px solid #d5deea; border-radius: 10px; padding: 10px 12px; font: inherit; font-size: 15px; background: #fff; color: var(--vt-navy); }
+.ls-hol-table { margin-top: 14px; }
+.ls-hol-tag { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 13px; font-weight: 600; background: #fff4e5; color: #8a4b00; }
+.ls-hol-tag.wfh { background: #eef5ff; color: #1d3f78; }

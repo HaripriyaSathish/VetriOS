@@ -447,3 +447,7 @@
 .att2-static .att2-card:not(.att2-click):hover { transform: none; box-shadow: 0 1px 2px rgba(16, 24, 40, .05), 0 4px 12px rgba(16, 24, 40, .07); }
 .att2-static .att2-card.att2-click { cursor: pointer; }
 @media (max-width: 900px) { .att2-cards.att2-four { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* holiday / emergency work-from-home note above the attendance cards */
+.att-daynote { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 14px; padding: 11px 16px; border-radius: 12px; background: #fff4e5; border: 1px solid #ffd7a3; color: #8a4b00; font-size: 14.5px; }
+.att-daynote.wfh { background: #eef5ff; border-color: #cfe0fb; color: #1d3f78; }

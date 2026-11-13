@@ -339,3 +339,9 @@
 .wm-pill.office i { background: #639922; }
 .wm-pill.none { background: #f1efe8; color: #444441; }
 .wm-pill.none i { background: #888780; }
+
+/* Reports: monthly absentees + attendance summary tables */
+.rpt-num { text-align: center !important; white-space: nowrap; }
+.rpt-zero { color: #c3cad6; }
+.rpt-abs-cell { display: inline-block; min-width: 24px; padding: 2px 6px; border-radius: 8px; background: #fee2e2; color: #991b1b; font-weight: 700; font-size: 12.5px; cursor: help; }
+.rpt-absent-table th, .rpt-absent-table td { padding-left: 8px; padding-right: 8px; }

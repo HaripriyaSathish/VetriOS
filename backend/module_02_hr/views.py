@@ -20,7 +20,10 @@ from rest_framework.views import APIView
 from module_01_identity_access.models import UserAccount
 from local_extensions.email_utils import send_email
 from local_extensions.models import Notification
-from .excel_exports import build_attendance_excel, build_exit_excel, build_onboarding_excel
+from .excel_exports import (
+    build_absentees_excel, build_attendance_excel, build_employee_onboarding_excel, build_exit_excel,
+    build_onboarding_excel, build_summary_excel,
+)
 from module_04_interns.models import Intern
 from .models import (
     Branch,
@@ -40,6 +43,7 @@ from .models import (
     PersonDepartmentHistory,
 )
 from .permissions import IsHRorSystemAdministrator, IsSystemAdministrator
+from . import leave_requests, leave_settings
 from .serializers import (
     AttendanceRecordSerializer,
     AttendanceReportRowSerializer,
@@ -300,10 +304,28 @@ class EmploymentTypeListView(generics.ListAPIView):
 
 
 # No fixed check-in/check-out window — people clock in anywhere from
-# 8am to 9:30am and out from 5:30pm to 7pm. The only thing that matters
-# is total hours worked: 8+ is a full day, anything less (but still
-# checked out) is a half day. Not DB-enforced, so it lives here.
-MIN_FULL_DAY_HOURS = 8
+# 8am to 9:30am and out from 5:30pm to 7pm. There is no "half day" status:
+# a day with a check-in is Present, and the hours worked are shown next to it.
+
+
+# Every Sunday is a company holiday: it is never counted as an absence.
+# (weekday(): Monday = 0 ... Sunday = 6)
+WEEKLY_OFF_WEEKDAYS = (6,)
+
+
+def _is_weekly_off(day, holidays=()):
+    """Sunday, or a holiday the System Administrator added (pass leave_settings.off_dates)."""
+    return day.weekday() in WEEKLY_OFF_WEEKDAYS or day in holidays
+
+
+def _day_note(day):
+    """What to tell people about a date: Sunday, a holiday, or an emergency WFH day."""
+    entry = leave_settings.holiday_on(day)
+    if entry:
+        return {"name": entry["name"], "type": entry["type"]}
+    if day.weekday() in WEEKLY_OFF_WEEKDAYS:
+        return {"name": "Sunday", "type": "HOLIDAY"}
+    return None
 
 
 def _department_name(person_id):
@@ -316,14 +338,14 @@ def _employee_for_user(user):
 
 
 # Shared by the org-wide Attendance screen and the personal "my
-# attendance" view — same Present/Half day/Missing-checkout/On
+# attendance" view — same Present/Missing-checkout/On
 # leave/Absent/No login rule, computed once so the two screens can't
 # drift apart. has_login=False always wins: check-in (and leave requests)
 # are self-service, so an employee with no user_account has no way to
 # ever produce a real attendance/leave record — showing them as plain
 # "Absent" would wrongly suggest they skipped work instead of never
 # having had login access at all.
-def _attendance_status(att, is_on_leave, has_login=True):
+def _attendance_status(att, is_on_leave, has_login=True, day_off=False):
     hours = None
     if att and att.check_in_time and att.check_out_time:
         hours = round((att.check_out_time - att.check_in_time).total_seconds() / 3600, 1)
@@ -333,12 +355,10 @@ def _attendance_status(att, is_on_leave, has_login=True):
     if is_on_leave:
         return "ON_LEAVE", hours
     if att is None:
-        return "ABSENT", hours
-    if att.check_in_time and not att.check_out_time:
-        return "PRESENT", hours
-    if hours is not None and hours >= MIN_FULL_DAY_HOURS:
-        return "PRESENT", hours
-    return "HALF_DAY", hours
+        return ("HOLIDAY" if day_off else "ABSENT"), hours
+    # Checked in = Present, whether or not they've checked out yet, and
+    # however short the day was. The hours worked are returned alongside.
+    return "PRESENT", hours
 
 
 # Shared by the Attendance overview's preview (JSON) and export (xlsx) —
@@ -369,6 +389,7 @@ def _attendance_report_rows(period, department_id=None, status_filter=None):
 
     employee_ids = [e.employee_id for e in employees]
     person_ids = [e.person_id for e in employees]
+    off_days = leave_settings.off_dates(start, end)
 
     attendance_by_key = {
         (a.employee_id, a.attendance_date): a
@@ -394,6 +415,10 @@ def _attendance_report_rows(period, department_id=None, status_filter=None):
         for offset in range(day_count):
             day = start + datetime.timedelta(days=offset)
             att = attendance_by_key.get((emp.employee_id, day))
+            if att is None and _is_weekly_off(day, off_days):
+                continue  # Sunday / holiday with no attendance: not an absence
+            if emp.joining_date and day < emp.joining_date:
+                continue  # before they joined
             is_on_leave = any(l.start_date <= day <= l.end_date for l in emp_leaves)
             day_status, hours = _attendance_status(att, is_on_leave, has_login)
             if status_filter and day_status != status_filter:
@@ -431,6 +456,8 @@ class AttendanceTodayView(APIView):
             if today > timezone.localdate():
                 return Response({"detail": "date can't be in the future."}, status=status.HTTP_400_BAD_REQUEST)
         employees = Employee.objects.filter(status="ACTIVE").select_related("person")
+        day_note = _day_note(today)
+        day_off = bool(day_note and day_note["type"] == "HOLIDAY")
         attendance_by_employee = {
             a.employee_id: a for a in EmployeeAttendance.objects.filter(attendance_date=today)
         }
@@ -450,7 +477,7 @@ class AttendanceTodayView(APIView):
             att = attendance_by_employee.get(emp.employee_id)
             is_on_leave = emp.employee_id in on_leave_ids
             has_login = emp.person_id in person_ids_with_login
-            display_status, hours = _attendance_status(att, is_on_leave, has_login)
+            display_status, hours = _attendance_status(att, is_on_leave, has_login, day_off)
 
             if display_status == "NO_LOGIN":
                 no_login += 1
@@ -488,6 +515,7 @@ class AttendanceTodayView(APIView):
         return Response(
             {
                 "date": today,
+                "day_note": day_note,
                 "stats": {
                     "present": present,
                     "half_day": half_day,
@@ -521,6 +549,161 @@ class AttendanceReportView(APIView):
             request.query_params.get("status"),
         )
         return Response(AttendanceReportRowSerializer(rows, many=True).data)
+
+
+# Working-day attendance for every active employee that has a login, one
+# list of (date, status, hours) per person over [start, end]. Skips Sundays,
+# days before the person joined, and future days. Shared by the "Monthly
+# absentees" and "Attendance summary" reports.
+def _working_day_statuses(start, end, department_id=None):
+    end = min(end, timezone.localdate())
+    if end < start:
+        return []
+
+    employees = list(Employee.objects.filter(status="ACTIVE").select_related("person"))
+    if department_id:
+        wanted = int(department_id)
+        employees = [
+            e for e in employees
+            if (_current_department_history(e.person_id) or None) and _current_department_history(e.person_id).department_id == wanted
+        ]
+
+    person_ids = [e.person_id for e in employees]
+    off_days = leave_settings.off_dates(start, end)
+    with_login = set(UserAccount.objects.filter(person_id__in=person_ids).values_list("person_id", flat=True))
+    employees = [e for e in employees if e.person_id in with_login]
+    employee_ids = [e.employee_id for e in employees]
+
+    attendance = {
+        (a.employee_id, a.attendance_date): a
+        for a in EmployeeAttendance.objects.filter(
+            employee_id__in=employee_ids, attendance_date__gte=start, attendance_date__lte=end
+        )
+    }
+    leaves = list(
+        EmployeeLeave.objects.filter(
+            employee_id__in=employee_ids, status="APPROVED", start_date__lte=end, end_date__gte=start
+        )
+    )
+
+    result = []
+    for emp in employees:
+        emp_leaves = [l for l in leaves if l.employee_id == emp.employee_id]
+        first_day = max(start, emp.joining_date) if emp.joining_date else start
+        days = []
+        d = first_day
+        while d <= end:
+            if not _is_weekly_off(d, off_days):
+                att = attendance.get((emp.employee_id, d))
+                on_leave = any(l.start_date <= d <= l.end_date for l in emp_leaves)
+                status_, hours = _attendance_status(att, on_leave, True)
+                days.append((d, status_, hours))
+            d += datetime.timedelta(days=1)
+        result.append({
+            "employee_id": emp.employee_id,
+            "person_id": emp.person_id,
+            "full_name": str(emp.person),
+            "department_name": _department_name(emp.person_id),
+            "days": days,
+        })
+    result.sort(key=lambda r: r["full_name"].lower())
+    return result
+
+
+def _absentee_rows(year, department_id=None):
+    start = datetime.date(year, 1, 1)
+    rows = []
+    for emp in _working_day_statuses(start, datetime.date(year, 12, 31), department_id):
+        months = [0] * 12
+        dates = [[] for _ in range(12)]
+        for d, status_, _hours in emp["days"]:
+            if status_ == "ABSENT":
+                months[d.month - 1] += 1
+                dates[d.month - 1].append(d.isoformat())
+        rows.append({
+            "employee_id": emp["employee_id"], "person_id": emp["person_id"],
+            "full_name": emp["full_name"], "department_name": emp["department_name"],
+            "months": months, "dates": dates, "total": sum(months),
+        })
+    return rows
+
+
+def _summary_rows(period, department_id=None):
+    try:
+        year, month = (int(p) for p in period.split("-"))
+        start = datetime.date(year, month, 1)
+    except (ValueError, AttributeError):
+        start = timezone.localdate().replace(day=1)
+    end = datetime.date(start.year, start.month, calendar.monthrange(start.year, start.month)[1])
+    rows = []
+    for emp in _working_day_statuses(start, end, department_id):
+        statuses = [s for _d, s, _h in emp["days"]]
+        hours = [h for _d, s, h in emp["days"] if h is not None]
+        rows.append({
+            "employee_id": emp["employee_id"], "person_id": emp["person_id"],
+            "full_name": emp["full_name"], "department_name": emp["department_name"],
+            "working_days": len(emp["days"]),
+            "present": statuses.count("PRESENT"),
+            "absent": statuses.count("ABSENT"),
+            "on_leave": statuses.count("ON_LEAVE"),
+            "total_hours": round(sum(hours), 1),
+            "avg_hours": round(sum(hours) / len(hours), 1) if hours else None,
+        })
+    return rows
+
+
+def _year_param(request):
+    try:
+        return int(request.query_params.get("year"))
+    except (TypeError, ValueError):
+        return timezone.localdate().year
+
+
+# Monthly absentees: employees down the side, January-December across the
+# top, each cell = absent working days that month (Sundays and days before
+# the person joined are not counted).
+class AttendanceAbsenteesView(APIView):
+    permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
+
+    def get(self, request):
+        year = _year_param(request)
+        return Response({"year": year, "rows": _absentee_rows(year, request.query_params.get("department_id"))})
+
+
+class AttendanceAbsenteesExportView(APIView):
+    permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
+
+    def get(self, request):
+        year = _year_param(request)
+        rows = _absentee_rows(year, request.query_params.get("department_id"))
+        buffer = build_absentees_excel(rows, f"Monthly absentees — {year}")
+        return FileResponse(
+            buffer, as_attachment=True, filename=f"Monthly_Absentees_{year}.xlsx",
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+
+
+# General summary for one month: per employee, working days, present,
+# absent, on leave and hours worked.
+class AttendanceSummaryView(APIView):
+    permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
+
+    def get(self, request):
+        period = request.query_params.get("period") or timezone.localdate().strftime("%Y-%m")
+        return Response({"period": period, "rows": _summary_rows(period, request.query_params.get("department_id"))})
+
+
+class AttendanceSummaryExportView(APIView):
+    permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
+
+    def get(self, request):
+        period = request.query_params.get("period") or timezone.localdate().strftime("%Y-%m")
+        rows = _summary_rows(period, request.query_params.get("department_id"))
+        buffer = build_summary_excel(rows, f"Attendance summary — {period}")
+        return FileResponse(
+            buffer, as_attachment=True, filename=f"Attendance_Summary_{period}.xlsx",
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
 
 
 class AttendanceReportExportView(APIView):
@@ -623,7 +806,10 @@ class MyAttendanceView(APIView):
         ).exists()
 
         today_record = records.filter(attendance_date=today).first()
-        today_status, today_hours = _attendance_status(today_record, is_on_leave_today)
+        today_note = _day_note(today)
+        today_status, today_hours = _attendance_status(
+            today_record, is_on_leave_today, True, bool(today_note and today_note["type"] == "HOLIDAY")
+        )
 
         history = []
         for att in records:
@@ -654,6 +840,7 @@ class MyAttendanceView(APIView):
                     "check_out_time": today_record.check_out_time if today_record else None,
                     "status": today_status,
                     "hours": today_hours,
+                    "day_note": today_note,
                 },
                 "history": history,
             }
@@ -689,8 +876,16 @@ def _get_or_create_balance(employee, leave_type, year):
     return balance
 
 
-def _leave_request_row(leave):
+def _leave_request_row(leave, detail=None, names=None):
+    names = names or {}
     return {
+        "request_kind": leave_requests.kind_of(leave, detail),
+        "from_time": detail.from_time.strftime("%H:%M") if detail and detail.from_time else None,
+        "to_time": detail.to_time.strftime("%H:%M") if detail and detail.to_time else None,
+        "on_duty_reason": detail.on_duty_reason if detail else None,
+        "approver_category": detail.approver_category if detail else None,
+        "approver_user_id": detail.approver_user_id if detail else None,
+        "approver_name": names.get(detail.approver_user_id) if detail else None,
         "leave_id": leave.leave_id,
         "employee_id": leave.employee_id,
         "person_id": leave.employee.person_id,
@@ -705,6 +900,14 @@ def _leave_request_row(leave):
         "status": leave.status,
         "created_at": leave.created_at,
     }
+
+
+def _leave_rows(leaves):
+    """Request rows for a list of EmployeeLeave, with the Leave-menu details attached (2 queries)."""
+    leaves = list(leaves)
+    details = leave_requests.details_by_leave_id([l.leave_id for l in leaves])
+    names = leave_requests.approver_names(details)
+    return [_leave_request_row(l, details.get(l.leave_id), names) for l in leaves]
 
 
 # MATERNITY only makes sense for the person requesting it — everyone
@@ -812,7 +1015,8 @@ class MyLeaveView(APIView):
             {
                 "employee_id": me.employee_id if me else None,
                 "my_balances": LeaveBalanceSerializer(my_balances, many=True).data,
-                "requests": LeaveRequestSerializer([_leave_request_row(r) for r in my_requests], many=True).data,
+                "requests": LeaveRequestSerializer(_leave_rows(my_requests), many=True).data,
+                "options": leave_requests.request_options(me),
             }
         )
 
@@ -832,7 +1036,7 @@ class LeaveRequestListCreateView(APIView):
         all_requests = EmployeeLeave.objects.select_related("employee__person", "leave_type").order_by(
             "-created_at"
         )
-        return Response(LeaveRequestSerializer([_leave_request_row(r) for r in all_requests], many=True).data)
+        return Response(LeaveRequestSerializer(_leave_rows(all_requests), many=True).data)
 
     def post(self, request):
         employee = _employee_for_user(request.user)
@@ -842,24 +1046,11 @@ class LeaveRequestListCreateView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        serializer = LeaveRequestWriteSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        data = serializer.validated_data
-
-        total_days = (data["end_date"] - data["start_date"]).days + 1
-        now = timezone.now()
-        leave = EmployeeLeave.objects.create(
-            employee=employee,
-            leave_type_id=data["leave_type_id"],
-            start_date=data["start_date"],
-            end_date=data["end_date"],
-            total_days=total_days,
-            reason=data.get("reason") or None,
-            status="PENDING",
-            created_at=now,
-            updated_at=now,
-        )
-        return Response(_leave_request_row(leave), status=status.HTTP_201_CREATED)
+        try:
+            leave, detail = leave_requests.create_request(request.user, employee, request.data)
+        except leave_requests.RequestError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(_leave_rows([leave])[0], status=status.HTTP_201_CREATED)
 
 
 # Approves a pending request. If the employee's remaining balance for
@@ -869,7 +1060,9 @@ class LeaveRequestListCreateView(APIView):
 # split between paid/unpaid days, and no balance is touched in that case
 # since unpaid leave has no cap.
 class LeaveRequestApproveView(APIView):
-    permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
+    # Who may decide depends on the request (the approver the employee chose,
+    # or any System Administrator) — checked below, not by role alone.
+    permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
         try:
@@ -877,11 +1070,25 @@ class LeaveRequestApproveView(APIView):
         except EmployeeLeave.DoesNotExist:
             return Response({"detail": "Leave request not found."}, status=status.HTTP_404_NOT_FOUND)
 
+        detail = leave_requests.details_by_leave_id([leave.leave_id]).get(leave.leave_id)
+        if not leave_requests.can_decide(request.user, leave, detail):
+            return Response({"detail": "This request wasn't sent to you."}, status=status.HTTP_403_FORBIDDEN)
         if leave.status != "PENDING":
             return Response({"detail": "Only pending requests can be approved."}, status=status.HTTP_400_BAD_REQUEST)
 
         now = timezone.now()
         total_days = float(leave.total_days or 0)
+
+        # Permission / work from home / on duty don't touch leave balances.
+        if leave.leave_type and leave.leave_type.leave_type_code in leave_requests.SPECIAL_CODES:
+            leave.status = "APPROVED"
+            leave.approved_by_user_id = request.user.pk
+            leave.approved_at = now
+            leave.updated_at = now
+            leave.save(update_fields=["status", "approved_by_user_id", "approved_at", "updated_at"])
+            leave_requests.apply_approved(leave, detail)
+            return Response(_leave_rows([leave])[0])
+
         balance = _get_or_create_balance(leave.employee, leave.leave_type, leave.start_date.year)
 
         if float(balance.remaining_days) >= total_days:
@@ -899,7 +1106,7 @@ class LeaveRequestApproveView(APIView):
         leave.approved_at = now
         leave.updated_at = now
         leave.save(update_fields=["leave_type", "status", "approved_by_user_id", "approved_at", "updated_at"])
-        return Response(_leave_request_row(leave))
+        return Response(_leave_rows([leave])[0])
 
 
 # employee_leave has one "reason" column, already used for the
@@ -910,7 +1117,7 @@ class LeaveRequestApproveView(APIView):
 # "Rejected" if the employee left their reason blank (their intent is
 # gone either way once rejected, so nothing to append the HR reason to).
 class LeaveRequestRejectView(APIView):
-    permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
         try:
@@ -918,6 +1125,9 @@ class LeaveRequestRejectView(APIView):
         except EmployeeLeave.DoesNotExist:
             return Response({"detail": "Leave request not found."}, status=status.HTTP_404_NOT_FOUND)
 
+        detail = leave_requests.details_by_leave_id([leave.leave_id]).get(leave.leave_id)
+        if not leave_requests.can_decide(request.user, leave, detail):
+            return Response({"detail": "This request wasn't sent to you."}, status=status.HTTP_403_FORBIDDEN)
         if leave.status != "PENDING":
             return Response({"detail": "Only pending requests can be rejected."}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -933,7 +1143,27 @@ class LeaveRequestRejectView(APIView):
         leave.status = "REJECTED"
         leave.updated_at = timezone.now()
         leave.save(update_fields=["reason", "status", "updated_at"])
-        return Response(_leave_request_row(leave))
+        return Response(_leave_rows([leave])[0])
+
+
+# Requests addressed to the logged-in person (the approver they were sent to):
+# pending first, then decided ones. Any authenticated account may call it —
+# it only ever returns requests sent to that account.
+class LeaveInboxView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from module_01_identity_access.models import LeaveRequestDetail
+
+        ids = list(LeaveRequestDetail.objects.filter(approver_user_id=request.user.pk).values_list("leave_id", flat=True))
+        leaves = list(
+            EmployeeLeave.objects.filter(leave_id__in=ids)
+            .select_related("employee__person", "leave_type")
+            .order_by("-created_at")
+        )
+        rows = _leave_rows(leaves)
+        rows.sort(key=lambda r: (r["status"] != "PENDING",))
+        return Response(LeaveRequestSerializer(rows, many=True).data)
 
 
 WORKLOG_HISTORY_DAYS = 30
@@ -1122,6 +1352,43 @@ class OnboardingReportExportView(APIView):
         title = f"Onboarding overview{f' — {period}' if period else ''}"
         buffer = build_onboarding_excel(rows, title)
         filename = f"Onboarding_Overview{f'_{period}' if period else ''}.xlsx"
+        return FileResponse(
+            buffer, as_attachment=True, filename=filename,
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+
+
+# Employee onboarding report (new joiners): active, non-intern employees,
+# optionally limited to a joining month / department / login status, as xlsx.
+class EmployeeOnboardingReportExportView(APIView):
+    permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
+
+    def get(self, request):
+        department_id = request.query_params.get("department_id")
+        status_filter = request.query_params.get("status")  # "Login created" | "Login pending"
+        period = request.query_params.get("period")
+
+        employees = (
+            Employee.objects.filter(status="ACTIVE")
+            .select_related("person", "designation", "employment_type")
+            .order_by("-joining_date")
+        )
+        rows = []
+        for data in EmployeeListSerializer(employees, many=True).data:
+            if "intern" in (data.get("employment_type_name") or "").lower():
+                continue
+            if department_id and str(data.get("department_id")) != str(department_id):
+                continue
+            login_label = "Login created" if data["has_login"] else "Login pending"
+            if status_filter and login_label != status_filter:
+                continue
+            if period and (not data["joining_date"] or str(data["joining_date"])[:7] != period):
+                continue
+            rows.append({**data, "login_label": login_label})
+
+        title = f"Employee onboarding{f' — {period}' if period else ''}"
+        buffer = build_employee_onboarding_excel(rows, title)
+        filename = f"Employee_Onboarding{f'_{period}' if period else ''}.xlsx"
         return FileResponse(
             buffer, as_attachment=True, filename=filename,
             content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

@@ -9,6 +9,9 @@ function ReportFilterPanel({
   subtitle = "Configure filters, preview results, and export a snapshot.",
   period,
   onPeriodChange,
+  year,
+  onYearChange,
+  yearOptions,
   departments,
   departmentValue,
   onDepartmentChange,
@@ -34,6 +37,16 @@ function ReportFilterPanel({
           <div>
             <label>Period</label>
             <input type="month" value={period} onChange={(e) => onPeriodChange(e.target.value)} />
+          </div>
+        )}
+        {onYearChange && (
+          <div>
+            <label>Year</label>
+            <select value={year} onChange={(e) => onYearChange(e.target.value)}>
+              {(yearOptions || []).map((y) => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
           </div>
         )}
         {departments && (

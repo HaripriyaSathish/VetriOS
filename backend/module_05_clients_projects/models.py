@@ -494,3 +494,25 @@ class TaskSubmission(models.Model):
     class Meta:
         db_table = "ext_task_submission"
         ordering = ["-submitted_at"]        
+
+class ProjectMessage(models.Model):
+    """Project group chat. The official schema has no project/team
+    conversation table, and ext_message is strictly 1-on-1 (sender ->
+    single recipient), so a group thread needs its own table: one row
+    per message, visible to every active member + the PM of the project."""
+    project_message_id = models.BigAutoField(primary_key=True)
+    project = models.ForeignKey(
+        Project, on_delete=models.CASCADE, db_column="project_id",
+        db_constraint=False, related_name="group_messages",
+    )
+    sender = models.ForeignKey(
+        UserAccount, on_delete=models.SET_NULL, null=True,
+        db_column="sender_user_id", db_constraint=False, related_name="project_group_messages",
+    )
+    content = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "ext_project_message"
+        ordering = ["created_at"]
+        indexes = [models.Index(fields=["project", "created_at"], name="ext_projmsg_proj_created_idx")]

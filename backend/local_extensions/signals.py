@@ -94,15 +94,18 @@ def _hr_recipients():
 
 @receiver(post_save, sender=InternshipCompletion)
 def notify_hr_of_conversion(sender, instance, created, **kwargs):
-    """Fires only once Business Team actually approves a conversion —
-    approved_by_user is set in ApproveCompletionView, not at the
-    recommendation stage. Points HR to generate the revised offer
-    letter manually through the existing Document Generator."""
+    """Fires once HR approves a conversion (approved_by_user is set in
+    HRApproveConversionView, not at the recommendation stage). Reminds
+    the rest of HR to generate the revised offer letter through the
+    existing Document Generator — the approver is skipped, they just
+    did it."""
     if instance.outcome != "CONVERTED_TO_EMPLOYEE" or not instance.approved_by_user_id:
         return
 
     full_name = str(instance.intern.student.person)
     for user in _hr_recipients():
+        if user.user_id == instance.approved_by_user_id:
+            continue
         notify(
             recipient=user, module="HR", notification_type="INTERN_CONVERTED",
             title=f"{full_name} converted to Employee — offer letter needed",

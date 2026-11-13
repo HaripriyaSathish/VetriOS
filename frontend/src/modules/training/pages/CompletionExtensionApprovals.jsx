@@ -40,7 +40,9 @@ function downloadCsv(rows) {
   URL.revokeObjectURL(url);
 }
 
-function CompletionExtensionApprovals() {
+// embedded: rendered as a tab inside HR's Intern Management page, which
+// supplies the page title — only the action buttons are kept here.
+function CompletionExtensionApprovals({ embedded = false }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -72,11 +74,34 @@ function CompletionExtensionApprovals() {
     }
   };
 
+  const rejectCompletion = async (r) => {
+    const reason = window.prompt(`Reason for declining ${r.name}'s request (${r.label}) — sent to the project lead:`);
+    if (reason === null) return;
+    if (!reason.trim()) { setError("A reason is required to decline a request."); return; }
+    setProcessing(`completion-${r.id}`);
+    setError("");
+    try {
+      await client.patch(`/api/interns/completions/${r.id}/reject/`, { reason });
+      setMessage(`Request declined for ${r.name}. The project lead can recommend again.`);
+      await load();
+    } catch (err) {
+      setError(err.response?.data?.detail || "Couldn't decline request.");
+    } finally {
+      setProcessing(null);
+    }
+  };
+
   const actOnExtension = async (r, decision) => {
+    let reason = "";
+    if (decision === "REJECTED") {
+      const input = window.prompt(`Reason for declining ${r.name}'s extension (optional):`);
+      if (input === null) return;
+      reason = input;
+    }
     setProcessing(`extension-${r.id}`);
     setError("");
     try {
-      await client.patch(`/api/interns/extensions/${r.id}/act/`, { decision });
+      await client.patch(`/api/interns/extensions/${r.id}/act/`, { decision, reason });
       setMessage(`Extension ${decision.toLowerCase()} for ${r.name}.`);
       await load();
     } catch (err) {
@@ -110,12 +135,12 @@ function CompletionExtensionApprovals() {
   const shown = filtered.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
 
   return (
-    <div className="bp-page">
+    <div className={embedded ? "bp-embed" : "bp-page"}>
       <div className="bp-head">
-        <div>
-          <p className="bp-crumb">Business Operations › <span>Lifecycle Approvals</span></p>
+        <div style={embedded ? { display: "none" } : undefined}>
+          <p className="bp-crumb">HR › <span>Internship Lifecycle Approvals</span></p>
           <h1 className="bp-title">Completion &amp; Extension Approvals</h1>
-          <p className="bp-sub">Validate course completion certificates and deliberate internship extension requests across active business cohorts.</p>
+          <p className="bp-sub">Approve internship completions, certificates, intern-to-employee conversions and extension requests raised by project leads.</p>
         </div>
         <div className="bp-actions">
           <button type="button" className="bp-btn outline" onClick={() => downloadCsv(filtered)} disabled={filtered.length === 0}>
@@ -134,7 +159,7 @@ function CompletionExtensionApprovals() {
             <span className="bp-stat-icon"><Award size={17} /></span>
           </div>
           <p className="bp-stat-value">{st.completions_pending} <span className="bp-chip blue">Pending</span></p>
-          <p className="bp-person-sub">Completions awaiting Business Team sign-off</p>
+          <p className="bp-person-sub">Completions &amp; conversions awaiting HR sign-off</p>
         </div>
         <div className="bp-stat" style={{ "--i": 1 }}>
           <div className="bp-stat-top">
@@ -213,7 +238,10 @@ function CompletionExtensionApprovals() {
                         {r.kind === "completion" ? (
                           <>
                             <button type="button" className="bp-btn navy small" disabled={busy} onClick={() => approveCompletion(r)}>
-                              {busy ? "Approving…" : "Approve Certificate"}
+                              {busy ? "Saving…" : r.label === "Converted To Employee" ? "Approve Conversion" : r.label === "Certificate Issued" ? "Approve Certificate" : "Approve"}
+                            </button>
+                            <button type="button" className="bp-btn outline small" disabled={busy} onClick={() => rejectCompletion(r)}>
+                              Reject
                             </button>
                             <button type="button" className="bp-btn outline small" onClick={() => setOpenKey(open ? null : key)}>
                               Review {open ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
@@ -238,7 +266,7 @@ function CompletionExtensionApprovals() {
                         <div className="ap-form">
                           <p className="ap-note"><MessageSquare size={13} /> {r.note || "No note from the project lead."}</p>
                           <p className="bp-person-sub" style={{ margin: 0 }}>
-                            Outcome on approval: <b>{r.label}</b>. Completions can only be approved here — ask the project lead to update the recommendation if it needs changes.
+                            Outcome on approval: <b>{r.label}</b>. Rejecting removes the request and sends your reason to the project lead, who can recommend again.
                           </p>
                         </div>
                       </td>
@@ -266,7 +294,7 @@ function CompletionExtensionApprovals() {
         <Info size={18} />
         <div>
           <b>What approving does</b>
-          <p>Approving a completion applies its outcome — closing the internship or converting the intern to an employee. Granting an extension moves the internship end date to the requested date.</p>
+          <p>Approving a completion applies its outcome and closes the internship — for a conversion it also makes the intern a full-time employee with the Employee role. Granting an extension moves the internship end date to the requested date. The project lead and intern are notified of every decision.</p>
         </div>
       </div>
     </div>

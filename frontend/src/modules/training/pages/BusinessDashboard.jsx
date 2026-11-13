@@ -67,11 +67,14 @@ function BusinessDashboard() {
 
   // Manager options for the inline "Assign manager" picker — same lookup
   // the Assign Reporting Manager page uses; only fetched when needed.
+  // Reporting-manager assignment is HR's job — the "Unassigned interns"
+  // card only shows for HR / System Admin (the backend says who).
+  const canAssignManager = !!data?.permissions?.can_assign_manager;
   useEffect(() => {
-    if (data?.unassigned_interns?.length && managers.length === 0) {
+    if (canAssignManager && data?.unassigned_interns?.length && managers.length === 0) {
       client.get("/api/projects/users-lookup/").then(({ data }) => setManagers(data || [])).catch(() => {});
     }
-  }, [data, managers.length]);
+  }, [data, managers.length, canAssignManager]);
 
   const run = async (key, action, successText) => {
     setBusy(key);
@@ -89,7 +92,7 @@ function BusinessDashboard() {
 
   const approve = (a) => {
     if (a.kind === "internship") {
-      // Approving needs a reporting manager + start date — done on its page.
+      // Approving needs a start date — done on its page (HR assigns the manager after).
       navigate("/training/internship-approvals");
       return;
     }
@@ -116,7 +119,7 @@ function BusinessDashboard() {
     const message = `Hi ${f.name}, a friendly reminder from Vetri IT Systems: installment ${f.installment_number} of ${rupee(f.amount)} for ${f.course_name} is ${due.text.toLowerCase()}.`;
     const phone = String(f.whatsapp_number || "").replace(/\D/g, "");
     window.open(`https://wa.me/${phone.length === 10 ? `91${phone}` : phone}?text=${encodeURIComponent(message)}`, "_blank", "noopener");
-    run(`f-${f.installment_id}`, () => client.post(`/api/admissions/installments/${f.installment_id}/mark-reminder-sent/`), `Reminder opened for ${f.name}.`);
+    run(`f-${f.installment_id}`, () => client.post(`/api/admissions/installments/${f.installment_id}/mark-reminder-sent/`), `Reminder sent to ${f.name} — WhatsApp opened, email sent if they have one.`);
   };
 
   const assignManager = (internId, managerId) => {
@@ -426,7 +429,8 @@ function BusinessDashboard() {
       </div>
 
       {/* ---------- Interns, batches, audit ---------- */}
-      <div className="bd-row bd-row-3">
+      <div className={`bd-row ${canAssignManager ? "bd-row-3" : ""}`}>
+        {canAssignManager && (
         <div className="bd-card" style={{ "--i": 8 }}>
           <div className="bd-card-head">
             <h3>
@@ -465,9 +469,10 @@ function BusinessDashboard() {
           )}
           <div className="bd-card-foot split">
             <span>{data.unassigned_total} awaiting a manager</span>
-            <Link to="/training/assign-reporting-manager" className="bd-link">Manage all</Link>
+            <Link to="/hr/intern-management?tab=managers" className="bd-link">Manage all</Link>
           </div>
         </div>
+        )}
 
         <div className="bd-card" style={{ "--i": 9 }}>
           <div className="bd-card-head">

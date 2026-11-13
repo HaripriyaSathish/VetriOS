@@ -119,7 +119,7 @@ function ProjectTeam() {
         backLabel="All projects"
       >
         <Link to="/project/testing-reports" className="bp-btn outline"><Bug size={16} /> Testing Reports</Link>
-        <Link to={`/project/${projectId}/ask-lead`} className="bp-btn outline"><MessageSquare size={16} /> Ask Project Lead</Link>
+        <Link to={`/project/${projectId}/team-messages`} className="bp-btn outline"><MessageSquare size={16} /> Team Chat</Link>
         {isPM && (
           <button type="button" className="bp-btn navy" onClick={() => { setShowAssignForm(true); setFormError(""); }}>
             <UserPlus size={16} /> Assign Team Member

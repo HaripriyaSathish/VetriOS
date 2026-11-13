@@ -79,8 +79,8 @@ function FeeConversion() {
     window.open(`https://wa.me/${phone.length === 10 ? `91${phone}` : phone}?text=${encodeURIComponent(message)}`, "_blank", "noopener");
     setBusy(`r-${r.installment_id}`);
     try {
-      await client.post(`/api/admissions/installments/${r.installment_id}/mark-reminder-sent/`);
-      setNotice(`Reminder opened in WhatsApp for ${r.name} (${due.label.toLowerCase()}).`);
+      const { data: res } = await client.post(`/api/admissions/installments/${r.installment_id}/mark-reminder-sent/`);
+      setNotice(`Reminder opened in WhatsApp for ${r.name} (${due.label.toLowerCase()})${res.email_sent ? " · email reminder sent" : " · no email on file, WhatsApp only"}.`);
       await loadFees(period);
     } catch (err) {
       setNotice(err.response?.data?.detail || "Couldn't mark the reminder as sent.");

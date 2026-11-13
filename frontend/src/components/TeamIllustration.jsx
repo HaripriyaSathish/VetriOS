@@ -3,7 +3,11 @@
 // Motion (bob, blink, wave, glow) comes from the .ti-* classes in Sidebar.css.
 function Student({ x, skin, hair, shirt, hairPath, glasses = false, delay = 0 }) {
   return (
-    <g className="ti-person" style={{ animationDelay: `${delay}s` }} transform={`translate(${x} 0)`}>
+    // Position lives on the outer <g>: the .ti-person bob animation sets a
+    // CSS transform, which would otherwise override this translate and
+    // stack every student at the left edge.
+    <g transform={`translate(${x} 0)`}>
+    <g className="ti-person" style={{ animationDelay: `${delay}s` }}>
       <path d="M-30 150 C-30 118 -16 104 0 104 C16 104 30 118 30 150 Z" fill={shirt} />
       <rect x="-6" y="88" width="12" height="18" rx="5" fill={skin} />
       <circle cx="0" cy="72" r="23" fill={skin} />
@@ -22,6 +26,7 @@ function Student({ x, skin, hair, shirt, hairPath, glasses = false, delay = 0 })
       <path d="M-7 84 Q0 90 7 84" stroke="#1b1f3b" strokeWidth="2.4" strokeLinecap="round" fill="none" />
       <circle cx="-14" cy="81" r="3.5" fill="#ff9f8a" opacity="0.5" />
       <circle cx="14" cy="81" r="3.5" fill="#ff9f8a" opacity="0.5" />
+    </g>
     </g>
   );
 }

@@ -288,4 +288,19 @@ class UserProfilePhoto(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = "ext_user_profile_photo"        
+        db_table = "ext_user_profile_photo"
+
+
+class WorkSchedule(models.Model):
+    """A person's assigned check-in / check-out time (set by the System
+    Administrator). Kept in its own small table because the official
+    employee/person tables are owned by the DA team and can't be altered.
+    Keyed by person_id (a plain id, like AiEmail.ai_query_id — no foreign
+    key, since this app role has no REFERENCES privilege on person)."""
+    person_id = models.BigIntegerField(unique=True)
+    login_time = models.TimeField(blank=True, null=True)
+    logout_time = models.TimeField(blank=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "ext_work_schedule"

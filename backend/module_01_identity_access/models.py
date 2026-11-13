@@ -304,3 +304,55 @@ class WorkSchedule(models.Model):
 
     class Meta:
         db_table = "ext_work_schedule"
+
+
+class LeaveAttendanceSetting(models.Model):
+    """Values the System Administrator sets under "Leave & attendance
+    settings": leave days per year for employees and interns, permission
+    hours per month, and each branch's check-in location. A plain
+    name -> value list, e.g. "leave.EMPLOYEE.CASUAL" -> "12",
+    "permission.hours_per_month" -> "4",
+    "branch.2.location" -> '{"lat": 8.97, "lng": 77.3, "radius_m": 200}'."""
+    setting_key = models.CharField(max_length=100, unique=True)
+    setting_value = models.TextField()
+    updated_by_user_id = models.BigIntegerField(blank=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "ext_leave_attendance_setting"
+
+
+class LeaveRequestDetail(models.Model):
+    """Extra details for a row in employee_leave that the official table has
+    no room for: what kind of request it is (hourly permission, work from
+    home, on duty), the hours of a permission, the on-duty reason, and who
+    it was sent to. leave_id is a plain id (no REFERENCES privilege)."""
+    leave_id = models.BigIntegerField(unique=True)
+    request_kind = models.CharField(max_length=20)  # PERMISSION | WFH | ON_DUTY
+    from_time = models.TimeField(blank=True, null=True)
+    to_time = models.TimeField(blank=True, null=True)
+    on_duty_reason = models.CharField(max_length=60, blank=True, null=True)
+    approver_category = models.CharField(max_length=30)  # HR Administrator | System Administrator | Business Team
+    approver_user_id = models.BigIntegerField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "ext_leave_request_detail"
+
+
+class AttendanceLocation(models.Model):
+    """Where a check-in happened, for offline employees' location-based
+    check-in: the coordinates the browser reported, how far that is from the
+    employee's branch, and the result (INSIDE | OUTSIDE | NO_LOCATION |
+    EXEMPT). attendance_id is a plain id (no REFERENCES privilege)."""
+    attendance_id = models.BigIntegerField(unique=True)
+    branch_id = models.BigIntegerField(blank=True, null=True)
+    latitude = models.FloatField(blank=True, null=True)
+    longitude = models.FloatField(blank=True, null=True)
+    accuracy_m = models.FloatField(blank=True, null=True)
+    distance_m = models.FloatField(blank=True, null=True)
+    location_status = models.CharField(max_length=20)
+    recorded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "ext_attendance_location"

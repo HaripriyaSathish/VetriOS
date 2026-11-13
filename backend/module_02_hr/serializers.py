@@ -85,6 +85,14 @@ class LeaveRequestSerializer(serializers.Serializer):
     reason = serializers.CharField(allow_null=True)
     status = serializers.CharField()
     created_at = serializers.DateTimeField()
+    # Leave menu extras (hourly permission / work from home / on duty + chosen approver)
+    request_kind = serializers.CharField(required=False, default="LEAVE")
+    from_time = serializers.CharField(required=False, allow_null=True, default=None)
+    to_time = serializers.CharField(required=False, allow_null=True, default=None)
+    on_duty_reason = serializers.CharField(required=False, allow_null=True, default=None)
+    approver_category = serializers.CharField(required=False, allow_null=True, default=None)
+    approver_user_id = serializers.IntegerField(required=False, allow_null=True, default=None)
+    approver_name = serializers.CharField(required=False, allow_null=True, default=None)
 
 
 # Creates a leave request for the logged-in user's own employee record —

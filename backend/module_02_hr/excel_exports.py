@@ -152,3 +152,64 @@ def build_exit_excel(rows, title):
                 cell.alignment = Alignment(horizontal="center")
 
     return _finish(wb)
+
+
+MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+
+def build_absentees_excel(rows, title):
+    headers = ["Employee", "Department"] + MONTH_LABELS + ["Total"]
+    wb, ws = _sheet("Absentees")
+    _write_title_and_headers(ws, title, headers, [22, 18] + [6] * 12 + [8])
+    for row_idx, r in enumerate(rows, start=3):
+        values = [r["full_name"], r["department_name"] or "—"] + list(r["months"]) + [r["total"]]
+        for col_idx, val in enumerate(values, start=1):
+            cell = ws.cell(row=row_idx, column=col_idx, value=val)
+            cell.border = BORDER
+            if col_idx > 2:
+                cell.alignment = Alignment(horizontal="center")
+                if col_idx <= 14 and val:
+                    cell.fill = PatternFill("solid", fgColor="FFC7CE")
+            if col_idx == len(values):
+                cell.font = Font(bold=True)
+    return _finish(wb)
+
+
+def build_summary_excel(rows, title):
+    headers = ["Employee", "Department", "Working days", "Present", "Absent", "On leave", "Total hours", "Avg hours/day"]
+    wb, ws = _sheet("Summary")
+    _write_title_and_headers(ws, title, headers, [22, 18, 13, 9, 9, 10, 12, 13])
+    for row_idx, r in enumerate(rows, start=3):
+        values = [
+            r["full_name"], r["department_name"] or "—", r["working_days"], r["present"], r["absent"],
+            r["on_leave"], r["total_hours"], r["avg_hours"] if r["avg_hours"] is not None else "—",
+        ]
+        for col_idx, val in enumerate(values, start=1):
+            cell = ws.cell(row=row_idx, column=col_idx, value=val)
+            cell.border = BORDER
+            if col_idx > 2:
+                cell.alignment = Alignment(horizontal="center")
+            if col_idx == 4:
+                cell.fill = PatternFill("solid", fgColor="C6EFCE")
+            if col_idx == 5 and val:
+                cell.fill = PatternFill("solid", fgColor="FFC7CE")
+    return _finish(wb)
+
+
+def build_employee_onboarding_excel(rows, title):
+    headers = ["Employee", "Employee code", "Department", "Designation", "Type", "Joined", "Login"]
+    wb, ws = _sheet("Employee onboarding")
+    _write_title_and_headers(ws, title, headers, [22, 14, 18, 22, 16, 12, 14])
+    for row_idx, r in enumerate(rows, start=3):
+        values = [
+            r["full_name"], r["employee_code"] or "—", r["department_name"] or "—", r["designation_name"] or "—",
+            r["employment_type_name"] or "—", r["joining_date"], r["login_label"],
+        ]
+        for col_idx, val in enumerate(values, start=1):
+            cell = ws.cell(row=row_idx, column=col_idx, value=val)
+            cell.border = BORDER
+            if col_idx == 7:
+                cell.fill = PatternFill("solid", fgColor="C6EFCE" if r["login_label"] == "Login created" else "FFEB9C")
+                cell.font = Font(bold=True)
+                cell.alignment = Alignment(horizontal="center")
+    return _finish(wb)

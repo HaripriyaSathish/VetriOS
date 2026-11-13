@@ -6,6 +6,7 @@ import UserAccounts from "./modules/identity-access/pages/UserAccounts";
 import NewAccount from "./modules/identity-access/pages/NewAccount";
 import EditAccount from "./modules/identity-access/pages/EditAccount";
 import LoginRequests from "./modules/identity-access/pages/LoginRequests";
+import LeaveSettings from "./modules/identity-access/pages/LeaveSettings";
 import RolesPermissions from "./modules/identity-access/pages/RolesPermissions";
 import Permissions from "./modules/identity-access/pages/Permissions";
 import UserPermissions from "./modules/identity-access/pages/UserPermissions";
@@ -25,6 +26,7 @@ import PayrollReferences from "./modules/hr/pages/PayrollReferences";
 import HRReports from "./modules/hr/pages/Reports";
 import MyAttendance from "./modules/hr/pages/MyAttendance";
 import MyLeave from "./modules/hr/pages/MyLeave";
+import NewLeaveRequest from "./modules/hr/pages/NewLeaveRequest";
 import MyWorklog from "./modules/hr/pages/MyWorklog";
 import TeamWorklogs from "./modules/hr/pages/TeamWorklogs";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -178,6 +180,7 @@ function App() {
         <Route path="/assistant" element={<Assistant />} />
         <Route path="/my/attendance" element={<MyAttendance />} />
         <Route path="/my/leave" element={<MyLeave />} />
+        <Route path="/my/leave/new" element={<NewLeaveRequest />} />
         <Route path="/my/worklog" element={<MyWorklog />} />
         <Route path="/my/team-worklogs" element={<TeamWorklogs />} />
 
@@ -194,6 +197,14 @@ function App() {
           element={
             <PermissionGate requirement={{ type: "role", value: "System Administrator" }}>
               <NewAccount />
+            </PermissionGate>
+          }
+        />
+        <Route
+          path="/identity/leave-settings"
+          element={
+            <PermissionGate requirement={{ type: "role", value: "System Administrator" }}>
+              <LeaveSettings />
             </PermissionGate>
           }
         />

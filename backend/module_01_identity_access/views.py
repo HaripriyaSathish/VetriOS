@@ -14,6 +14,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from local_extensions.models import Notification
 from local_extensions.notification_utils import notify
 from module_02_hr.work_schedule import set_schedule, validate_times
+from module_02_hr import leave_settings
 from module_06_documents.models import Document, DocumentAccessRule
 
 from .models import PermissionRequest, Permission, Person, Role, RolePermission, UserAccount, UserPermission, UserRole
@@ -200,6 +201,59 @@ class UserWorkScheduleView(APIView):
             return Response({"detail": error}, status=status.HTTP_400_BAD_REQUEST)
         saved = set_schedule(user.person_id, login_time, logout_time)
         return Response({"work_login_time": saved["login_time"], "work_logout_time": saved["logout_time"]})
+
+
+# "Leave & attendance settings" (System Administrator only): leave days per
+# year for employees and interns, permission hours per month, and each
+# branch's check-in location. See module_02_hr/leave_settings.py.
+class LeaveAttendanceSettingsView(APIView):
+    permission_classes = [IsAuthenticated, IsSystemAdministrator]
+
+    def get(self, request):
+        return Response(leave_settings.get_settings())
+
+    def put(self, request):
+        try:
+            return Response(leave_settings.save_settings(request.data, request.user.pk))
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class HolidaysView(APIView):
+    """System Administrator's holiday list (stored as settings rows).
+    GET list - POST {date, name, type: HOLIDAY|WFH} adds or renames - DELETE ?date=YYYY-MM-DD."""
+    permission_classes = [IsAuthenticated, IsSystemAdministrator]
+
+    def get(self, request):
+        return Response(leave_settings.list_holidays())
+
+    def post(self, request):
+        try:
+            return Response(leave_settings.add_holiday(
+                request.data.get("date"), request.data.get("name"), request.data.get("type"), request.user.pk
+            ))
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request):
+        try:
+            return Response(leave_settings.delete_holiday(request.query_params.get("date")))
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ApplyLeaveAllowanceView(APIView):
+    """POST {year, dry_run} - writes the saved leave days into everyone's
+    leave balance for that year (dry_run only counts what would change)."""
+    permission_classes = [IsAuthenticated, IsSystemAdministrator]
+
+    def post(self, request):
+        try:
+            year = int(request.data.get("year") or timezone.localdate().year)
+        except (TypeError, ValueError):
+            return Response({"detail": "year must be a number."}, status=status.HTTP_400_BAD_REQUEST)
+        dry_run = bool(request.data.get("dry_run"))
+        return Response(leave_settings.apply_leave_allowance(year, dry_run=dry_run))
 
 
 # Profile photo for an account's person (System Administrator only). Same

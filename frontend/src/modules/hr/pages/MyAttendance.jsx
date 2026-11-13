@@ -12,6 +12,7 @@ const STATUS_LABEL = {
   HALF_DAY: "Half day",
   ON_LEAVE: "On leave",
   ABSENT: "Absent",
+  HOLIDAY: "Holiday",
 };
 
 const STATUS_CLASS = {
@@ -19,12 +20,12 @@ const STATUS_CLASS = {
   HALF_DAY: "half",
   ON_LEAVE: "leave",
   ABSENT: "absent",
+  HOLIDAY: "leave",
 };
 
 const STATUS_FILTERS = [
   ["", "All"],
   ["PRESENT", "Present"],
-  ["HALF_DAY", "Half day"],
   ["ON_LEAVE", "Leave"],
   ["ABSENT", "Absent"],
 ];
@@ -126,15 +127,18 @@ function MyAttendance() {
     ? `You've completed your workday · checked out at ${formatTime(today.check_out_time)}`
     : today?.checked_in
     ? `You checked in at ${formatTime(today.check_in_time)}`
+    : today?.day_note?.type === "HOLIDAY"
+    ? `${today.day_note.name} — holiday, no check-in needed`
+    : today?.day_note
+    ? `${today.day_note.name} — work from home day, check in as usual`
     : "Your workday hasn't started yet";
 
   const hist = data?.history || [];
   const present = hist.filter((d) => d.status === "PRESENT").length;
-  const half = hist.filter((d) => d.status === "HALF_DAY").length;
   const leave = hist.filter((d) => d.status === "ON_LEAVE").length;
   const absent = hist.filter((d) => d.status === "ABSENT").length;
-  const counted = present + half + absent;
-  const rate = counted ? Math.round(((present + half * 0.5) / counted) * 1000) / 10 : null;
+  const counted = present + absent;
+  const rate = counted ? Math.round((present / counted) * 1000) / 10 : null;
   const hrs = hist.map((d) => Number(d.hours)).filter((h) => h > 0);
   const avgHrs = hrs.length ? Math.round((hrs.reduce((s, h) => s + h, 0) / hrs.length) * 10) / 10 : null;
 

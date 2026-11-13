@@ -17,6 +17,7 @@ const STATUS_LABEL = {
   WORK_FROM_HOME: "WFH",
   ON_LEAVE: "On leave",
   ABSENT: "Absent",
+  HOLIDAY: "Holiday",
   NO_LOGIN: "No login",
 };
 
@@ -28,6 +29,7 @@ const STATUS_CLASS = {
   WORK_FROM_HOME: "present",
   ON_LEAVE: "leave",
   ABSENT: "absent",
+  HOLIDAY: "leave",
   NO_LOGIN: "no-login",
 };
 
@@ -217,6 +219,16 @@ function Attendance() {
       </div>
 
       {error && <p className="att-error">{error}</p>}
+
+      {data?.day_note && (
+        <p className={`att-daynote${data.day_note.type === "WFH" ? " wfh" : ""}`}>
+          <CalendarOff size={16} />
+          <b>{data.day_note.name}</b>
+          {data.day_note.type === "WFH"
+            ? " — work from home day. Check-in is still required."
+            : " — holiday. Nobody is marked absent today."}
+        </p>
+      )}
 
       <div className="att2-cards">
         {CARDS.map(({ key, stat, label, tone, Icon }) => (

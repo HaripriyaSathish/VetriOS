@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CalendarCheck, UserPlus, LogOut, Users, Percent } from "lucide-react";
+import { CalendarCheck, UserPlus, Users, UserX, ListChecks } from "lucide-react";
 import client from "../../../api/client";
 import { EmployeeAvatar } from "../components/EmployeeAvatar";
 import ReportFilterPanel from "../components/ReportFilterPanel";
@@ -11,7 +11,6 @@ import "../styles/Employees.css";
 
 const ATTENDANCE_REPORT_STATUS_OPTIONS = [
   { value: "PRESENT", label: "Present" },
-  { value: "HALF_DAY", label: "Half day" },
   { value: "ON_LEAVE", label: "On leave" },
   { value: "ABSENT", label: "Absent" },
   { value: "NO_LOGIN", label: "No login" },
@@ -21,10 +20,9 @@ const ONBOARDING_REPORT_STATUS_OPTIONS = [
   { value: "On track", label: "On track" },
   { value: "Completed", label: "Completed" },
 ];
-const EXIT_REPORT_STATUS_OPTIONS = [
-  { value: "Pending", label: "Pending" },
-  { value: "In progress", label: "In progress" },
-  { value: "Completed", label: "Completed" },
+const EMPLOYEE_ONBOARDING_STATUS_OPTIONS = [
+  { value: "Login pending", label: "Login pending" },
+  { value: "Login created", label: "Login created" },
 ];
 const ATT_STATUS_LABEL = {
   PRESENT: "Present",
@@ -69,38 +67,15 @@ function onboardingStatusFor(percent) {
   return { label: "Needs action", cls: "off" };
 }
 
-const EXIT_TYPE_LABEL_FULL = {
-  RESIGNATION: "Resignation",
-  TERMINATION: "Termination",
-  RETIREMENT: "Retirement",
-  CONTRACT_END: "Contract end",
-  ABSCONDING: "Absconding",
-  OTHER: "Other",
-};
-const EXIT_STATUS_LABEL = { PENDING: "Pending", IN_PROGRESS: "In progress", COMPLETED: "Completed" };
-const EXIT_STATUS_CLASS = { PENDING: "off", IN_PROGRESS: "warn", COMPLETED: "on" };
-
 // Validated categorical order (dataviz skill reference palette) — never
-// reordered per-chart, so a given exit type / leave type always reads
+// reordered per-chart, so a given leave type always reads
 // the same color across the whole report.
 const CATEGORICAL = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#4a3aa7", "#e34948"];
 
 // Fixed status palette — reserved for state, never reused as a series color.
 const STATUS = { good: "#0ca30c", warning: "#fab219", serious: "#ec835a", critical: "#d03b3b", muted: "#8a93a6" };
 
-const EXIT_TYPE_LABEL = {
-  RESIGNATION: "Resignation",
-  TERMINATION: "Termination",
-  RETIREMENT: "Retirement",
-  CONTRACT_END: "Contract end",
-  ABSCONDING: "Absconding",
-  OTHER: "Other",
-};
-const EXIT_TYPE_ORDER = Object.keys(EXIT_TYPE_LABEL);
-
 const TERMINAL_EMPLOYEE_STATUSES = new Set(["RESIGNED", "TERMINATED", "RETIRED", "INACTIVE"]);
-
-const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 function formatPct(n) {
   return `${Math.round(n * 10) / 10}%`;
@@ -178,44 +153,6 @@ function Legend({ items }) {
   );
 }
 
-// Horizontal bars for a short list (exits by type): label, bar, count.
-function HBars({ items }) {
-  const max = Math.max(1, ...items.map((i) => i.value));
-  return (
-    <div className="rpt2-hbars">
-      {items.map((i) => (
-        <div className="rpt2-hbar" key={i.label}>
-          <span>{i.label}</span>
-          <div><i style={{ width: `${(i.value / max) * 100}%`, background: i.color }} /></div>
-          <b>{i.value}</b>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// Sequential single-hue bar chart (fixed <=24px thick, capped, grows from
-// one baseline) — used for the exits-per-month trend.
-function BarChart({ data, color = "#1d4f91" }) {
-  const max = Math.max(1, ...data.map((d) => d.value));
-  return (
-    <div className="rpt-bars">
-      {data.map((d) => (
-        <div className="rpt-bar-col" key={d.label}>
-          <div className="rpt-bar-track">
-            <div
-              className="rpt-bar-fill"
-              style={{ height: `${(d.value / max) * 100}%`, background: color }}
-              title={`${d.label}: ${d.value}`}
-            />
-          </div>
-          <span className="rpt-bar-label">{d.label}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function YearPicker({ years, value, onChange }) {
   return (
     <div className="hr-stats-head">
@@ -231,14 +168,11 @@ function YearPicker({ years, value, onChange }) {
   );
 }
 
-// HR Reports — Attrition (headcount, exits by type, exits-per-month trend)
-// and Attendance & Leave (today's attendance breakdown, leave days by
-// type). All computed client-side from data the app already fetches
-// elsewhere (employees, exits, today's attendance, leave summary) — no
-// new backend aggregation endpoints needed.
+// HR Reports — attendance reports (overview, monthly absentees, summary),
+// employee and intern onboarding reports, and the Attendance & Leave charts
+// (today's attendance breakdown, leave days by type).
 function Reports() {
   const [employees, setEmployees] = useState([]);
-  const [exits, setExits] = useState([]);
   const [attendanceToday, setAttendanceToday] = useState(null);
   const [leaveRequests, setLeaveRequests] = useState([]);
   const [departments, setDepartments] = useState([]);
@@ -247,8 +181,7 @@ function Reports() {
   const [error, setError] = useState("");
 
   const currentYear = new Date().getFullYear();
-  const [report, setReport] = useState("attendance"); // attendance | onboarding | exit
-  const [attritionYear, setAttritionYear] = useState(currentYear);
+  const [report, setReport] = useState("attendance"); // attendance | absentees | summary | employee-onboarding | onboarding (interns)
   const [leaveYear, setLeaveYear] = useState(currentYear);
 
   // Attendance overview report
@@ -261,6 +194,24 @@ function Reports() {
   const [attExporting, setAttExporting] = useState(false);
   const [attReportError, setAttReportError] = useState("");
 
+  // Monthly absentees (a whole year) and Attendance summary (one month)
+  const thisYear = new Date().getFullYear();
+  const yearOptions = Array.from({ length: 5 }, (_, i) => thisYear - i);
+  const [absYear, setAbsYear] = useState(String(thisYear));
+  const [absDepartment, setAbsDepartment] = useState("");
+  const [absData, setAbsData] = useState(null);
+  const [absPage, setAbsPage] = useState(1);
+  const [absPreviewing, setAbsPreviewing] = useState(false);
+  const [absExporting, setAbsExporting] = useState(false);
+  const [absError, setAbsError] = useState("");
+  const [sumPeriod, setSumPeriod] = useState(currentMonthValue());
+  const [sumDepartment, setSumDepartment] = useState("");
+  const [sumRows, setSumRows] = useState(null);
+  const [sumPage, setSumPage] = useState(1);
+  const [sumPreviewing, setSumPreviewing] = useState(false);
+  const [sumExporting, setSumExporting] = useState(false);
+  const [sumError, setSumError] = useState("");
+
   // Onboarding overview report
   const [obReportPeriod, setObReportPeriod] = useState(currentMonthValue());
   const [obReportDepartment, setObReportDepartment] = useState("");
@@ -270,29 +221,27 @@ function Reports() {
   const [obExporting, setObExporting] = useState(false);
   const [obReportError, setObReportError] = useState("");
 
-  // Exit overview report
-  const [exReportPeriod, setExReportPeriod] = useState(currentMonthValue());
-  const [exReportDepartment, setExReportDepartment] = useState("");
-  const [exReportStatus, setExReportStatus] = useState("");
-  const [exReportRows, setExReportRows] = useState(null);
-  const [exReportPage, setExReportPage] = useState(1);
-  const [exExporting, setExExporting] = useState(false);
-  const [exReportError, setExReportError] = useState("");
+  // Employee onboarding report (new joiners)
+  const [eobPeriod, setEobPeriod] = useState(currentMonthValue());
+  const [eobDepartment, setEobDepartment] = useState("");
+  const [eobStatus, setEobStatus] = useState("");
+  const [eobRows, setEobRows] = useState(null);
+  const [eobPage, setEobPage] = useState(1);
+  const [eobExporting, setEobExporting] = useState(false);
+  const [eobError, setEobError] = useState("");
 
   useEffect(() => {
     setLoading(true);
     setError("");
     Promise.all([
       client.get("/api/hr/employees/"),
-      client.get("/api/hr/exits/"),
       client.get("/api/hr/attendance/today/"),
       client.get("/api/hr/leave/summary/"),
       client.get("/api/hr/departments/"),
       client.get("/api/hr/onboarding/interns/"),
     ])
-      .then(([empRes, exitRes, attRes, leaveRes, deptRes, internRes]) => {
+      .then(([empRes, attRes, leaveRes, deptRes, internRes]) => {
         setEmployees(empRes.data);
-        setExits(exitRes.data);
         setAttendanceToday(attRes.data);
         setLeaveRequests(leaveRes.data.requests || []);
         setDepartments(deptRes.data.filter((d) => d.is_active));
@@ -342,6 +291,70 @@ function Reports() {
     }
   };
 
+  const previewAbsentees = async () => {
+    setAbsPreviewing(true);
+    setAbsError("");
+    setAbsPage(1);
+    try {
+      const { data } = await client.get("/api/hr/attendance/report/absentees/", {
+        params: { year: absYear, department_id: absDepartment || undefined },
+      });
+      setAbsData(data);
+    } catch {
+      setAbsError("Couldn't load the absentees report.");
+    } finally {
+      setAbsPreviewing(false);
+    }
+  };
+
+  const exportAbsentees = async () => {
+    setAbsExporting(true);
+    setAbsError("");
+    try {
+      await downloadReport(
+        "/api/hr/attendance/report/absentees/export/",
+        { year: absYear, department_id: absDepartment || undefined },
+        `Monthly_Absentees_${absYear}.xlsx`
+      );
+    } catch {
+      setAbsError("Couldn't export the report.");
+    } finally {
+      setAbsExporting(false);
+    }
+  };
+
+  const previewSummary = async () => {
+    setSumPreviewing(true);
+    setSumError("");
+    setSumPage(1);
+    try {
+      const { data } = await client.get("/api/hr/attendance/report/summary/", {
+        params: { period: sumPeriod, department_id: sumDepartment || undefined },
+      });
+      setSumRows(data.rows);
+    } catch {
+      setSumError("Couldn't load the attendance summary.");
+    } finally {
+      setSumPreviewing(false);
+    }
+  };
+
+  const exportSummary = async () => {
+    setSumExporting(true);
+    setSumError("");
+    try {
+      await downloadReport(
+        "/api/hr/attendance/report/summary/export/",
+        { period: sumPeriod, department_id: sumDepartment || undefined },
+        `Attendance_Summary_${sumPeriod}.xlsx`
+      );
+    } catch {
+      setSumError("Couldn't export the report.");
+    } finally {
+      setSumExporting(false);
+    }
+  };
+
   const previewOnboardingReport = () => {
     setObReportPage(1);
     const filtered = interns.filter((i) => {
@@ -376,42 +389,39 @@ function Reports() {
     }
   };
 
-  const previewExitReport = () => {
-    setExReportPage(1);
-    const filtered = exits.filter((e) => {
-      if (exReportDepartment && String(e.department_id) !== String(exReportDepartment)) return false;
-      if (exReportStatus && (EXIT_STATUS_LABEL[e.status] || e.status) !== exReportStatus) return false;
-      if (exReportPeriod && (!e.exit_date || e.exit_date.slice(0, 7) !== exReportPeriod)) return false;
-      return true;
-    });
-    setExReportRows(filtered);
+  const previewEmployeeOnboarding = () => {
+    setEobPage(1);
+    setEobRows(
+      employees.filter((e) => {
+        if (/intern/i.test(e.employment_type_name || "")) return false;
+        if (TERMINAL_EMPLOYEE_STATUSES.has(e.status)) return false;
+        if (eobDepartment && String(e.department_id) !== String(eobDepartment)) return false;
+        if (eobStatus && (e.has_login ? "Login created" : "Login pending") !== eobStatus) return false;
+        if (eobPeriod && (!e.joining_date || e.joining_date.slice(0, 7) !== eobPeriod)) return false;
+        return true;
+      })
+    );
   };
 
-  const exportExitReport = async () => {
-    setExExporting(true);
-    setExReportError("");
+  const exportEmployeeOnboarding = async () => {
+    setEobExporting(true);
+    setEobError("");
     try {
       await downloadReport(
-        "/api/hr/exits/report/export/",
+        "/api/hr/onboarding/employees/report/export/",
         {
-          period: exReportPeriod || undefined,
-          department_id: exReportDepartment || undefined,
-          status: exReportStatus || undefined,
+          period: eobPeriod || undefined,
+          department_id: eobDepartment || undefined,
+          status: eobStatus || undefined,
         },
-        `Exit_Overview${exReportPeriod ? `_${exReportPeriod}` : ""}.xlsx`
+        `Employee_Onboarding${eobPeriod ? `_${eobPeriod}` : ""}.xlsx`
       );
-    } catch (err) {
-      setExReportError("Couldn't export the report.");
+    } catch {
+      setEobError("Couldn't export the report.");
     } finally {
-      setExExporting(false);
+      setEobExporting(false);
     }
   };
-
-  const attritionYearOptions = useMemo(() => {
-    const years = new Set([currentYear]);
-    exits.forEach((e) => years.add(new Date(e.exit_date).getFullYear()));
-    return [...years].sort((a, b) => b - a);
-  }, [exits, currentYear]);
 
   const leaveYearOptions = useMemo(() => {
     const years = new Set([currentYear]);
@@ -419,32 +429,10 @@ function Reports() {
     return [...years].sort((a, b) => b - a);
   }, [leaveRequests, currentYear]);
 
-  // Attrition
-  const activeHeadcount = employees.filter((e) => !TERMINAL_EMPLOYEE_STATUSES.has(e.status)).length;
-  const completedExitsInYear = exits.filter(
-    (e) => e.status === "COMPLETED" && new Date(e.exit_date).getFullYear() === attritionYear
-  );
-  const attritionRate =
-    activeHeadcount + completedExitsInYear.length > 0
-      ? (completedExitsInYear.length / (activeHeadcount + completedExitsInYear.length)) * 100
-      : 0;
-
-  const exitTypeSegments = EXIT_TYPE_ORDER.map((type, i) => ({
-    label: EXIT_TYPE_LABEL[type],
-    value: completedExitsInYear.filter((e) => e.exit_type === type).length,
-    color: CATEGORICAL[i],
-  })).filter((s) => s.value > 0);
-
-  const exitsByMonth = MONTH_LABELS.map((label, i) => ({
-    label,
-    value: completedExitsInYear.filter((e) => new Date(e.exit_date).getMonth() === i).length,
-  }));
-
   // Attendance & Leave
   const attendanceSegments = attendanceToday
     ? [
         { label: "Present", value: attendanceToday.stats.present, color: STATUS.good },
-        { label: "Half day", value: attendanceToday.stats.half_day, color: STATUS.warning },
         { label: "On leave", value: attendanceToday.stats.on_leave, color: CATEGORICAL[0] },
         { label: "Absent", value: attendanceToday.stats.absent, color: STATUS.critical },
         { label: "No login", value: attendanceToday.stats.no_login, color: STATUS.muted },
@@ -470,7 +458,7 @@ function Reports() {
       <div className="hr-head">
         <div>
           <h1>Reports</h1>
-          <p>Attendance, onboarding and exits, plus attrition at a glance.</p>
+          <p>Attendance, absentees, onboarding and leave at a glance.</p>
         </div>
       </div>
 
@@ -482,8 +470,10 @@ function Reports() {
           <div className="rpt2-switch" role="tablist" aria-label="Report type">
             {[
               { key: "attendance", label: "Attendance", Icon: CalendarCheck },
-              { key: "onboarding", label: "Onboarding", Icon: UserPlus },
-              { key: "exit", label: "Exits", Icon: LogOut },
+              { key: "absentees", label: "Monthly absentees", Icon: UserX },
+              { key: "summary", label: "Attendance summary", Icon: ListChecks },
+              { key: "employee-onboarding", label: "Employee onboarding", Icon: UserPlus },
+              { key: "onboarding", label: "Intern onboarding", Icon: Users },
             ].map(({ key, label, Icon }) => (
               <button
                 key={key}
@@ -584,10 +574,153 @@ function Reports() {
           </>
           )}
 
+          {report === "absentees" && (
+          <>
+          <ReportFilterPanel
+            title="Monthly absentees"
+            subtitle="Absent working days for every month of a year. Sundays are holidays and never counted."
+            year={absYear}
+            onYearChange={setAbsYear}
+            yearOptions={yearOptions}
+            departments={departments}
+            departmentValue={absDepartment}
+            onDepartmentChange={setAbsDepartment}
+            onPreview={previewAbsentees}
+            onExport={exportAbsentees}
+            previewing={absPreviewing}
+            exporting={absExporting}
+          />
+          {absError && <p className="hr-error">{absError}</p>}
+          {absData && (
+            <div className="hr-panel rpt-panel">
+              <div className="rpt-preview-head">
+                <span>{absData.rows.length} {absData.rows.length === 1 ? "employee" : "employees"} · {absData.year}</span>
+                <button type="button" className="hr-btn-sm" onClick={() => setAbsData(null)}>Close preview</button>
+              </div>
+              {absData.rows.length === 0 ? (
+                <p className="hr-empty">No employees match these filters.</p>
+              ) : (
+                <>
+                  <div className="hr-table-scroll">
+                    <table className="hr-table rpt-absent-table">
+                      <thead>
+                        <tr>
+                          <th>Employee</th>
+                          {["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].map((m) => (
+                            <th key={m} className="rpt-num">{m}</th>
+                          ))}
+                          <th className="rpt-num">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {paginate(absData.rows, absPage, 10).map((r) => (
+                          <tr key={r.employee_id}>
+                            <td>
+                              <div className="hr-cell-user">
+                                <EmployeeAvatar personId={r.person_id} size={28} />
+                                <div>
+                                  <div className="hr-name">{r.full_name}</div>
+                                  <div className="hr-sub">{r.department_name || "—"}</div>
+                                </div>
+                              </div>
+                            </td>
+                            {r.months.map((n, i) => (
+                              <td key={i} className="rpt-num">
+                                {n ? (
+                                  <span className="rpt-abs-cell" title={r.dates[i].join(", ")}>{n}</span>
+                                ) : (
+                                  <span className="rpt-zero">·</span>
+                                )}
+                              </td>
+                            ))}
+                            <td className="rpt-num"><b>{r.total}</b></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <Pagination page={absPage} totalItems={absData.rows.length} onPageChange={setAbsPage} pageSize={10} />
+                </>
+              )}
+            </div>
+          )}
+          </>
+          )}
+
+          {report === "summary" && (
+          <>
+          <ReportFilterPanel
+            title="Attendance summary"
+            subtitle="Present, absent and on-leave days with hours worked, per employee for one month. Sundays are holidays."
+            period={sumPeriod}
+            onPeriodChange={setSumPeriod}
+            departments={departments}
+            departmentValue={sumDepartment}
+            onDepartmentChange={setSumDepartment}
+            onPreview={previewSummary}
+            onExport={exportSummary}
+            previewing={sumPreviewing}
+            exporting={sumExporting}
+          />
+          {sumError && <p className="hr-error">{sumError}</p>}
+          {sumRows && (
+            <div className="hr-panel rpt-panel">
+              <div className="rpt-preview-head">
+                <span>{sumRows.length} {sumRows.length === 1 ? "employee" : "employees"} · {sumPeriod}</span>
+                <button type="button" className="hr-btn-sm" onClick={() => setSumRows(null)}>Close preview</button>
+              </div>
+              {sumRows.length === 0 ? (
+                <p className="hr-empty">No employees match these filters.</p>
+              ) : (
+                <>
+                  <div className="hr-table-scroll">
+                    <table className="hr-table">
+                      <thead>
+                        <tr>
+                          <th>Employee</th>
+                          <th>Department</th>
+                          <th className="rpt-num">Working days</th>
+                          <th className="rpt-num">Present</th>
+                          <th className="rpt-num">Absent</th>
+                          <th className="rpt-num">On leave</th>
+                          <th className="rpt-num">Total hours</th>
+                          <th className="rpt-num">Avg / day</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {paginate(sumRows, sumPage, 10).map((r) => (
+                          <tr key={r.employee_id}>
+                            <td>
+                              <div className="hr-cell-user">
+                                <EmployeeAvatar personId={r.person_id} size={28} />
+                                <div className="hr-name">{r.full_name}</div>
+                              </div>
+                            </td>
+                            <td>{r.department_name || "—"}</td>
+                            <td className="rpt-num hr-mono">{r.working_days}</td>
+                            <td className="rpt-num"><span className="att-pill present">{r.present}</span></td>
+                            <td className="rpt-num"><span className={"att-pill " + (r.absent ? "absent" : "no-login")}>{r.absent}</span></td>
+                            <td className="rpt-num"><span className={"att-pill " + (r.on_leave ? "leave" : "no-login")}>{r.on_leave}</span></td>
+                            <td className="rpt-num hr-mono">{r.total_hours}</td>
+                            <td className="rpt-num hr-mono">{r.avg_hours ?? "—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <Pagination page={sumPage} totalItems={sumRows.length} onPageChange={setSumPage} pageSize={10} />
+                </>
+              )}
+            </div>
+          )}
+          </>
+          )}
+
           {report === "onboarding" && (
           <>
           <ReportFilterPanel
-            title="Onboarding overview"
+            title="Intern onboarding"
+            subtitle="Interns and how far each one is through the onboarding checklist."
             period={obReportPeriod}
             onPeriodChange={setObReportPeriod}
             departments={departments}
@@ -663,33 +796,32 @@ function Reports() {
           </>
           )}
 
-          {report === "exit" && (
+          {report === "employee-onboarding" && (
           <>
           <ReportFilterPanel
-            title="Exit overview"
-            period={exReportPeriod}
-            onPeriodChange={setExReportPeriod}
+            title="Employee onboarding"
+            subtitle="New joiners of a month: department, designation, and whether their login has been created."
+            period={eobPeriod}
+            onPeriodChange={setEobPeriod}
             departments={departments}
-            departmentValue={exReportDepartment}
-            onDepartmentChange={setExReportDepartment}
-            statusOptions={EXIT_REPORT_STATUS_OPTIONS}
-            statusValue={exReportStatus}
-            onStatusChange={setExReportStatus}
-            onPreview={previewExitReport}
-            onExport={exportExitReport}
-            exporting={exExporting}
+            departmentValue={eobDepartment}
+            onDepartmentChange={setEobDepartment}
+            statusOptions={EMPLOYEE_ONBOARDING_STATUS_OPTIONS}
+            statusValue={eobStatus}
+            onStatusChange={setEobStatus}
+            onPreview={previewEmployeeOnboarding}
+            onExport={exportEmployeeOnboarding}
+            exporting={eobExporting}
           />
-          {exReportError && <p className="hr-error">{exReportError}</p>}
-          {exReportRows && (
+          {eobError && <p className="hr-error">{eobError}</p>}
+          {eobRows && (
             <div className="hr-panel rpt-panel">
               <div className="rpt-preview-head">
-                <span>{exReportRows.length} {exReportRows.length === 1 ? "record" : "records"}</span>
-                <button type="button" className="hr-btn-sm" onClick={() => setExReportRows(null)}>
-                  Close preview
-                </button>
+                <span>{eobRows.length} {eobRows.length === 1 ? "employee" : "employees"}</span>
+                <button type="button" className="hr-btn-sm" onClick={() => setEobRows(null)}>Close preview</button>
               </div>
-              {exReportRows.length === 0 ? (
-                <p className="hr-empty">No exit records match these filters.</p>
+              {eobRows.length === 0 ? (
+                <p className="hr-empty">No new joiners match these filters.</p>
               ) : (
                 <>
                   <div className="hr-table-scroll">
@@ -698,26 +830,31 @@ function Reports() {
                         <tr>
                           <th>Employee</th>
                           <th>Department</th>
-                          <th>Exit type</th>
-                          <th>Exit date</th>
-                          <th>Status</th>
+                          <th>Designation</th>
+                          <th>Type</th>
+                          <th>Joined</th>
+                          <th>Login</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {paginate(exReportRows, exReportPage, 10).map((r) => (
-                          <tr key={r.exit_id}>
+                        {paginate(eobRows, eobPage, 10).map((e) => (
+                          <tr key={e.employee_id}>
                             <td>
                               <div className="hr-cell-user">
-                                <EmployeeAvatar personId={r.person_id} size={28} />
-                                <div className="hr-name">{r.full_name}</div>
+                                <EmployeeAvatar personId={e.person_id} size={28} />
+                                <div>
+                                  <div className="hr-name">{e.full_name}</div>
+                                  <div className="hr-sub">{e.employee_code || "—"}</div>
+                                </div>
                               </div>
                             </td>
-                            <td>{r.department_name || "—"}</td>
-                            <td>{EXIT_TYPE_LABEL_FULL[r.exit_type] || r.exit_type}</td>
-                            <td className="hr-mono">{formatDate(r.exit_date)}</td>
+                            <td>{e.department_name || "—"}</td>
+                            <td>{e.designation_name || "—"}</td>
+                            <td>{e.employment_type_name || "—"}</td>
+                            <td className="hr-mono">{formatDate(e.joining_date)}</td>
                             <td>
-                              <span className={"hr-pill " + (EXIT_STATUS_CLASS[r.status] || "off")}>
-                                {EXIT_STATUS_LABEL[r.status] || r.status}
+                              <span className={"hr-pill " + (e.has_login ? "on" : "warn")}>
+                                {e.has_login ? "Login created" : "Login pending"}
                               </span>
                             </td>
                           </tr>
@@ -725,69 +862,13 @@ function Reports() {
                       </tbody>
                     </table>
                   </div>
-                  <Pagination
-                    page={exReportPage}
-                    totalItems={exReportRows.length}
-                    onPageChange={setExReportPage}
-                    pageSize={10}
-                  />
+                  <Pagination page={eobPage} totalItems={eobRows.length} onPageChange={setEobPage} pageSize={10} />
                 </>
               )}
-              <div className="rpt-preview-foot">
-                <button type="button" className="hr-btn-sm" onClick={() => setExReportRows(null)}>
-                  Close preview
-                </button>
-              </div>
             </div>
           )}
-
           </>
           )}
-
-          {/* Attrition */}
-          <div className="hr-panel rpt-panel">
-            <div className="att-panel-head">
-              <div>
-                <h3>Attrition</h3>
-                <p>Headcount lost this year, by type and by month.</p>
-              </div>
-              <YearPicker years={attritionYearOptions} value={attritionYear} onChange={setAttritionYear} />
-            </div>
-
-            <div className="rpt-panel-body">
-            <div className="emp-mini-row org-stats">
-              <div className="emp-mini tone-blue">
-                <span className="emp-mini-icon"><Users size={15} /></span>
-                <span className="emp-mini-text"><b>{activeHeadcount}</b><span>Active headcount</span></span>
-              </div>
-              <div className="emp-mini tone-green">
-                <span className="emp-mini-icon"><LogOut size={15} /></span>
-                <span className="emp-mini-text"><b>{completedExitsInYear.length}</b><span>Exits · {attritionYear}</span></span>
-              </div>
-              <div className="emp-mini tone-amber">
-                <span className="emp-mini-icon"><Percent size={15} /></span>
-                <span className="emp-mini-text"><b>{formatPct(attritionRate)}</b><span>Attrition rate</span></span>
-              </div>
-            </div>
-
-            <div className="rpt-grid">
-              <div className="rpt-chart-block">
-                <h4>Exits by type</h4>
-                {exitTypeSegments.length === 0 ? (
-                  <p className="hr-empty">No completed exits in {attritionYear}.</p>
-                ) : (
-                  <HBars
-                    items={exitTypeSegments.map((seg, i) => ({ ...seg, color: i % 2 === 0 ? "#1d4f91" : "#e8791f" }))}
-                  />
-                )}
-              </div>
-              <div className="rpt-chart-block">
-                <h4>Exits by month · {attritionYear}</h4>
-                <BarChart data={exitsByMonth} />
-              </div>
-            </div>
-            </div>
-          </div>
 
           {/* Attendance & Leave */}
           <div className="hr-panel rpt-panel">

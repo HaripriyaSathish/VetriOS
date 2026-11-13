@@ -36,6 +36,7 @@ import {
   Send,
   CheckCircle2,
   MailOpen,
+  SlidersHorizontal,
 } from "lucide-react";
 import { NAV_ITEMS, hasAccess } from "../config/nav";
 import { figmaImage } from "../assets/figmaImages";
@@ -67,7 +68,7 @@ function NavImage({ name, fallback: Fallback }) {
 // "/dashboard" is deliberately excluded — it's the universal post-login
 // landing page, so including it would force this group open on every
 // login/refresh for a System Administrator regardless of prior toggle state.
-const SYSADMIN_PATHS = ["/identity/users", "/identity/login-requests", "/identity/roles", "/identity/permissions", "/system-admin/approvals"];
+const SYSADMIN_PATHS = ["/identity/users", "/identity/login-requests", "/identity/leave-settings", "/identity/roles", "/identity/permissions", "/system-admin/approvals"];
 const HR_PATHS = ["/hr"];
 const BUSINESS_TEAM_PATHS = [
   "/training/students", "/training/internship-approvals", "/training/enquiries",
@@ -530,6 +531,16 @@ function Sidebar({ open = false, onClose }) {
                 Promotion approvals
               </NavLink>
 
+              <NavLink
+                to="/identity/leave-settings"
+                className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
+              >
+                <span className="nav-icon">
+                  <SlidersHorizontal size={14} />
+                </span>
+                Leave & attendance settings
+              </NavLink>
+
             </div>
           )}
         </>
@@ -601,7 +612,7 @@ function Sidebar({ open = false, onClose }) {
                 <span className="nav-icon">
                   <Palmtree size={14} />
                 </span>
-                Leave
+                Leave management
               </NavLink>
 
               <NavLink

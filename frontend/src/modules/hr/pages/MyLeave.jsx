@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Plus, Sun, Palmtree, HeartPulse, CalendarDays } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Plus, Sun, Palmtree, HeartPulse, CalendarDays, Check, X } from "lucide-react";
 import client from "../../../api/client";
 import "../styles/HRDashboard.css";
 import "../styles/Attendance.css";
@@ -7,6 +8,7 @@ import "../styles/Leave.css";
 import "../styles/Employees.css";
 import "../../documents/styles/DocumentLibrary.css";
 import "../styles/EmployeePages.css";
+import "../styles/LeaveRequest.css";
 
 const STATUS_LABEL = {
   PENDING: "Pending",
@@ -25,7 +27,22 @@ const STATUS_CLASS = {
 const BALANCE_TONES = ["blue", "green", "red", "violet", "amber"];
 const BALANCE_ICONS = [Sun, Palmtree, HeartPulse, CalendarDays, CalendarDays];
 
-const EMPTY_FORM = { leave_type_id: "", start_date: "", end_date: "", reason: "" };
+// "Casual Leave" / "Hourly permission · 10:00–12:00" / "On duty · Exhibition"
+function typeText(r) {
+  if (r.request_kind === "PERMISSION") return `Hourly permission · ${r.from_time}–${r.to_time}`;
+  if (r.request_kind === "ON_DUTY") return `On duty · ${r.on_duty_reason || ""}`;
+  if (r.request_kind === "WFH") return "Work from home";
+  return r.leave_type_name || "—";
+}
+const lengthText = (r) =>
+  r.request_kind === "PERMISSION"
+    ? (() => {
+        const [h1, m1] = r.from_time.split(":").map(Number);
+        const [h2, m2] = r.to_time.split(":").map(Number);
+        const h = (h2 * 60 + m2 - (h1 * 60 + m1)) / 60;
+        return `${Math.round(h * 100) / 100} h`;
+      })()
+    : `${r.total_days} ${r.total_days === 1 ? "day" : "days"}`;
 
 function formatDateRange(start, end) {
   const opts = { day: "numeric", month: "short", year: "numeric" };
@@ -40,27 +57,23 @@ function formatDateRange(start, end) {
 // rejection reason, when rejected). Not HR-gated: self-service only,
 // approve/reject stay HR-only actions elsewhere.
 function MyLeave() {
+  const navigate = useNavigate();
   const [data, setData] = useState(null);
-  const [leaveTypes, setLeaveTypes] = useState([]);
+  const [inbox, setInbox] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
-  const [modalOpen, setModalOpen] = useState(false);
-  const [form, setForm] = useState(EMPTY_FORM);
-  const [formError, setFormError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const [deciding, setDeciding] = useState(null); // leave_id currently being approved/rejected
+  const [rejecting, setRejecting] = useState(null); // leave_id with the reason box open
+  const [rejectReason, setRejectReason] = useState("");
 
   const loadData = async () => {
     setLoading(true);
     setError("");
     try {
-      const [meRes, typesRes] = await Promise.all([
-        client.get("/api/hr/leave/me/"),
-        client.get("/api/hr/leave/types/"),
-      ]);
+      const [meRes, inboxRes] = await Promise.all([client.get("/api/hr/leave/me/"), client.get("/api/hr/leave/inbox/")]);
       setData(meRes.data);
-      setLeaveTypes(typesRes.data);
-    } catch (err) {
+      setInbox(inboxRes.data);
+    } catch {
       setError("Couldn't load your leave data.");
     } finally {
       setLoading(false);
@@ -71,28 +84,25 @@ function MyLeave() {
     loadData();
   }, []);
 
-  const openNewRequest = () => {
-    setForm(EMPTY_FORM);
-    setFormError("");
-    setModalOpen(true);
-  };
-
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-    setSubmitting(true);
-    setFormError("");
+  const decide = async (leave, action) => {
+    setDeciding(leave.leave_id);
+    setError("");
     try {
-      await client.post("/api/hr/leave/requests/", form);
-      setModalOpen(false);
+      await client.post(
+        `/api/hr/leave/requests/${leave.leave_id}/${action}/`,
+        action === "reject" ? { reason: rejectReason } : undefined
+      );
+      setRejecting(null);
+      setRejectReason("");
       await loadData();
     } catch (err) {
-      const errData = err.response?.data;
-      const firstError = errData && Object.values(errData)[0];
-      setFormError(Array.isArray(firstError) ? firstError[0] : errData?.detail || "Something went wrong.");
+      setError(err.response?.data?.detail || err.response?.data?.reason?.[0] || "Couldn't update that request.");
     } finally {
-      setSubmitting(false);
+      setDeciding(null);
     }
   };
+
+  const pendingInbox = inbox.filter((r) => r.status === "PENDING");
 
   const requests = data?.requests || [];
   const balances = (data?.my_balances || []).filter((b) => !/maternity/i.test(b.leave_type_name));
@@ -103,10 +113,10 @@ function MyLeave() {
         <div className="dl2-ban-top">
           <div>
             <h1>Apply leave</h1>
-            <p>Request time off and track the status of your requests.</p>
+            <p>Request leave, permission, work from home or on duty, and track each request.</p>
           </div>
           <div className="dl2-ban-actions">
-            <button type="button" className="dl2-new" onClick={openNewRequest} disabled={!data?.employee_id}>
+            <button type="button" className="dl2-new" onClick={() => navigate("/my/leave/new")} disabled={!data?.employee_id}>
               <Plus size={15} /> New request
             </button>
           </div>
@@ -141,11 +151,92 @@ function MyLeave() {
           </div>
         )}
 
+        {inbox.length > 0 && (
+          <div className="emp2-panel">
+            <div className="emp2-panel-head">
+              <div>
+                <h3>Requests sent to you</h3>
+                <p>{pendingInbox.length ? `${pendingInbox.length} waiting for your decision` : "Nothing waiting for you"}</p>
+              </div>
+            </div>
+            <div className="hr-table-scroll">
+              <table className="hr-table">
+                <thead>
+                  <tr>
+                    <th>Employee</th>
+                    <th>Request</th>
+                    <th>Dates</th>
+                    <th>Length</th>
+                    <th>Reason</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {inbox.map((r) => (
+                    <tr key={r.leave_id}>
+                      <td><b>{r.full_name}</b></td>
+                      <td>{typeText(r)}</td>
+                      <td>{formatDateRange(r.start_date, r.end_date)}</td>
+                      <td className="hr-mono">{lengthText(r)}</td>
+                      <td className="hr-sub">{r.reason || "—"}</td>
+                      <td>
+                        <span className={"att-pill " + (STATUS_CLASS[r.status] || "absent")}>{STATUS_LABEL[r.status] || r.status}</span>
+                      </td>
+                      <td>
+                        {r.status === "PENDING" ? (
+                          rejecting === r.leave_id ? (
+                            <div className="lq-inbox-reason">
+                              <input
+                                autoFocus
+                                placeholder="Reason for rejecting"
+                                value={rejectReason}
+                                onChange={(e) => setRejectReason(e.target.value)}
+                              />
+                              <button
+                                type="button"
+                                className="lv-action-btn lv-action-reject"
+                                disabled={deciding === r.leave_id || !rejectReason.trim()}
+                                onClick={() => decide(r, "reject")}
+                              >
+                                <X size={14} /> Reject
+                              </button>
+                              <button type="button" className="hr-btn-sm" onClick={() => { setRejecting(null); setRejectReason(""); }}>
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="lq-inbox-actions">
+                              <button
+                                type="button"
+                                className="lv-action-btn lv-action-approve"
+                                disabled={deciding === r.leave_id}
+                                onClick={() => decide(r, "approve")}
+                              >
+                                <Check size={14} /> Approve
+                              </button>
+                              <button type="button" className="lv-action-btn lv-action-reject" onClick={() => setRejecting(r.leave_id)}>
+                                <X size={14} /> Reject
+                              </button>
+                            </div>
+                          )
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         <div className="emp2-panel">
           <div className="emp2-panel-head">
             <div>
               <h3>My requests</h3>
-              <p>Status and history of every leave you've requested</p>
+              <p>Leave, hourly permission, work from home and on-duty requests, and where each stands</p>
             </div>
           </div>
 
@@ -158,9 +249,10 @@ function MyLeave() {
               <table className="hr-table">
                 <thead>
                   <tr>
-                    <th>Leave type</th>
+                    <th>Request</th>
                     <th>Dates</th>
-                    <th>Duration</th>
+                    <th>Length</th>
+                    <th>Sent to</th>
                     <th>Reason</th>
                     <th>Status</th>
                   </tr>
@@ -168,11 +260,10 @@ function MyLeave() {
                 <tbody>
                   {requests.map((r) => (
                     <tr key={r.leave_id}>
-                      <td>{r.leave_type_name || "—"}</td>
+                      <td>{typeText(r)}</td>
                       <td>{formatDateRange(r.start_date, r.end_date)}</td>
-                      <td className="hr-mono">
-                        {r.total_days} {r.total_days === 1 ? "day" : "days"}
-                      </td>
+                      <td className="hr-mono">{lengthText(r)}</td>
+                      <td className="hr-sub">{r.approver_name ? `${r.approver_name} · ${r.approver_category}` : "HR"}</td>
                       <td className="hr-sub">{r.reason || "—"}</td>
                       <td>
                         <span className={"att-pill " + (STATUS_CLASS[r.status] || "absent")}>
@@ -187,79 +278,6 @@ function MyLeave() {
           )}
         </div>
       </div>
-
-      {modalOpen && (
-        <div className="hr-modal-backdrop" onClick={() => setModalOpen(false)}>
-          <form className="hr-modal org-modal" onClick={(e) => e.stopPropagation()} onSubmit={handleSubmit}>
-            <button type="button" className="hr-modal-x org-modal-x" onClick={() => setModalOpen(false)} aria-label="Close">
-              ✕
-            </button>
-            <div className="org-modal-head">
-              <span className="org-modal-ico"><Palmtree size={19} /></span>
-              <div>
-                <h2>New leave request</h2>
-                <p>This request will be reviewed by HR Administrator or System Administrator.</p>
-              </div>
-            </div>
-
-            <div className="org-modal-body">
-              <label>Leave type</label>
-              <select
-                value={form.leave_type_id}
-                onChange={(e) => setForm({ ...form, leave_type_id: e.target.value })}
-                required
-              >
-                <option value="">Select…</option>
-                {leaveTypes.map((t) => (
-                  <option key={t.leave_type_id} value={t.leave_type_id}>
-                    {t.leave_type_name}
-                  </option>
-                ))}
-              </select>
-
-              <div className="hr-form-row">
-                <div>
-                  <label>Start date</label>
-                  <input
-                    type="date"
-                    value={form.start_date}
-                    onChange={(e) => setForm({ ...form, start_date: e.target.value })}
-                    required
-                  />
-                </div>
-                <div>
-                  <label>End date</label>
-                  <input
-                    type="date"
-                    value={form.end_date}
-                    onChange={(e) => setForm({ ...form, end_date: e.target.value })}
-                    required
-                  />
-                </div>
-              </div>
-
-              <label>Reason (optional)</label>
-              <textarea
-                className="lv-textarea"
-                value={form.reason}
-                onChange={(e) => setForm({ ...form, reason: e.target.value })}
-                rows={3}
-              />
-
-              {formError && <p className="hr-error">{formError}</p>}
-            </div>
-
-            <div className="hr-modal-actions org-modal-foot">
-              <button type="button" className="hr-btn-sm" onClick={() => setModalOpen(false)}>
-                Cancel
-              </button>
-              <button type="submit" className="hr-btn-accent" disabled={submitting}>
-                {submitting ? "Submitting…" : "Submit request"}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
     </div>
   );
 }

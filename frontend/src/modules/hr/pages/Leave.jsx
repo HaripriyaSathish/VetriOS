@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Check, X, Sun, Palmtree, HeartPulse, Baby, CalendarDays, CalendarPlus, Hourglass, CalendarClock } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Plus, Check, X, Sun, Palmtree, HeartPulse, Baby, CalendarDays, Hourglass, CalendarClock } from "lucide-react";
 import client from "../../../api/client";
 import Pagination, { paginate } from "../../../components/Pagination";
 import { EmployeeAvatar } from "../components/EmployeeAvatar";
@@ -27,15 +28,6 @@ const leaveIcon = (name) => {
   return CalendarDays;
 };
 
-// Inclusive count of calendar days between two yyyy-mm-dd dates (0 if unset or reversed).
-const calendarDays = (start, end) => {
-  if (!start || !end) return 0;
-  const diff = Math.round((new Date(`${end}T00:00:00`) - new Date(`${start}T00:00:00`)) / 86400000) + 1;
-  return diff > 0 ? diff : 0;
-};
-
-const EMPTY_FORM = { leave_type_id: "", start_date: "", end_date: "", reason: "" };
-
 function formatDateRange(start, end) {
   const opts = { day: "numeric", month: "short", year: "numeric" };
   const s = new Date(start).toLocaleDateString(undefined, opts);
@@ -44,13 +36,38 @@ function formatDateRange(start, end) {
   return `${s} – ${e}`;
 }
 
+// Leave-menu request kinds: what to show in the Type and Length columns.
+function typeText(r) {
+  if (r.request_kind === "PERMISSION") return `Hourly permission · ${r.from_time}–${r.to_time}`;
+  if (r.request_kind === "ON_DUTY") return `On duty · ${r.on_duty_reason || ""}`;
+  if (r.request_kind === "WFH") return "Work from home";
+  return r.leave_type_name || "—";
+}
+function lengthText(r) {
+  if (r.request_kind === "PERMISSION" && r.from_time && r.to_time) {
+    const [h1, m1] = r.from_time.split(":").map(Number);
+    const [h2, m2] = r.to_time.split(":").map(Number);
+    return `${Math.round(((h2 * 60 + m2 - (h1 * 60 + m1)) / 60) * 100) / 100} h`;
+  }
+  return `${r.total_days} ${r.total_days === 1 ? "day" : "days"}`;
+}
+// A request sent to a specific approver is decided by that person (or any
+// System Administrator); older requests with no approver by any HR admin.
+function canDecide(r) {
+  const me = JSON.parse(localStorage.getItem("user") || "null");
+  const roles = me?.roles || [];
+  if (roles.includes("System Administrator")) return true;
+  if (r.approver_user_id) return r.approver_user_id === me?.user_id;
+  return roles.includes("HR Administrator");
+}
+
 // Leave management screen — balances for the logged-in user (auto-
 // allocated company-wide: 12 CL / 6 SL / 15 Earned / 182 Maternity),
 // org-wide pending/upcoming stats, and the request list with
 // approve/reject actions on pending rows.
 function Leave() {
+  const navigate = useNavigate();
   const [summary, setSummary] = useState(null);
-  const [leaveTypes, setLeaveTypes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [tab, setTabState] = useState("all"); // "all" | "pending" | "approved"
@@ -59,11 +76,6 @@ function Leave() {
     setTabState(t);
     setPage(1);
   };
-
-  const [modalOpen, setModalOpen] = useState(false);
-  const [form, setForm] = useState(EMPTY_FORM);
-  const [formError, setFormError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
 
   const [actionError, setActionError] = useState("");
 
@@ -77,13 +89,9 @@ function Leave() {
     setLoading(true);
     setError("");
     try {
-      const [summaryRes, typesRes] = await Promise.all([
-        client.get("/api/hr/leave/summary/"),
-        client.get("/api/hr/leave/types/"),
-      ]);
-      setSummary(summaryRes.data);
-      setLeaveTypes(typesRes.data);
-    } catch (err) {
+      const { data } = await client.get("/api/hr/leave/summary/");
+      setSummary(data);
+    } catch {
       setError("Couldn't load leave data.");
     } finally {
       setLoading(false);
@@ -94,28 +102,9 @@ function Leave() {
     loadData();
   }, []);
 
-  const openNewRequest = () => {
-    setForm(EMPTY_FORM);
-    setFormError("");
-    setModalOpen(true);
-  };
-
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-    setSubmitting(true);
-    setFormError("");
-    try {
-      await client.post("/api/hr/leave/requests/", form);
-      setModalOpen(false);
-      await loadData();
-    } catch (err) {
-      const data = err.response?.data;
-      const firstError = data && Object.values(data)[0];
-      setFormError(Array.isArray(firstError) ? firstError[0] : data?.detail || "Something went wrong.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  // New requests (leave, hourly permission, work from home, on duty) are made on
+  // the full New request page; it brings you back here afterwards.
+  const openNewRequest = () => navigate("/my/leave/new", { state: { from: "/hr/leave" } });
 
   const openConfirm = (leave, action) => {
     setConfirmTarget({ leave, action });
@@ -293,20 +282,21 @@ function Leave() {
                         <div className="hr-name">{r.full_name}</div>
                       </div>
                     </td>
-                    <td>{r.leave_type_name || "—"}</td>
+                    <td>
+                      {typeText(r)}
+                      {r.approver_name && <div className="hr-sub">To {r.approver_name} · {r.approver_category}</div>}
+                    </td>
                     <td>
                       <span className="lv2-dates"><CalendarDays size={14} />{formatDateRange(r.start_date, r.end_date)}</span>
                     </td>
-                    <td className="hr-mono">
-                      {r.total_days} {r.total_days === 1 ? "day" : "days"}
-                    </td>
+                    <td className="hr-mono">{lengthText(r)}</td>
                     <td>
                       <span className={"att-pill " + (STATUS_CLASS[r.status] || "absent")}>
                         {r.status.charAt(0) + r.status.slice(1).toLowerCase()}
                       </span>
                     </td>
                     <td>
-                      {r.status === "PENDING" ? (
+                      {r.status === "PENDING" && canDecide(r) ? (
                         <div className="hr-row-actions">
                           <button
                             type="button"
@@ -325,6 +315,8 @@ function Leave() {
                             <X size={14} /> Reject
                           </button>
                         </div>
+                      ) : r.status === "PENDING" ? (
+                        <span className="hr-sub">Sent to {r.approver_name || "another approver"}</span>
                       ) : (
                         "—"
                       )}
@@ -337,90 +329,6 @@ function Leave() {
         )}
         <Pagination page={safePage} totalItems={filteredRequests.length} onPageChange={setPage} pageSize={PAGE_SIZE} />
       </div>
-
-      {modalOpen && (
-        <div className="hr-modal-backdrop" onClick={() => setModalOpen(false)}>
-          <form className="hr-modal org-modal" onClick={(e) => e.stopPropagation()} onSubmit={handleSubmit}>
-            <button type="button" className="hr-modal-x org-modal-x" onClick={() => setModalOpen(false)} aria-label="Close">
-              ✕
-            </button>
-            <div className="org-modal-head">
-              <span className="org-modal-ico"><CalendarPlus size={19} /></span>
-              <div>
-                <h2>New leave request</h2>
-                <p>Requests are for your own employee record.</p>
-              </div>
-            </div>
-
-            <div className="org-modal-body">
-              <label>Leave type</label>
-              <select
-                value={form.leave_type_id}
-                onChange={(e) => setForm({ ...form, leave_type_id: e.target.value })}
-                required
-              >
-                <option value="">Select…</option>
-                {leaveTypes.map((t) => {
-                  const bal = (summary?.my_balances || []).find((x) => x.leave_type_id === t.leave_type_id);
-                  return (
-                    <option key={t.leave_type_id} value={t.leave_type_id}>
-                      {t.leave_type_name}{bal ? ` · ${bal.remaining_days} days left` : ""}
-                    </option>
-                  );
-                })}
-              </select>
-
-              <div className="hr-form-row">
-                <div>
-                  <label>Start date</label>
-                  <input
-                    type="date"
-                    value={form.start_date}
-                    onChange={(e) => setForm({ ...form, start_date: e.target.value })}
-                    required
-                  />
-                </div>
-                <div>
-                  <label>End date</label>
-                  <input
-                    type="date"
-                    min={form.start_date || undefined}
-                    value={form.end_date}
-                    onChange={(e) => setForm({ ...form, end_date: e.target.value })}
-                    required
-                  />
-                </div>
-              </div>
-
-              {calendarDays(form.start_date, form.end_date) > 0 && (
-                <div className="lv2-total">
-                  <span>Total</span>
-                  <b>{calendarDays(form.start_date, form.end_date)} calendar {calendarDays(form.start_date, form.end_date) === 1 ? "day" : "days"}</b>
-                </div>
-              )}
-
-              <label>Reason (optional)</label>
-              <textarea
-                className="lv-textarea"
-                value={form.reason}
-                onChange={(e) => setForm({ ...form, reason: e.target.value })}
-                rows={3}
-              />
-
-              {formError && <p className="hr-error">{formError}</p>}
-            </div>
-
-            <div className="hr-modal-actions org-modal-foot">
-              <button type="button" className="hr-btn-sm" onClick={() => setModalOpen(false)}>
-                Cancel
-              </button>
-              <button type="submit" className="hr-btn-accent" disabled={submitting}>
-                {submitting ? "Submitting…" : "Submit request"}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
 
       {confirmTarget && (
         <div className="hr-modal-backdrop" onClick={closeConfirm}>

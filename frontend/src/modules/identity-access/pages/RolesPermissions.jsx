@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Ban, BriefcaseBusiness, Check, CircleCheck, CircleOff, Eye, FileText, GraduationCap, Info,
   KeyRound, Pencil, Plus, RotateCcw, Search, Shield, ShieldCheck, ShieldPlus, UserCog, Users, X,
 } from "lucide-react";
 import client from "../../../api/client";
+import { formatLastLogin } from "../accountHelpers";
+import { EmployeeAvatar } from "../../hr/components/EmployeeAvatar";
 import Pagination, { paginate } from "../../../components/Pagination";
 import "../../student/styles/StudentDashboard.css";
 import "../../hr/styles/Attendance.css";
@@ -28,6 +31,7 @@ function roleIcon(name = "") {
 // create, edit, view (its granted permissions), and delete (soft —
 // is_active=False, same pattern as User & Accounts).
 function RolesPermissions() {
+  const navigate = useNavigate();
   const [roles, setRoles] = useState([]);
   const [permissionCount, setPermissionCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -41,6 +45,13 @@ function RolesPermissions() {
 
   const [viewRole, setViewRole] = useState(null);
   const [viewLoading, setViewLoading] = useState(false);
+
+  // "Users" popup: everyone who currently holds a role (read-only list).
+  const [usersRole, setUsersRole] = useState(null);
+  const [roleUsers, setRoleUsers] = useState([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [usersError, setUsersError] = useState("");
+  const [usersSearch, setUsersSearch] = useState("");
 
   const [confirmTarget, setConfirmTarget] = useState(null);
   const [confirming, setConfirming] = useState(false);
@@ -122,6 +133,23 @@ function RolesPermissions() {
   };
 
   const closeView = () => setViewRole(null);
+
+  const openUsers = async (role) => {
+    setUsersRole(role);
+    setUsersSearch("");
+    setUsersError("");
+    setUsersLoading(true);
+    try {
+      const { data } = await client.get("/api/identity/users/");
+      setRoleUsers(data.filter((u) => (u.roles || []).includes(role.role_name)));
+    } catch {
+      setRoleUsers([]);
+      setUsersError("Couldn't load this role's users.");
+    } finally {
+      setUsersLoading(false);
+    }
+  };
+  const closeUsers = () => setUsersRole(null);
 
   const requestToggleActive = (role) => setConfirmTarget(role);
   const cancelToggleActive = () => setConfirmTarget(null);
@@ -285,6 +313,9 @@ function RolesPermissions() {
                         <button className="rp-action-btn" onClick={() => openView(role)}>
                           <Eye size={14} /> <span>View</span>
                         </button>
+                        <button className="rp-action-btn" onClick={() => openUsers(role)}>
+                          <Users size={14} /> <span>Users</span>
+                        </button>
                         <button className="rp-action-btn" onClick={() => openEdit(role)}>
                           <Pencil size={14} /> <span>Edit</span>
                         </button>
@@ -420,6 +451,79 @@ function RolesPermissions() {
 
             <div className="rp-modal-actions">
               <button type="button" className="rp-btn-sm" onClick={closeView}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {usersRole && (
+        <div className="rp-modal-backdrop" onClick={closeUsers}>
+          <div className="rp-modal rp-users-modal" onClick={(e) => e.stopPropagation()}>
+            <button type="button" className="rp-modal-x" onClick={closeUsers} aria-label="Close">
+              <X size={14} />
+            </button>
+            <h2>{usersRole.role_name} — users</h2>
+            <p className="rp-view-desc">
+              {usersLoading
+                ? "Loading…"
+                : `${roleUsers.length} ${roleUsers.length === 1 ? "person holds" : "people hold"} this role`}
+            </p>
+
+            <div className="rp-users-search">
+              <Search size={15} />
+              <input
+                placeholder="Search by name or username"
+                value={usersSearch}
+                onChange={(e) => setUsersSearch(e.target.value)}
+              />
+            </div>
+
+            {usersError && <p className="rp-empty">{usersError}</p>}
+            {!usersLoading && !usersError && roleUsers.length === 0 && (
+              <p className="rp-empty">Nobody holds this role yet.</p>
+            )}
+
+            <div className="rp-users-list">
+              {roleUsers
+                .filter((u) => {
+                  const q = usersSearch.trim().toLowerCase();
+                  return !q || u.full_name.toLowerCase().includes(q) || u.username.toLowerCase().includes(q);
+                })
+                .map((u) => {
+                  const others = (u.roles || []).filter((r) => r !== usersRole.role_name);
+                  return (
+                    <div className="rp-user-row" key={u.user_id}>
+                      <span className="rp-user-avatar"><EmployeeAvatar personId={u.person_id} size={40} /></span>
+                      <div className="rp-user-text">
+                        <b>{u.full_name}</b>
+                        <span>
+                          {u.designation ? `${u.designation} · ` : ""}
+                          {u.username}
+                        </span>
+                        <span className="rp-user-chips">
+                          {others.length ? others.map((r) => <i key={r}>{r}</i>) : <em>Only this role</em>}
+                        </span>
+                      </div>
+                      <div className="rp-user-side">
+                        <span className={"rp-pill " + (u.is_active ? "on" : "off")}>{u.is_active ? "Active" : "Inactive"}</span>
+                        <small>{formatLastLogin(u.last_login)}</small>
+                        <button
+                          type="button"
+                          className="rp-action-btn"
+                          onClick={() => navigate(`/identity/users/${u.user_id}/edit`)}
+                        >
+                          <Pencil size={13} /> <span>Edit account</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+
+            <div className="rp-modal-actions">
+              <button type="button" className="rp-btn-sm" onClick={closeUsers}>
                 Close
               </button>
             </div>

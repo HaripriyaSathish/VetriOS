@@ -3,6 +3,9 @@ import Login from "./modules/identity-access/pages/Login";
 import Dashboard from "./pages/Dashboard";
 import ModulePlaceholder from "./pages/ModulePlaceholder";
 import UserAccounts from "./modules/identity-access/pages/UserAccounts";
+import NewAccount from "./modules/identity-access/pages/NewAccount";
+import EditAccount from "./modules/identity-access/pages/EditAccount";
+import LoginRequests from "./modules/identity-access/pages/LoginRequests";
 import RolesPermissions from "./modules/identity-access/pages/RolesPermissions";
 import Permissions from "./modules/identity-access/pages/Permissions";
 import UserPermissions from "./modules/identity-access/pages/UserPermissions";
@@ -185,6 +188,30 @@ function App() {
           element={
             <PermissionGate requirement={{ type: "role", value: "System Administrator" }}>
               <UserAccounts />
+            </PermissionGate>
+          }
+        />
+        <Route
+          path="/identity/users/new"
+          element={
+            <PermissionGate requirement={{ type: "role", value: "System Administrator" }}>
+              <NewAccount />
+            </PermissionGate>
+          }
+        />
+        <Route
+          path="/identity/login-requests"
+          element={
+            <PermissionGate requirement={{ type: "role", value: "System Administrator" }}>
+              <LoginRequests />
+            </PermissionGate>
+          }
+        />
+        <Route
+          path="/identity/users/:id/edit"
+          element={
+            <PermissionGate requirement={{ type: "role", value: "System Administrator" }}>
+              <EditAccount />
             </PermissionGate>
           }
         />

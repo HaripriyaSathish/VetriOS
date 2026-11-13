@@ -1,0 +1,17 @@
+/* pull left by the pill padding so the first crumb's text lines up with the page title */
+.crumbs { margin: 0 0 8px -10px; }
+.crumbs ol { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.crumbs li { display: inline-flex; align-items: center; gap: 4px; font-size: 14px; }
+.crumbs a, .crumbs li > span {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px;
+  font-weight: 600; text-decoration: none; color: var(--vt-navy-700);
+}
+.crumbs a:hover { background: var(--vt-blue-50); color: var(--vt-orange); }
+.crumbs li.current > span { color: var(--vt-navy); background: var(--vt-blue-50); }
+.crumbs-sep { color: #98a2b3; flex: none; }
+
+/* On the navy page banner */
+.dl2-ban .crumbs a, .dl2-ban .crumbs li > span { color: #c9d9f2; }
+.dl2-ban .crumbs a:hover { background: rgba(255, 255, 255, .14); color: #fff; }
+.dl2-ban .crumbs li.current > span { color: #fff; background: rgba(255, 255, 255, .16); }
+.dl2-ban .crumbs-sep { color: rgba(255, 255, 255, .5); }

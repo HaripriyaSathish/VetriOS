@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { ChevronDown, User, Settings, LogOut, Search, Menu } from "lucide-react";
 import Sidebar from "./Sidebar";
+import RouteBreadcrumbs from "./RouteBreadcrumbs";
 import "../components-styles/AppLayout.css";
 import "../modules/student/styles/StudentTheme.css";
 import NotificationBell from "./NotificationBell";
@@ -229,6 +230,7 @@ function AppLayout() {
         )}
 
         <div className={"app-content" + (location.pathname.startsWith("/student") ? " student-theme" : "")}>
+          <RouteBreadcrumbs user={user} />
           <Outlet context={{ user }} />
         </div>
       </div>

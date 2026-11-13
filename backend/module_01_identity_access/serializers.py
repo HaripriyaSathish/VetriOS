@@ -224,12 +224,14 @@ class UserAccountListSerializer(serializers.ModelSerializer):
     designation = serializers.SerializerMethodField()
     work_login_time = serializers.SerializerMethodField()
     work_logout_time = serializers.SerializerMethodField()
+    # Lets the pages build the profile-photo URL (media/person_avatars/person_<id>.jpg).
+    person_id = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = UserAccount
         fields = [
-            "user_id", "username", "full_name", "email", "is_active", "last_login", "roles", "designation",
-            "work_login_time", "work_logout_time",
+            "user_id", "person_id", "username", "full_name", "email", "is_active", "last_login", "roles",
+            "designation", "work_login_time", "work_logout_time",
         ]
 
     def get_work_login_time(self, obj):

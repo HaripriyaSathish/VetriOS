@@ -5,6 +5,7 @@ from django.db.models import Count
 from django.db.models.functions import TruncDate
 from django.utils import timezone
 from rest_framework import generics, status
+from rest_framework.parsers import MultiPartParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -199,6 +200,31 @@ class UserWorkScheduleView(APIView):
             return Response({"detail": error}, status=status.HTTP_400_BAD_REQUEST)
         saved = set_schedule(user.person_id, login_time, logout_time)
         return Response({"work_login_time": saved["login_time"], "work_logout_time": saved["logout_time"]})
+
+
+# Profile photo for an account's person (System Administrator only). Same
+# file-per-person storage the Employees page uses — no database field —
+# so the picture shows up on every screen that reads person_<id>.jpg.
+class UserAvatarUploadView(APIView):
+    permission_classes = [IsAuthenticated, IsSystemAdministrator]
+    parser_classes = [MultiPartParser]
+
+    def post(self, request, pk):
+        from django.core.files.storage import default_storage
+        from module_02_hr.views import make_avatar_jpeg, save_avatar
+
+        user = UserAccount.objects.filter(pk=pk).first()
+        if not user:
+            return Response({"detail": "Account not found."}, status=status.HTTP_404_NOT_FOUND)
+        upload = request.FILES.get("file")
+        if not upload:
+            return Response({"file": ["This field is required."]}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            jpeg_bytes = make_avatar_jpeg(upload)
+        except ValueError:
+            return Response({"file": ["Upload a valid image file."]}, status=status.HTTP_400_BAD_REQUEST)
+        name = save_avatar(user.person_id, jpeg_bytes)
+        return Response({"avatar_url": default_storage.url(name)})
 
 
 # Edit or remove one account. DELETE is a soft delete (is_active=False) —

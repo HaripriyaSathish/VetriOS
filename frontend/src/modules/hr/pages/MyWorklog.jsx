@@ -1,11 +1,13 @@
-import { useEffect, useState } from "react";
-import { Plus, SquarePen, Minus, Check, X, Eye, ClipboardList, CalendarClock, UserRound } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Plus, SquarePen, Minus, Check, X, Eye, ClipboardList, CalendarClock, UserRound, Search, Send } from "lucide-react";
 import client from "../../../api/client";
 import "../../training/styles/BusinessPages.css";
 import "../styles/HRDashboard.css";
 import "../styles/Attendance.css";
 import "../../documents/styles/DocumentLibrary.css";
 import "../styles/EmployeePages.css";
+import "../styles/WorklogPicker.css";
+import { EmployeeAvatar } from "../components/EmployeeAvatar";
 
 const EMPTY_DRAFT = { start_time: "", end_time: "", description: "" };
 
@@ -19,15 +21,99 @@ function isDraftFilled(draft) {
 
 // Local "today" as YYYY-MM-DD, matching work_date's format from the API —
 // used to tell which History row (if any) is still same-day editable.
+const ROLE_TAG = {
+  "System Administrator": "t-sys",
+  "HR Administrator": "t-hr",
+  "Business Team": "t-biz",
+  "Project Manager": "t-pm",
+  Employee: "t-emp",
+};
+const ROLE_FILTERS = ["System Administrator", "HR Administrator", "Business Team", "Project Manager"];
+
+const initials = (name) =>
+  String(name || "?").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+
+// "Send to" step: search + role chips + one person to pick.
+function SendToPicker({ people, value, onChange }) {
+  const [q, setQ] = useState("");
+  const [role, setRole] = useState("");
+  const shown = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    return people.filter(
+      (p) =>
+        (!role || p.roles.includes(role)) &&
+        (!needle || `${p.full_name} ${p.role} ${p.designation}`.toLowerCase().includes(needle))
+    );
+  }, [people, q, role]);
+  const chosen = people.find((p) => String(p.employee_id) === String(value));
+
+  return (
+    <div className="wp-card">
+      <div className="wp-head">
+        <span className="wp-n">2</span>
+        <div>
+          <b>Send to</b>
+          <small>Pick the one person who should get this worklog</small>
+        </div>
+        <span className="wp-req">Required</span>
+      </div>
+
+      <label className="wp-search">
+        <Search size={16} />
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name, role or designation" />
+      </label>
+      <div className="wp-chips">
+        <button type="button" className={role === "" ? "on" : ""} onClick={() => setRole("")}>Everyone</button>
+        {ROLE_FILTERS.map((r) => (
+          <button key={r} type="button" className={role === r ? "on" : ""} onClick={() => setRole(r)}>{r}</button>
+        ))}
+      </div>
+
+      <div className="wp-list" role="radiogroup" aria-label="Send worklog to">
+        {shown.length === 0 && <p className="wp-none">No one matches.</p>}
+        {shown.map((p) => {
+          const on = String(p.employee_id) === String(value);
+          return (
+            <button
+              key={p.employee_id}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              className={"wp-row" + (on ? " on" : "")}
+              onClick={() => onChange(String(p.employee_id))}
+            >
+              <span className="wp-av">
+                <EmployeeAvatar personId={p.person_id} size={38} version={0} />
+              </span>
+              <span className="wp-who">
+                <b>{p.full_name}</b>
+                <small>{p.designation || "No designation"}</small>
+              </span>
+              <span className={`wp-tag ${ROLE_TAG[p.role] || "t-emp"}`}>{p.role}</span>
+              <span className="wp-tick">{on && <Check size={14} />}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {chosen && (
+        <p className="wp-sum">
+          <Send size={15} /> Going to <b>{chosen.full_name}</b> ({chosen.designation || chosen.role}) by email, and it shows on their Team worklogs page.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function todayStr() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-// Employee-facing daily Worklog page — fill in today's time-blocks and
-// submit; the backend routes it to your department's lead (or the
-// Founder, if you *are* the lead) and emails it there. Not HR-gated:
-// self-service only, same pattern as MyAttendance/MyLeave.
+// Employee-facing daily Worklog page — fill in today's time-blocks, pick the
+// one person it goes to, and submit; it is emailed to them and shows on their
+// Team worklogs page. Not HR-gated: self-service only, same pattern as
+// MyAttendance/MyLeave.
 //
 // Start/End are plain free-text fields — no time picker, no format
 // enforced — you type it exactly how it should read (e.g. "9:30 am"),
@@ -57,6 +143,8 @@ function MyWorklog() {
   const [submitted, setSubmitted] = useState(null);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [viewingWorklog, setViewingWorklog] = useState(null);
+  const [people, setPeople] = useState([]);
+  const [recipientId, setRecipientId] = useState("");
 
   const todaysHistoryRow = history.find((h) => h.work_date === todayStr());
   const alreadySubmittedToday = !!todaysHistoryRow && !editModalOpen;
@@ -77,6 +165,14 @@ function MyWorklog() {
 
   useEffect(() => {
     loadData();
+    // Who can be picked, and who you sent your last worklog to (pre-selected).
+    client
+      .get("/api/hr/worklogs/recipients/")
+      .then(({ data }) => {
+        setPeople(data.people || []);
+        if (data.last_employee_id) setRecipientId((cur) => cur || String(data.last_employee_id));
+      })
+      .catch(() => setError("Couldn't load the list of people to send to."));
   }, []);
 
   const addDraftRow = () => {
@@ -130,6 +226,10 @@ function MyWorklog() {
       setFormError("Add at least one row before submitting.");
       return;
     }
+    if (!recipientId) {
+      setFormError("Choose who to send this worklog to.");
+      return;
+    }
 
     setEntries(finalEntries);
     setEditingIndex(null);
@@ -148,6 +248,7 @@ function MyWorklog() {
           end_time: e.end_time,
           description: e.description,
         })),
+        reported_to_employee_id: Number(recipientId),
       };
       const { data } = await client.post("/api/hr/worklogs/me/", payload);
       setSubmitted(data);
@@ -178,6 +279,7 @@ function MyWorklog() {
     setEditDraft(null);
     setFormError("");
     setSubmitted(null);
+    if (h.reported_to_employee_id) setRecipientId(String(h.reported_to_employee_id));
     setEditModalOpen(true);
   };
 
@@ -349,7 +451,7 @@ function MyWorklog() {
         <div className="dl2-ban-top">
           <div>
             <h1>My worklogs</h1>
-            <p>Submit your daily worklog. It goes straight to your reporting lead.</p>
+            <p>Submit your daily worklog and choose who it goes to.</p>
           </div>
         </div>
       </div>
@@ -384,7 +486,7 @@ function MyWorklog() {
       <div className="emp2-panel">
         <div className="emp2-panel-head">
           <div>
-            <h3>Today's worklog</h3>
+            <h3 className="wp-h3"><span className="wp-n">1</span>Today's worklog</h3>
             <p>Add each time-block you worked, in order — e.g. "9:30 am".</p>
           </div>
         </div>
@@ -399,6 +501,8 @@ function MyWorklog() {
           <>
             {renderEntriesTable()}
 
+            <SendToPicker people={people} value={recipientId} onChange={setRecipientId} />
+
             <div className="wl-form-footer">
               <div className="hr-modal-actions" style={{ justifyContent: "flex-end", margin: 0 }}>
                 <button type="button" className="emp2-submit" onClick={openConfirm} disabled={!employeeId}>
@@ -409,7 +513,7 @@ function MyWorklog() {
               {formError && <p className="hr-error">{formError}</p>}
               {submitted && (
                 <p className="hr-hint">
-                  Submitted — reported to {submitted.reported_to_name || "no one (no lead assigned yet)"}.
+                  Submitted — sent to {submitted.reported_to_name || "no one"}.
                 </p>
               )}
             </div>
@@ -499,8 +603,9 @@ function MyWorklog() {
           <div className="hr-modal hr-confirm" onClick={(e) => e.stopPropagation()}>
             <h2>Submit today's worklog?</h2>
             <p>
+              This worklog will be sent to <b>{people.find((p) => String(p.employee_id) === String(recipientId))?.full_name || "the person you picked"}</b>.
               Only one worklog is allowed per day — if you already submitted today, this will overwrite
-              it and re-send the email to your reporting lead.
+              it and re-send the email.
             </p>
             <div className="hr-modal-actions">
               <button type="button" className="hr-btn-sm" onClick={() => setConfirmOpen(false)} disabled={submitting}>
@@ -528,6 +633,8 @@ function MyWorklog() {
 
             {renderEntriesTable()}
 
+            <SendToPicker people={people} value={recipientId} onChange={setRecipientId} />
+
             {formError && <p className="hr-error">{formError}</p>}
 
             <div className="hr-modal-actions">
@@ -549,7 +656,7 @@ function MyWorklog() {
               ✕
             </button>
             <h2>Worklog — {formatDate(viewingWorklog.work_date)}</h2>
-            <p className="hr-hint">Reported to {viewingWorklog.reported_to_name || "no one (no lead assigned yet)"}.</p>
+            <p className="hr-hint">Sent to {viewingWorklog.reported_to_name || "no one"}.</p>
 
             <div className="hr-table-scroll">
               <table className="hr-table">

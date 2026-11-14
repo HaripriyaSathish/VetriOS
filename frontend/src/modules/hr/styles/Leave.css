@@ -246,6 +246,8 @@
 .lv2-row { margin-bottom: 0; }
 .lv2-row-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .lv2-row-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.lv2-row-1 { grid-template-columns: minmax(0, 1fr); }
+.lv2-row-1 .lv2-stat { max-width: 250px; padding: 14px 18px; }
 @media (max-width: 1250px) {
   .lv2-groups { grid-template-columns: 1fr; }
   .lv2-group-team .lv2-row::before { display: none; }

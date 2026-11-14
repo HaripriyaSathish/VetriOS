@@ -18,6 +18,7 @@ import HRDashboard from "./modules/hr/pages/HRDashboard";
 import HROverview from "./modules/hr/pages/HROverview";
 import Attendance from "./modules/hr/pages/Attendance";
 import Leave from "./modules/hr/pages/Leave";
+import EmployeesHistory from "./modules/hr/pages/EmployeesHistory";
 import Worklogs from "./modules/hr/pages/Worklogs";
 import Onboarding from "./modules/hr/pages/Onboarding";
 import Promotions from "./modules/hr/pages/Promotions";
@@ -600,6 +601,14 @@ function App() {
           element={
             <PermissionGate requirement={{ type: "role", value: ["HR Administrator", "System Administrator"] }}>
               <Leave />
+            </PermissionGate>
+          }
+        />
+        <Route
+          path="/hr/history"
+          element={
+            <PermissionGate requirement={{ type: "role", value: ["HR Administrator", "System Administrator"] }}>
+              <EmployeesHistory />
             </PermissionGate>
           }
         />

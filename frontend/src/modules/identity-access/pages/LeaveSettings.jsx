@@ -258,8 +258,12 @@ function LeaveSettings() {
       <section className="na-card ls-card">
         <h3><span className="na-n">4</span>Holidays<span className="na-opt">Company calendar</span></h3>
         <p className="ua-perm-hint">
-          Add a day by name and date. Sundays are always off, so you don't need to add them. Added days apply to everyone
-          straight away; they don't need the Save button.
+          Sundays are always off, so you don't need to add them. Holidays are company days, so they don't appear under
+          "Upcoming time off" on the Leave management page; that card only counts leave people have taken.
+        </p>
+        <p className="ls-howto">
+          <b>How to add:</b> pick the date, type a name, choose the type, then click <b>Add</b>. The day is saved and applies to
+          everyone straight away. You don't need the Save settings button for holidays.
         </p>
         <div className="ls-hol-form">
           <input type="date" value={holiday.date} onChange={(e) => setHoliday((h) => ({ ...h, date: e.target.value }))} aria-label="Date" />
@@ -294,8 +298,8 @@ function LeaveSettings() {
                   <td><b>{h.name}</b></td>
                   <td><span className={`ls-hol-tag${h.type === "WFH" ? " wfh" : ""}`}>{h.type === "WFH" ? "Work from home" : "Holiday"}</span></td>
                   <td>
-                    <button type="button" className="ua-btn-sm" onClick={() => removeHoliday(h)}>
-                      <Trash2 size={14} /> Remove
+                    <button type="button" className="ls-remove" onClick={() => removeHoliday(h)} aria-label={`Remove ${h.name}`}>
+                      <Trash2 size={15} /> Remove
                     </button>
                   </td>
                 </tr>

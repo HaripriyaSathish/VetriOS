@@ -12,6 +12,13 @@ AUDITED_MODELS = [
     ("module_01_identity_access", "UserAccount"),
     ("module_01_identity_access", "Role"),
     ("module_01_identity_access", "UserRole"),
+    # HR actions, shown on HR Admin > Employees history.
+    ("module_01_identity_access", "Person"),
+    ("module_02_hr", "Employee"),
+    ("module_02_hr", "EmployeeLeave"),
+    ("module_02_hr", "EmployeePromotion"),
+    ("module_02_hr", "PersonDepartmentHistory"),
+    ("module_02_hr", "EmployeeBranchHistory"),
     ("module_05_clients_projects", "Client"),
     ("module_05_clients_projects", "Project"),
     ("module_05_clients_projects", "ClientPayment"),

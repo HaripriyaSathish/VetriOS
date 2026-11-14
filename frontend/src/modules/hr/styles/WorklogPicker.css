@@ -1,0 +1,46 @@
+/* My Worklog > "Send to" picker: search, role chips, pick one person */
+.wp-card { margin: 18px 0 6px; padding: 16px 18px; border: 1px solid var(--vt-border); border-radius: 16px; background: #fff; }
+.wp-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.wp-head b { display: block; font-family: var(--vt-font-head); font-size: 17px; font-weight: 800; color: var(--vt-navy); }
+.wp-head small { display: block; font-size: 13px; color: var(--vt-muted); }
+.wp-n { width: 30px; height: 30px; border-radius: 50%; background: var(--vt-navy); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; flex: none; }
+.wp-req { margin-left: auto; font-size: 12px; font-weight: 700; color: var(--vt-orange-600); background: var(--vt-orange-50); padding: 3px 11px; border-radius: 999px; }
+
+.wp-search { display: flex; align-items: center; gap: 8px; border: 1.5px solid var(--vt-border); border-radius: 12px; padding: 0 14px; background: var(--vt-tint); color: var(--vt-muted); }
+.wp-search:focus-within { border-color: var(--vt-orange); background: #fff; }
+.wp-search input { flex: 1; border: 0; outline: 0; background: transparent; font: inherit; font-size: 15px; padding: 11px 0; color: var(--vt-navy); }
+
+.wp-chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 12px; }
+.wp-chips button { border: 1.5px solid var(--vt-border); background: #fff; color: var(--vt-text); font: inherit; font-size: 13.5px; font-weight: 600; padding: 5px 14px; border-radius: 999px; cursor: pointer; }
+.wp-chips button:hover { border-color: var(--vt-orange); color: var(--vt-orange-600); }
+.wp-chips button.on { background: var(--vt-navy); border-color: var(--vt-navy); color: #fff; }
+
+.wp-list { max-height: 330px; overflow-y: auto; border: 1px solid var(--vt-border); border-radius: 14px; }
+.wp-none { margin: 0; padding: 18px; text-align: center; color: var(--vt-muted); font-size: 14px; }
+.wp-row { width: 100%; display: flex; align-items: center; gap: 12px; padding: 10px 14px; border: 0; border-bottom: 1px solid var(--vt-border); background: #fff; font: inherit; text-align: left; cursor: pointer; }
+.wp-row:last-child { border-bottom: 0; }
+.wp-row:hover { background: var(--vt-tint); }
+.wp-row.on { background: var(--vt-orange-50); box-shadow: inset 4px 0 0 var(--vt-orange); }
+.wp-av { flex: none; display: flex; }
+.wp-av .hr-avatar, .wp-av img { border-radius: 50%; }
+.wp-who { flex: 1; min-width: 0; }
+.wp-who b { display: block; font-size: 14.5px; font-weight: 700; color: var(--vt-navy); }
+.wp-who small { display: block; font-size: 12.5px; color: var(--vt-muted); }
+.wp-tag { flex: none; font-size: 12px; font-weight: 700; padding: 3px 11px; border-radius: 999px; }
+.t-sys { background: #fdecec; color: #8a1f1b; }
+.t-hr { background: #eaf3de; color: #27500a; }
+.t-biz { background: #faeeda; color: #633806; }
+.t-pm { background: var(--vt-blue-50); color: var(--vt-navy-700); }
+.t-emp { background: #f1f3f8; color: var(--vt-text); }
+.wp-tick { flex: none; width: 24px; height: 24px; border-radius: 50%; border: 1.5px solid #c9d2e3; display: flex; align-items: center; justify-content: center; color: #fff; }
+.wp-row.on .wp-tick { background: var(--vt-orange); border-color: var(--vt-orange); }
+
+.wp-sum { display: flex; align-items: center; gap: 8px; margin: 12px 0 0; padding: 10px 14px; border-radius: 12px; background: var(--vt-orange-50); color: #7a3a12; font-size: 14px; }
+.wp-sum svg { color: var(--vt-orange); flex: none; }
+.wp-sum b { color: var(--vt-navy); }
+
+@media (max-width: 640px) {
+  .wp-row { flex-wrap: wrap; }
+  .wp-tag { order: 5; }
+}
+.wp-h3 { display: flex; align-items: center; gap: 10px; }

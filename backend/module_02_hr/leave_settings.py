@@ -127,6 +127,19 @@ def off_dates(start, end):
     return {datetime.date.fromisoformat(h["date"]) for h in list_holidays(start, end) if h["type"] == HOLIDAY}
 
 
+def _audit_holiday(action, day, old, new, user_id):
+    """One audit_log row per holiday change, so the Employees history page can show who did it."""
+    try:
+        from module_08_audit.models import AuditLog
+
+        AuditLog.objects.create(
+            user_id=user_id, action=action, entity_type="Holiday", entity_id=day.isoformat(),
+            old_value=old, new_value=new, source="web", remarks=None,
+        )
+    except Exception:
+        pass  # a logging problem must never block the change itself
+
+
 def add_holiday(day_value, name, kind, user_id):
     try:
         day = datetime.date.fromisoformat(str(day_value))
@@ -138,19 +151,24 @@ def add_holiday(day_value, name, kind, user_id):
     if len(name) > 80:
         raise ValueError("The holiday name is too long (80 characters at most).")
     kind = kind if kind in HOLIDAY_TYPES else HOLIDAY
+    before = next(iter(list_holidays(day, day)), None)
     _model().objects.update_or_create(
         setting_key=_holiday_key(day),
         defaults={"setting_value": json.dumps({"name": name, "type": kind}), "updated_by_user_id": user_id},
     )
+    _audit_holiday("UPDATE" if before else "CREATE", day, before, {"date": day.isoformat(), "name": name, "type": kind}, user_id)
     return list_holidays()
 
 
-def delete_holiday(day_value):
+def delete_holiday(day_value, user_id=None):
     try:
         day = datetime.date.fromisoformat(str(day_value))
     except ValueError:
         raise ValueError("Invalid date.")
+    before = next(iter(list_holidays(day, day)), None)
     _model().objects.filter(setting_key=_holiday_key(day)).delete()
+    if before:
+        _audit_holiday("DELETE", day, before, None, user_id)
     return list_holidays()
 
 

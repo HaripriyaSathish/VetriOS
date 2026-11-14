@@ -135,7 +135,8 @@ function RequestAccess() {
         client.get("/api/identity/permission-requests/", { params: { box: "received" } }),
         client.get("/api/identity/permission-requests/", { params: { box: "sent" } }),
       ]);
-      setReceivedRequests(receivedRes.data);
+      // Login requests are handled on the Login requests page, not here.
+      setReceivedRequests(receivedRes.data.filter((r) => !isLoginRequest(r)));
       setSentRequests(sentRes.data);
     } catch {
       setListError("Couldn't load requests.");

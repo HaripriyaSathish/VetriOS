@@ -350,6 +350,7 @@ class WorklogEntrySerializer(serializers.Serializer):
 # reflects who that specific day's log actually went to.
 class EmployeeWorklogSerializer(serializers.ModelSerializer):
     reported_to_name = serializers.SerializerMethodField()
+    reported_to_employee_id = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = EmployeeWorklog
@@ -360,6 +361,7 @@ class EmployeeWorklogSerializer(serializers.ModelSerializer):
             "logout_time",
             "entries",
             "reported_to_name",
+            "reported_to_employee_id",
             "created_at",
         ]
 
@@ -429,6 +431,8 @@ class EmployeeWorklogWriteSerializer(serializers.Serializer):
     login_time = serializers.CharField(max_length=20, required=False, allow_null=True, allow_blank=True)
     logout_time = serializers.CharField(max_length=20, required=False, allow_null=True, allow_blank=True)
     entries = WorklogEntrySerializer(many=True)
+    # The person the employee picked to receive this worklog.
+    reported_to_employee_id = serializers.IntegerField()
 
     def validate_entries(self, value):
         if not value:

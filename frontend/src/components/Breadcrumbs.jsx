@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { ChevronRight } from "lucide-react";
 import "../components-styles/Breadcrumbs.css";
 
-// "System Administrator › User & Accounts › New account" — the path to the
+// "System Administrator › User & Accounts › Create login" — the path to the
 // current page. Every item except the last is a link; the last is the
 // current page. items: [{ label, to?, icon? }]
 export default function Breadcrumbs({ items }) {

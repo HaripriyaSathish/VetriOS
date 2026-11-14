@@ -3,12 +3,14 @@ import { NavLink, useLocation } from "react-router-dom";
 import client from "../api/client";
 import {
   X,
+  History,
   LayoutDashboard,
   ShieldCheck,
   ShieldAlert,
   KeyRound,
   Users,
   Lock,
+  LockOpen,
   ChevronDown,
   Briefcase,
   Building2,
@@ -43,7 +45,7 @@ import { figmaImage } from "../assets/figmaImages";
 import LoginIllustration from "../modules/identity-access/components/LoginIllustration";
 import TeamIllustration from "./TeamIllustration";
 import {
-  ShieldIcon, GraduateIcon, CalendarIcon, ChatIcon, ClipboardIcon,
+  GraduateIcon, CalendarIcon, ChatIcon, ClipboardIcon,
   ProgressIcon, NotebookIcon, VideoIcon, ReportIcon,
 } from "./FigmaIcons";
 import "../components-styles/Sidebar.css";
@@ -183,6 +185,9 @@ function Sidebar({ open = false, onClose }) {
   const [sysAdminOpen, setSysAdminOpen] = useState(isOnSysAdminPage);
 
   const canSeeHR = hrItem && hasAccess(hrItem.requirement, user);
+  // HR Administrator (not System Administrator) in the HR workspace: the menu is shown
+  // as SELF SERVICE / HR ADMIN / TOOLS sections instead of dropdowns.
+  const hrDirect = inWorkspace("hr") && canSeeHR && !isSystemAdministrator;
   const isOnHRPage = HR_PATHS.some((path) => location.pathname.startsWith(path));
   const [hrOpen, setHrOpen] = useState(isOnHRPage);
 
@@ -304,7 +309,7 @@ function Sidebar({ open = false, onClose }) {
             </>
           )}
           <NavLink to="/request-access" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
-            <span className="nav-icon"><MsIcon name="key" /></span> Request Access
+            <span className="nav-icon"><MsIcon name="lock_open" /></span> Request Access
             {pendingRequestCount > 0 && <span className="nav-count-badge">{pendingRequestCount}</span>}
           </NavLink>
         </>
@@ -364,12 +369,12 @@ function Sidebar({ open = false, onClose }) {
       {/* Unconditional — every role (Employee, Trainer, any admin) can
           ask a specific admin for a permission, so this sits above every
           role-gated group rather than living inside one of them. */}
-      {!isTraineeView && !isBusinessView && !isInternView && !isPmView && (
+      {!isTraineeView && !isBusinessView && !isInternView && !isPmView && !hrDirect && (
         <NavLink
           to="/request-access"
           className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
         >
-          <NavImage name="nav-request-access" fallback={ShieldIcon} />
+          <span className="nav-icon"><LockOpen size={16} /></span>
           Request access
           {pendingRequestCount > 0 && <span className="nav-count-badge">{pendingRequestCount}</span>}
         </NavLink>
@@ -389,6 +394,8 @@ function Sidebar({ open = false, onClose }) {
           Audit Logs
         </NavLink>
       )}
+
+      {hrDirect && <p className="nav-section-label nav-self-heading">Self service</p>}
 
       {!isSystemAdministrator && !isTraineeView && !isBusinessView && !isTrainerView && !isInternView && !isPmView && (
         <NavLink
@@ -447,6 +454,17 @@ function Sidebar({ open = false, onClose }) {
             <Users size={16} />
           </span>
           Team Worklogs
+        </NavLink>
+      )}
+
+      {hrDirect && (
+        <NavLink
+          to="/request-access"
+          className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
+        >
+          <span className="nav-icon"><LockOpen size={16} /></span>
+          Request access
+          {pendingRequestCount > 0 && <span className="nav-count-badge">{pendingRequestCount}</span>}
         </NavLink>
       )}
 
@@ -548,22 +566,32 @@ function Sidebar({ open = false, onClose }) {
 
       {inWorkspace("hr") && canSeeHR && (
         <>
-          <button
-            type="button"
-            className={"nav-item nav-group-toggle" + (hrOpen ? " open" : "")}
-            onClick={() => setHrOpen((prev) => !prev)}
-          >
-            <span className="nav-icon">
-              <Briefcase size={16} />
-            </span>
-            HR Admin
-            <span className="nav-chevron">
-              <ChevronDown size={14} />
-            </span>
-          </button>
+          {/* An HR Administrator sees the HR menu always open under an "HR Admin" heading;
+              a System Administrator (who has several big menus) keeps the dropdown. */}
+          {isSystemAdministrator ? (
+            <button
+              type="button"
+              className={"nav-item nav-group-toggle" + (hrOpen ? " open" : "")}
+              onClick={() => setHrOpen((prev) => !prev)}
+            >
+              <span className="nav-icon">
+                <Briefcase size={16} />
+              </span>
+              HR Admin
+              <span className="nav-chevron">
+                <ChevronDown size={14} />
+              </span>
+            </button>
+          ) : (
+            <p className="nav-section-label nav-hr-heading">
+              <Briefcase size={15} /> HR Admin
+            </p>
+          )}
 
-          {hrOpen && (
-            <div className="nav-subgroup">
+          {(hrOpen || !isSystemAdministrator) && (
+            <div className={"nav-subgroup" + (isSystemAdministrator ? "" : " nav-subgroup-direct")}>
+              <p className="nav-section-label">People</p>
+
               <NavLink
                 to="/hr"
                 end
@@ -596,6 +624,18 @@ function Sidebar({ open = false, onClose }) {
               </NavLink>
 
               <NavLink
+                to="/hr/history"
+                className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
+              >
+                <span className="nav-icon">
+                  <History size={14} />
+                </span>
+                History
+              </NavLink>
+
+              <p className="nav-section-label">Time and leave</p>
+
+              <NavLink
                 to="/hr/attendance"
                 className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
               >
@@ -624,6 +664,8 @@ function Sidebar({ open = false, onClose }) {
                 </span>
                 Worklogs
               </NavLink>
+
+              <p className="nav-section-label">Hiring and growth</p>
 
               <NavLink
                 to="/hr/onboarding"
@@ -655,6 +697,8 @@ function Sidebar({ open = false, onClose }) {
                 Promotions
               </NavLink>
 
+              <p className="nav-section-label">Pay and reports</p>
+
               <NavLink
                 to="/hr/payroll-references"
                 className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
@@ -676,6 +720,7 @@ function Sidebar({ open = false, onClose }) {
               </NavLink>
             </div>
           )}
+          {!isSystemAdministrator && <p className="nav-section-label nav-tools-heading">Tools</p>}
         </>
       )}
 
@@ -1018,7 +1063,7 @@ function Sidebar({ open = false, onClose }) {
             </NavLink>
           )}
           <NavLink to="/request-access" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
-            <span className="nav-icon"><MsIcon name="key" /></span> Request Access
+            <span className="nav-icon"><MsIcon name="lock_open" /></span> Request Access
             {pendingRequestCount > 0 && <span className="nav-count-badge">{pendingRequestCount}</span>}
           </NavLink>
         </>
@@ -1109,7 +1154,7 @@ function Sidebar({ open = false, onClose }) {
             </>
           )}
           <NavLink to="/request-access" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
-            <span className="nav-icon"><MsIcon name="key" /></span> Request Access
+            <span className="nav-icon"><MsIcon name="lock_open" /></span> Request Access
             {pendingRequestCount > 0 && <span className="nav-count-badge">{pendingRequestCount}</span>}
           </NavLink>
         </>

@@ -207,12 +207,17 @@ class MeSerializer(serializers.ModelSerializer):
         return employee.employee_id if employee else None
 
     def get_is_department_lead(self, obj):
-        # Whether this person is anyone's department lead right now —
-        # controls whether the "Team worklogs" nav link shows at all.
+        # Whether to show the "Team worklogs" nav link: the person leads a department,
+        # or someone has sent them a worklog (worklogs now go to a person the sender picks).
+        from module_02_hr.models import EmployeeWorklog
+
         employee = Employee.objects.filter(person_id=obj.person_id).only("employee_id").first()
         if not employee:
             return False
-        return DepartmentLead.objects.filter(employee_id=employee.employee_id).exists()
+        return (
+            DepartmentLead.objects.filter(employee_id=employee.employee_id).exists()
+            or EmployeeWorklog.objects.filter(reported_to_employee_id=employee.employee_id).exists()
+        )
 
 
 # Row shape for the User & Accounts table — read-only, one query per list
@@ -310,24 +315,17 @@ class UserAccountWriteSerializer(serializers.Serializer):
         return value
 
     def validate(self, attrs):
-        if self.instance is None and not attrs.get("person_id") and not attrs.get("first_name"):
-            raise serializers.ValidationError({"first_name": ["This field is required."]})
+        # A login is always for a person that already exists (an employee HR added,
+        # or a student/intern). Nobody is created from the account form.
+        if self.instance is None and not attrs.get("person_id"):
+            raise serializers.ValidationError(
+                {"person_id": ["Choose an existing person. Add them in HR Admin > Employees first."]}
+            )
         return attrs
 
     def create(self, validated_data):
         now = timezone.now()
-        person_id = validated_data.get("person_id")
-        if person_id:
-            person = Person.objects.get(pk=person_id)
-        else:
-            person = Person.objects.create(
-                first_name=validated_data["first_name"],
-                last_name=validated_data.get("last_name") or None,
-                email=validated_data.get("email") or None,
-                phone=validated_data.get("phone") or None,
-                created_at=now,
-                updated_at=now,
-            )
+        person = Person.objects.get(pk=validated_data["person_id"])
 
         user = UserAccount(
             person=person,

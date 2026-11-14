@@ -237,7 +237,7 @@ class HolidaysView(APIView):
 
     def delete(self, request):
         try:
-            return Response(leave_settings.delete_holiday(request.query_params.get("date")))
+            return Response(leave_settings.delete_holiday(request.query_params.get("date"), request.user.pk))
         except ValueError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -346,6 +346,20 @@ class UnlinkedPersonListView(generics.ListAPIView):
     def get_queryset(self):
         linked_ids = UserAccount.objects.values_list("person_id", flat=True)
         return Person.objects.exclude(pk__in=linked_ids).order_by("first_name", "last_name")
+
+    def list(self, request, *args, **kwargs):
+        # is_employee: has an HR employee record that isn't an intern one, so the form
+        # can pre-select the Employee role for employees only (not students / interns).
+        from module_02_hr.models import Employee
+
+        response = super().list(request, *args, **kwargs)
+        employee_ids = set(
+            Employee.objects.exclude(employment_type__employment_type_name__icontains="intern").values_list("person_id", flat=True)
+        )
+        rows = response.data["results"] if isinstance(response.data, dict) and "results" in response.data else response.data
+        for row in rows:
+            row["is_employee"] = row["person_id"] in employee_ids
+        return response
 
 
 # Feeds the role dropdown on the User & Accounts create/edit form.
@@ -606,7 +620,13 @@ class PermissionRequestPendingCountView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        count = PermissionRequest.objects.filter(target_admin=request.user, status="PENDING").count()
+        # "Create login credentials" requests have their own Login requests menu
+        # (and the bell); they are not counted on Request access.
+        count = (
+            PermissionRequest.objects.filter(target_admin=request.user, status="PENDING")
+            .exclude(permission_requested__startswith="Create login credentials for ")
+            .count()
+        )
         return Response({"pending_count": count})
 
 

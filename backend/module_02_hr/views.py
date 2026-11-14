@@ -43,7 +43,7 @@ from .models import (
     PersonDepartmentHistory,
 )
 from .permissions import IsHRorSystemAdministrator, IsSystemAdministrator
-from . import leave_requests, leave_settings
+from . import history, leave_requests, leave_settings
 from .serializers import (
     AttendanceRecordSerializer,
     AttendanceReportRowSerializer,
@@ -973,7 +973,13 @@ class LeaveSummaryView(APIView):
             "-created_at"
         )
         pending_count = sum(1 for r in all_requests if r.status == "PENDING")
-        upcoming = [r for r in all_requests if r.status == "APPROVED" and r.end_date >= today]
+        # Time off = real leave only. Work from home, on duty and hourly permission
+        # are stored as requests too, but those people are working, so they don't count.
+        upcoming = [
+            r for r in all_requests
+            if r.status == "APPROVED" and r.end_date >= today
+            and not (r.leave_type and r.leave_type.leave_type_code in leave_requests.SPECIAL_CODES)
+        ]
         upcoming_days = sum(float(r.total_days or 0) for r in upcoming)
         upcoming_employees = len({r.employee_id for r in upcoming})
 
@@ -1232,7 +1238,14 @@ class MyWorklogView(APIView):
         login_time = data.get("login_time") or entries[0]["start_time"]
         logout_time = data.get("logout_time") or entries[-1]["end_time"]
 
-        recipient = _resolve_worklog_recipient(employee)
+        # The sender picks the one person this worklog goes to.
+        recipient = (
+            Employee.objects.filter(pk=data["reported_to_employee_id"], status="ACTIVE").select_related("person").first()
+        )
+        if not recipient:
+            return Response({"reported_to_employee_id": ["Choose who to send this worklog to."]}, status=status.HTTP_400_BAD_REQUEST)
+        if recipient.employee_id == employee.employee_id:
+            return Response({"reported_to_employee_id": ["Choose someone other than yourself."]}, status=status.HTTP_400_BAD_REQUEST)
         now = timezone.now()
 
         worklog = EmployeeWorklog.objects.filter(employee=employee, work_date=work_date).first()
@@ -1263,6 +1276,45 @@ class MyWorklogView(APIView):
             )
 
         return Response(EmployeeWorklogSerializer(worklog).data, status=status.HTTP_200_OK)
+
+
+# People a worklog can be sent to: every active employee except yourself, with the
+# role and designation shown in the picker, plus who you sent your last worklog to.
+WORKLOG_ROLE_ORDER = ("System Administrator", "HR Administrator", "Business Team", "Project Manager")
+
+
+class WorklogRecipientsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        me = _employee_for_user(request.user)
+        employees = list(
+            Employee.objects.filter(status="ACTIVE")
+            .exclude(employee_id=me.employee_id if me else 0)
+            .select_related("person", "designation")
+        )
+        roles_by_person = {
+            a.person_id: list(a.active_role_names())
+            for a in UserAccount.objects.filter(person_id__in=[e.person_id for e in employees], is_active=True)
+        }
+        people = []
+        for e in employees:
+            roles = roles_by_person.get(e.person_id, [])
+            main = next((r for r in WORKLOG_ROLE_ORDER if r in roles), "Employee")
+            people.append({
+                "employee_id": e.employee_id,
+                "person_id": e.person_id,
+                "full_name": str(e.person),
+                "designation": e.designation.designation_name if e.designation else "",
+                "role": main,
+                "roles": roles,
+            })
+        people.sort(key=lambda p: p["full_name"].lower())
+        last = (
+            EmployeeWorklog.objects.filter(employee=me, reported_to_employee__isnull=False).order_by("-work_date").first()
+            if me else None
+        )
+        return Response({"people": people, "last_employee_id": last.reported_to_employee_id if last else None})
 
 
 # Self-service, not HR-gated — scoped entirely by reported_to_employee_id
@@ -1950,3 +2002,31 @@ class HRDashboardView(APIView):
             "pending_promotions": pending_promotions,
             "recent_activity": recent_activity,
         })
+
+
+# Employees history (HR Admin > History): who did what, and one employee's job timeline.
+class HistoryActivityView(APIView):
+    permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
+
+    def get(self, request):
+        try:
+            days = int(request.query_params.get("days", 30))
+        except (TypeError, ValueError):
+            days = 30
+        actor = request.query_params.get("actor")
+        return Response(history.activity(
+            actor_id=int(actor) if actor and actor.isdigit() else None,
+            type_=request.query_params.get("type"),
+            days=max(days, 0),
+            query=request.query_params.get("q", ""),
+        ))
+
+
+class HistoryTimelineView(APIView):
+    permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
+
+    def get(self, request, employee_id):
+        data = history.timeline(employee_id)
+        if data is None:
+            return Response({"detail": "Employee not found."}, status=status.HTTP_404_NOT_FOUND)
+        return Response(data)

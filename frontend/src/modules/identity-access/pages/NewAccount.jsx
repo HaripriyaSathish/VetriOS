@@ -13,17 +13,13 @@ import "../styles/UserAccounts.css";
 const EMPTY_FORM = {
   username: "",
   password: "",
-  first_name: "",
-  last_name: "",
-  email: "",
-  phone: "",
   is_active: true,
   person_id: "",
   work_login_time: "",
   work_logout_time: "",
 };
 
-// Dedicated "New account" page (System Administrator). Replaces the old
+// Dedicated "Create login" page (System Administrator). Replaces the old
 // popup. When opened from the Login requests panel's Approve button, the
 // request arrives in location.state — creating the account then also
 // approves that request (and its duplicate copies), same as before.
@@ -34,8 +30,8 @@ function NewAccount() {
 
   const [form, setForm] = useState(EMPTY_FORM);
   const [roles, setRoles] = useState([]);
-  const [roleIds, setRoleIds] = useState(new Set());
-  const [personMode, setPersonMode] = useState(approvalRequest ? "existing" : "new"); // "new" | "existing"
+  // Selected roles, by name, so Employee can be pre-selected before the role list has loaded.
+  const [roleNames, setRoleNames] = useState(new Set());
   const [unlinkedPersons, setUnlinkedPersons] = useState([]);
   const [unlinkedLoading, setUnlinkedLoading] = useState(true);
   const [personSearch, setPersonSearch] = useState("");
@@ -59,7 +55,7 @@ function NewAccount() {
           const match = /^Create login credentials for (.+) \([^)]*\)$/.exec(approvalRequest.permission_requested);
           const found = data.find((p) => p.full_name === (match ? match[1] : ""));
           if (found) {
-            setForm((f) => ({ ...f, person_id: String(found.person_id) }));
+            choosePerson(found);
             setPersonSearch(found.full_name);
           }
         }
@@ -120,13 +116,25 @@ function NewAccount() {
     }
   };
 
-  const toggleRole = (roleId) =>
-    setRoleIds((prev) => {
+  const toggleRole = (roleName) =>
+    setRoleNames((prev) => {
       const next = new Set(prev);
-      if (next.has(roleId)) next.delete(roleId);
-      else next.add(roleId);
+      if (next.has(roleName)) next.delete(roleName);
+      else next.add(roleName);
       return next;
     });
+
+  // Picking a person pre-selects the Employee role for employees only
+  // (students and interns don't get it). It can still be changed below.
+  function choosePerson(person) {
+    setForm((f) => ({ ...f, person_id: person ? String(person.person_id) : "" }));
+    setRoleNames((prev) => {
+      const next = new Set(prev);
+      if (person?.is_employee) next.add("Employee");
+      else next.delete("Employee");
+      return next;
+    });
+  }
 
   const filteredPersons = useMemo(() => {
     const q = personSearch.trim().toLowerCase();
@@ -167,7 +175,7 @@ function NewAccount() {
       setFormError(PASSWORD_HINT);
       return;
     }
-    if (roleIds.size === 0) {
+    if (roleNames.size === 0) {
       setFormError("Assign at least one role before creating this account.");
       return;
     }
@@ -175,20 +183,11 @@ function NewAccount() {
     setSubmitting(true);
     const { work_login_time, work_logout_time, ...payload } = form;
     if (!payload.password) delete payload.password;
-    if (personMode === "existing") {
-      delete payload.first_name;
-      delete payload.last_name;
-      delete payload.email;
-      delete payload.phone;
-    } else {
-      delete payload.person_id;
-    }
-    if (!payload.person_id) delete payload.person_id;
 
     try {
       const { data: created } = await client.post("/api/identity/users/", payload);
-      for (const roleId of roleIds) {
-        await client.put(`/api/identity/users/${created.user_id}/roles/${roleId}/`);
+      for (const role of roles.filter((r) => roleNames.has(r.role_name))) {
+        await client.put(`/api/identity/users/${created.user_id}/roles/${role.role_id}/`);
       }
       if (work_login_time || work_logout_time) {
         await client.put(`/api/identity/users/${created.user_id}/work-schedule/`, {
@@ -231,21 +230,20 @@ function NewAccount() {
   };
 
   const pickedPerson = unlinkedPersons.find((p) => String(p.person_id) === String(form.person_id));
-  const typedName = `${form.first_name} ${form.last_name}`.trim();
-  const displayName = (personMode === "existing" ? pickedPerson?.full_name : typedName) || "New account";
+  const displayName = pickedPerson?.full_name || "Create login";
   const duration = workDuration(form.work_login_time, form.work_logout_time);
-  const selectedRoles = roles.filter((r) => roleIds.has(r.role_id));
-  // an existing person may already have a photo; a brand-new person has none yet
-  const photoPersonId = personMode === "existing" && form.person_id ? form.person_id : null;
+  const selectedRoles = roles.filter((r) => roleNames.has(r.role_name));
+  // the person may already have a photo
+  const photoPersonId = form.person_id || null;
 
   // "Ready to create" checklist: three required steps + optional timings.
   const checks = [
-    { label: "Person", done: personMode === "existing" ? !!form.person_id : !!form.first_name.trim() },
+    { label: "Person", done: !!form.person_id },
     {
       label: "Sign-in",
       done: !!form.username.trim() && usernameStatus === "available" && PASSWORD_PATTERN.test(form.password),
     },
-    { label: "Roles", done: roleIds.size > 0 },
+    { label: "Roles", done: roleNames.size > 0 },
   ];
   const doneCount = checks.filter((c) => c.done).length;
   const timingsSet = !!(form.work_login_time && form.work_logout_time);
@@ -257,13 +255,13 @@ function NewAccount() {
           items={[
             { label: "System Administrator", to: "/dashboard", icon: ShieldCheck },
             { label: "User & Accounts", to: "/identity/users" },
-            { label: "New account" },
+            { label: "Create login" },
           ]}
         />
         <div className="dl2-ban-top">
           <div>
-            <h1>New account</h1>
-            <p>Create a login for someone in your organisation</p>
+            <h1>Create login</h1>
+            <p>Give someone who is already in the system a login</p>
           </div>
         </div>
       </div>
@@ -272,28 +270,11 @@ function NewAccount() {
         <form className="ua-modal na-form" onSubmit={handleSubmit}>
           <section className="na-card">
             <h3><span className="na-n">1</span>Person</h3>
-            <div className="ua-person-mode">
-              <button
-                type="button"
-                className={"ua-mode-btn" + (personMode === "new" ? " active" : "")}
-                onClick={() => setPersonMode("new")}
-              >
-                New person
-              </button>
-              <button
-                type="button"
-                className={"ua-mode-btn" + (personMode === "existing" ? " active" : "")}
-                onClick={() => {
-                  setPersonMode("existing");
-                  setPersonSearch("");
-                }}
-              >
-                Existing person — no login yet
-              </button>
-            </div>
-
-            {personMode === "existing" && (
-              <>
+            <p className="ua-perm-hint">
+              Choose a person who is already in the system. Add new employees in HR Admin &rarr; Employees first;
+              they then appear here to be given a login.
+            </p>
+            <>
                 <div className="ua-person-label-row">
                   <label>Person</label>
                   {(personSearch || form.person_id) && (
@@ -302,7 +283,7 @@ function NewAccount() {
                       className="ua-person-clear"
                       onClick={() => {
                         setPersonSearch("");
-                        setForm((f) => ({ ...f, person_id: "" }));
+                        choosePerson(null);
                       }}
                     >
                       Clear
@@ -318,7 +299,7 @@ function NewAccount() {
                 <select
                   className="ua-person-select"
                   value={form.person_id}
-                  onChange={(e) => setForm({ ...form, person_id: e.target.value })}
+                  onChange={(e) => choosePerson(unlinkedPersons.find((p) => String(p.person_id) === e.target.value))}
                   onDoubleClick={(e) => {
                     const person = unlinkedPersons.find((p) => String(p.person_id) === e.currentTarget.value);
                     if (person) setPersonSearch(person.full_name);
@@ -336,34 +317,10 @@ function NewAccount() {
                 </select>
                 {!unlinkedLoading && unlinkedPersons.length === 0 && (
                   <p className="ua-perm-hint">
-                    No person without a login was found — everyone in the system already has one.
+                    Nobody is waiting for a login — everyone in the system already has one. Add the person in HR Admin &rarr; Employees first.
                   </p>
                 )}
-              </>
-            )}
-
-            {personMode === "new" && (
-              <>
-                <div className="ua-form-row">
-                  <div>
-                    <label>First name</label>
-                    <input
-                      value={form.first_name}
-                      onChange={(e) => setForm({ ...form, first_name: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label>Last name</label>
-                    <input value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} />
-                  </div>
-                </div>
-                <label>Email</label>
-                <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-                <label>Phone</label>
-                <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
-              </>
-            )}
+            </>
           </section>
 
           <section className="na-card">
@@ -405,14 +362,14 @@ function NewAccount() {
             <h3><span className="na-n">3</span>Roles</h3>
             <div className="ua2-chips">
               {roles.map((role) => {
-                const checked = roleIds.has(role.role_id);
+                const checked = roleNames.has(role.role_name);
                 return (
                   <button
                     type="button"
                     key={role.role_id}
                     className={"ua2-chip" + (checked ? " on" : "") + (role.role_name === "System Administrator" ? " admin" : "")}
                     aria-pressed={checked}
-                    onClick={() => toggleRole(role.role_id)}
+                    onClick={() => toggleRole(role.role_name)}
                   >
                     {checked && <Check size={14} />}
                     {role.role_name}
@@ -474,7 +431,7 @@ function NewAccount() {
               disabled={submitting || usernameStatus === "taken" || usernameStatus === "invalid"}
             >
               <Check size={18} />
-              {submitting ? "Saving…" : "Create account"}
+              {submitting ? "Saving…" : "Create login"}
             </button>
           </div>
         </form>
@@ -493,7 +450,7 @@ function NewAccount() {
               </label>
             </div>
             <b>{displayName}</b>
-            <small>{personMode === "existing" ? "Existing person" : "New person"} · new login</small>
+            <small>{pickedPerson ? "New login" : "Pick a person"}</small>
           </div>
 
           <div className="na-sum-body">

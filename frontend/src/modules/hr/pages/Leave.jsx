@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Check, X, Sun, Palmtree, HeartPulse, Baby, CalendarDays, Hourglass, CalendarClock } from "lucide-react";
+import { Plus, Check, X, Sun, Palmtree, HeartPulse, Baby, CalendarDays, Hourglass } from "lucide-react";
 import client from "../../../api/client";
 import Pagination, { paginate } from "../../../components/Pagination";
 import { EmployeeAvatar } from "../components/EmployeeAvatar";
@@ -158,7 +158,7 @@ function Leave() {
       <div className="att-head">
         <div>
           <h1>Leave management</h1>
-          <p>Review balances, requests, and upcoming time away.</p>
+          <p>Review balances and leave requests.</p>
         </div>
         <button type="button" className="att-btn-accent" onClick={openNewRequest}>
           <Plus size={15} /> New request
@@ -201,7 +201,7 @@ function Leave() {
 
       <div className="lv2-group lv2-group-team">
         <p className="lv2-label">Team overview</p>
-        <div className="lv2-row lv2-row-2">
+        <div className="lv2-row lv2-row-1">
         <div className="lv2-stat lv2-tone-blue">
           <div className="lv2-balance-top">
             <span className="lv2-icon"><Hourglass size={18} /></span>
@@ -209,14 +209,6 @@ function Leave() {
           </div>
           <span className="lv2-stat-label">Pending approvals</span>
           <span className="lv2-stat-sub">Need your review</span>
-        </div>
-        <div className="lv2-stat lv2-tone-green">
-          <div className="lv2-balance-top">
-            <span className="lv2-icon"><CalendarClock size={18} /></span>
-            <b>{summary?.stats.upcoming_days ?? "—"}</b>
-          </div>
-          <span className="lv2-stat-label">Upcoming time off</span>
-          <span className="lv2-stat-sub">days · {summary?.stats.upcoming_employees ?? 0} employees</span>
         </div>
         </div>
       </div>

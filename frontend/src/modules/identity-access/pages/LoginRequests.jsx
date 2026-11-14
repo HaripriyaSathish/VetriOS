@@ -26,7 +26,7 @@ const personOf = (request) => (request.permission_requested || "").replace(PREFI
 const STATUS_LABEL = { APPROVED: "Approved", REJECTED: "Rejected", REVOKED: "Revoked" };
 
 // System Administrator inbox for HR's "Create login credentials" requests.
-// Pending tab: Approve opens the New account page pre-filled to that
+// Pending tab: Approve opens the Create login page pre-filled to that
 // person (creating the account completes the approval); Reject marks the
 // request rejected. History tab: everything already decided.
 function LoginRequests() {
@@ -171,7 +171,7 @@ function LoginRequests() {
           <div className="lr-note">
             <Info size={18} />
             <span>
-              Approving opens the New account page pre-filled to that person. Creating the account completes the
+              Approving opens the Create login page pre-filled to that person. Creating the login completes the
               approval. The credentials are shared with the employee directly, never stored here.
             </span>
           </div>

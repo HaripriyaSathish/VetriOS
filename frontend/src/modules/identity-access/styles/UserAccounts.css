@@ -1151,3 +1151,10 @@
 .ls-hol-table { margin-top: 14px; }
 .ls-hol-tag { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 13px; font-weight: 600; background: #fff4e5; color: #8a4b00; }
 .ls-hol-tag.wfh { background: #eef5ff; color: #1d3f78; }
+
+/* holidays: how-to line and Remove button */
+.ls-howto { margin: 4px 0 10px; padding: 10px 14px; border-radius: 12px; background: #fff7f1; border: 1px solid #ffd9c2; font-size: 14px; line-height: 1.5; color: #7a3a12; }
+.ls-howto b { color: var(--vt-orange-600); }
+.ls-remove { display: inline-flex; align-items: center; justify-content: center; gap: 7px; white-space: nowrap; cursor: pointer; font: inherit; font-size: 14px; font-weight: 600; padding: 8px 14px; border-radius: 10px; color: #b4231f; background: #fff; border: 1.5px solid #f4c4c2; transition: background .15s ease, border-color .15s ease; }
+.ls-remove:hover { background: #fdecec; border-color: #e8908c; }
+.ls-remove:focus-visible { outline: 2px solid #e8908c; outline-offset: 2px; }

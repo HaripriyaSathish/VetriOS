@@ -515,7 +515,7 @@ function UserAccounts() {
         </div>
         <div className="ua-head-actions">
           <button className="ua-btn-accent" onClick={() => navigate("/identity/users/new")}>
-            <UserPlus size={16} /> New account
+            <UserPlus size={16} /> Create login
           </button>
         </div>
       </div>

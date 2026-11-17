@@ -47,11 +47,13 @@ import Assignments from "./modules/training/pages/Assignments";
 import Reports from "./modules/training/pages/Reports";
 import MockInterview from "./modules/training/pages/MockInterview";
 import Messages from "./modules/training/pages/Messages";
+import BatchBulkEmail from "./modules/training/pages/BatchBulkEmail";
 import AbsenteesRecordings from "./modules/training/pages/AbsenteesRecordings";
 import DropoutTracking from "./modules/training/pages/DropoutTracking";
 import StudentDashboard from "./modules/student/pages/StudentDashboard";
 import StudentAttendance from "./modules/student/pages/StudentAttendance";
 import AskTrainer from "./modules/student/pages/AskTrainer";
+import Announcements from "./modules/student/pages/Announcements";
 import Assessments from "./modules/student/pages/Assessments";
 import StudentProgress from "./modules/student/pages/Progress";
 import StudentAssignments from "./modules/student/pages/Assignments";
@@ -351,6 +353,11 @@ function App() {
             <MockInterview />
           </PermissionGate>
         } />
+        <Route path="/training/bulk-email" element={
+          <PermissionGate requirement={{ type: "perm", value: "TRAINING_VIEW" }}>
+            <BatchBulkEmail />
+          </PermissionGate>
+        } />
         <Route path="/training/messages" element={
           <PermissionGate requirement={{ type: "perm", value: "TRAINING_VIEW" }}>
             <Messages />
@@ -389,6 +396,11 @@ function App() {
         <Route path="/student/ask-trainer" element={
           <PermissionGate requirement={{ type: "role", value: "Student" }}>
             <AskTrainer />
+          </PermissionGate>
+        } />
+        <Route path="/student/announcements" element={
+          <PermissionGate requirement={{ type: "role", value: "Student" }}>
+            <Announcements />
           </PermissionGate>
         } />
         <Route path="/student/assessments" element={

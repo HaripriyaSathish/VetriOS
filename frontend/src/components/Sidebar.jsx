@@ -98,6 +98,21 @@ function Sidebar({ open = false, onClose }) {
   // How many requests are addressed to the current user and still
   // awaiting their decision — shown as "Request access (N)". Polled the
   // same way NotificationBell polls its own unread count.
+  // Unread trainer bulk sends (Information / Daily Task / Projects /
+  // Seminar) — badge on the student's "Announcements" link.
+  const [announcementCount, setAnnouncementCount] = useState(0);
+  useEffect(() => {
+    if (!(user?.roles || []).includes("Student")) return;
+    const loadAnnouncements = () => {
+      client.get("/api/student/announcements/")
+        .then(({ data }) => setAnnouncementCount(data.filter((n) => !n.is_read).length))
+        .catch(() => {});
+    };
+    loadAnnouncements();
+    const interval = setInterval(loadAnnouncements, 20000);
+    return () => clearInterval(interval);
+  }, [location.pathname]);
+
   const [pendingRequestCount, setPendingRequestCount] = useState(0);
   useEffect(() => {
     const loadPendingCount = () => {
@@ -353,6 +368,17 @@ function Sidebar({ open = false, onClose }) {
           <NavLink to="/training/dropout-tracking" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
             <span className="nav-icon"><MsIcon name="person_remove" /></span> Dropout Tracking
           </NavLink>
+
+          <p className="nav-section-label">Email</p>
+          <NavLink to="/email" end className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+            <span className="nav-icon"><MsIcon name="mail" /></span> Email
+            <span className="nav-chevron"><ChevronDown size={14} /></span>
+          </NavLink>
+          <div className="nav-subgroup">
+            <NavLink to="/training/bulk-email" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
+              <span className="nav-icon"><MsIcon name="forward_to_inbox" size={16} /></span> Bulk
+            </NavLink>
+          </div>
 
           <p className="nav-section-label">Resources &amp; Chat</p>
           <NavLink to="/training/messages" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
@@ -996,6 +1022,10 @@ function Sidebar({ open = false, onClose }) {
           </NavLink>
           <NavLink to="/student/ask-trainer" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
             <NavImage name="nav-ask-trainer" fallback={ChatIcon} /> Ask Trainer
+          </NavLink>
+          <NavLink to="/student/announcements" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+            <span className="nav-icon"><MsIcon name="campaign" /></span> Announcements
+            {announcementCount > 0 && <span className="nav-count-badge">{announcementCount}</span>}
           </NavLink>
           <NavLink to="/student/assessments" className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
             <NavImage name="nav-assessments" fallback={ClipboardIcon} /> Assessments

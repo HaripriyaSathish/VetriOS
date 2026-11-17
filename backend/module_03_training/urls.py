@@ -20,6 +20,8 @@ from .business_dashboard_views import (
     BusinessInternshipApprovalsView, BusinessLifecycleApprovalsView, BusinessManagerAssignmentView,
 )
 
+from .batch_email_views import TrainerBulkEmailView
+
 router = DefaultRouter()
 router.register("batches", BatchViewSet, basename="batch")
 router.register("attendance", AttendanceViewSet, basename="attendance")
@@ -59,4 +61,5 @@ urlpatterns = [
     path("mock-interview-questions/generate/", GenerateMockInterviewQuestionsView.as_view(), name="generate-mock-questions"),
     path("batches/<int:batch_id>/assistant-report-download/<str:period>/", AssistantBatchReportDownloadView.as_view(), name="assistant-batch-report-download"),
     path("courses/create/", CourseCreateView.as_view()),
+    path("bulk-email/", TrainerBulkEmailView.as_view(), name="trainer-bulk-email"),
 ] + router.urls

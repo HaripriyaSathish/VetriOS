@@ -360,10 +360,10 @@
 .nav-subgroup .nav-section-label:first-child { margin-top: 2px; }
 
 /* HR Administrator: HR menu always open under an HR Admin heading */
-.nav-section-label.nav-hr-heading { display: flex; align-items: center; gap: 8px; margin: 10px 10px 2px; font-size: 12px; color: #ffb27a; }
+.nav-section-label.nav-hr-heading { display: flex; align-items: center; gap: 8px; margin: 12px 10px 4px; }
 .nav-subgroup.nav-subgroup-direct { margin: 0 0 4px; padding-left: 0; border-left: 0; }
 .nav-hr-divider { height: 1px; margin: 8px 10px 6px; background: rgba(255, 255, 255, 0.16); }
 
-/* HR Administrator menu headings: Self service, HR Admin (orange), Tools */
-.nav-section-label.nav-self-heading { margin: 8px 10px 2px; font-size: 12px; color: #ffb27a; }
-.nav-section-label.nav-tools-heading { margin: 14px 10px 2px; font-size: 12px; color: #ffb27a; }
+/* Menu headings (Self service, HR Admin, System Administration, Tools...) use the same light blue as the Project and Trainer menus */
+.nav-section-label.nav-self-heading { margin: 8px 10px 4px; }
+.nav-section-label.nav-tools-heading { margin: 14px 10px 4px; }

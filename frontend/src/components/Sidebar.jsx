@@ -1,6 +1,7 @@
 ﻿import { useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import client from "../api/client";
+import { SHOW_EMAIL_BULK } from "../modules/email/featureFlags";
 import {
   X,
   History,
@@ -74,9 +75,6 @@ const BUSINESS_TEAM_PATHS = [
   "/training/students", "/training/internship-approvals", "/training/enquiries",
   "/training/fee-conversion", "/training/batches/new", "/training/welcome-emails",
 ];
-// The Email "Bulk" page (/email/batches) is built and its route still works, but its menu
-// entries are hidden for now. Set this to true to show them again.
-const SHOW_EMAIL_BULK = false;
 const PROJECT_MGMT_PATHS = [
   "/project/dashboard", "/project/team", "/project/requirements", "/project/kanban",
   "/project/milestones", "/project/deployments", "/project/tech-stack", "/project/change-requests",
@@ -1312,6 +1310,12 @@ function Sidebar({ open = false, onClose }) {
       {(isBusinessView || isInternView) && (
         <div className="sidebar-art team" aria-hidden="true">
           <TeamIllustration />
+        </div>
+      )}
+      {/* System Administrator and HR Administrator menus: the same animated character */}
+      {(isSystemAdministrator || hrDirect) && (
+        <div className="sidebar-art" aria-hidden="true">
+          <LoginIllustration />
         </div>
       )}
     </aside>

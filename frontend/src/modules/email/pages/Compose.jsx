@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Send, X, Paperclip } from "lucide-react";
+import { Send, X, Paperclip, ArrowLeft } from "lucide-react";
 import client from "../../../api/client";
 import RichTextEditor from "../components/RichTextEditor";
 import "../styles/Email.css";
@@ -139,6 +139,11 @@ function Compose() {
           <div>
             <h1>Compose</h1>
             <p>Write an email and send it.</p>
+          </div>
+          <div className="dl2-ban-actions">
+            <button type="button" className="dl2-ghost" onClick={() => navigate("/email")}>
+              <ArrowLeft size={15} /> Back
+            </button>
           </div>
         </div>
       </div>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { UserPlus, Briefcase, ArrowUpRight } from "lucide-react";
+import { UserPlus, Briefcase, ArrowUpRight, ArrowLeft } from "lucide-react";
 import client from "../../../api/client";
 import "../styles/Email.css";
 import "../../documents/styles/DocumentLibrary.css";
@@ -50,6 +50,11 @@ function Batches() {
           <div>
             <h1>Bulk email</h1>
             <p>Send to many people at once and track every batch.</p>
+          </div>
+          <div className="dl2-ban-actions">
+            <button type="button" className="dl2-ghost" onClick={() => navigate("/email")}>
+              <ArrowLeft size={15} /> Back
+            </button>
           </div>
         </div>
       </div>

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Eye, Download, FolderArchive, UploadCloud, Loader2, RefreshCw, Search, Check } from "lucide-react";
 import JSZip from "jszip";
 import client from "../../../api/client";
+import { cleanRole, suggestRole, validateRole } from "../roleCheck";
 import RichTextEditor from "../components/RichTextEditor";
 import SearchSelect from "../components/SearchSelect";
 import "../styles/Documents.css";
@@ -48,6 +49,8 @@ function CourseInternshipOfferLetter() {
   const [internIds, setInternIds] = useState([]);
 
   const [role, setRole] = useState("");
+  const [roleError, setRoleError] = useState("");
+  const [designationNames, setDesignationNames] = useState([]);
   const [effectiveDate, setEffectiveDate] = useState("");
   const [duration, setDuration] = useState("2 Months");
   const [stipend, setStipend] = useState("No Stipend");
@@ -82,6 +85,10 @@ function CourseInternshipOfferLetter() {
 
   useEffect(() => {
     client.get("/api/documents/interns/").then(({ data }) => setInterns(data)).catch(() => {});
+    client
+      .get("/api/hr/designations/")
+      .then(({ data }) => setDesignationNames(data.filter((d) => d.is_active).map((d) => d.designation_name)))
+      .catch(() => {});
   }, []);
 
   // The full active template list is kept so Step 4 can offer every
@@ -131,6 +138,21 @@ function CourseInternshipOfferLetter() {
   const selectedInterns = internIds
     .map((id) => interns.find((i) => String(i.intern_id) === String(id)))
     .filter(Boolean);
+
+  // The Role has to be a real job title tied to the course (AI Fullstack Developer for the AI Fullstack
+  // course); the server runs the same check. Course names come from the students picked above.
+  const courseNames = [...new Set(selectedInterns.map((i) => i.course_name).filter(Boolean))];
+  const roleSuggestions = [
+    ...new Set([
+      ...courseNames.map((c) => suggestRole(c)),
+      ...designationNames.filter((d) => courseNames.length === 0 || courseNames.some((c) => c.toLowerCase().split(/\s+/).some((w) => w.length > 3 && d.toLowerCase().includes(w)))),
+    ]),
+  ];
+  const checkRole = () => {
+    const message = validateRole(role, courseNames, designationNames);
+    setRoleError(message);
+    return !message;
+  };
 
   const handleBatchChange = (batchName) => {
     setSelectedBatch(batchName);
@@ -222,6 +244,10 @@ function CourseInternshipOfferLetter() {
       setError("Pick at least one student first.");
       return;
     }
+    if (!checkRole()) {
+      setError("Fix the role before generating.");
+      return;
+    }
     setError("");
     setGenerating(true);
     setResults([]);
@@ -291,6 +317,10 @@ function CourseInternshipOfferLetter() {
   const handlePreview = async () => {
     const intern = selectedInterns[0];
     if (!intern || !template) return;
+    if (!checkRole()) {
+      setError("Fix the role before previewing.");
+      return;
+    }
     const fallbackDate = intern.internship_start_date
       ? new Date(intern.internship_start_date).toLocaleDateString("en-GB").replace(/\//g, ".")
       : "";
@@ -399,7 +429,33 @@ function CourseInternshipOfferLetter() {
           <h3 className="doc-step-title">3. Offer details</h3>
           <div className="doc-form">
             <label>Role</label>
-            <input value={role} onChange={(e) => setRole(e.target.value)} placeholder="e.g. AI Fullstack Developer" required />
+            <input
+              value={role}
+              list="offer-role-suggestions"
+              className={roleError ? "doc-invalid" : ""}
+              onChange={(e) => {
+                setRole(e.target.value);
+                setRoleError("");
+              }}
+              onBlur={() => {
+                if (role.trim()) {
+                  setRole(cleanRole(role));
+                  checkRole();
+                }
+              }}
+              placeholder="e.g. AI Fullstack Developer"
+              required
+            />
+            <datalist id="offer-role-suggestions">
+              {roleSuggestions.map((r) => (
+                <option key={r} value={r} />
+              ))}
+            </datalist>
+            {roleError ? (
+              <p className="doc-field-error">{roleError}</p>
+            ) : (
+              <p className="doc-field-hint">A real job title that matches the course, for example {roleSuggestions[0] || "AI Fullstack Developer"}.</p>
+            )}
 
             <label>Effective from</label>
             <input

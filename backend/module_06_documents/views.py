@@ -8,8 +8,12 @@ import zipfile
 from html.parser import HTMLParser
 import pypdf
 from django.core.files.storage import FileSystemStorage
+import copy
+
 from docx import Document as DocxDocument
+from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml.ns import qn
+from docx.shared import Pt
 from docx2pdf import convert as docx2pdf_convert
 from xhtml2pdf import pisa
 from django.conf import settings
@@ -27,7 +31,7 @@ from rest_framework.permissions import IsAuthenticated
 from local_extensions.ai_service import ask_groq
 from local_extensions.notification_utils import notify
 from module_01_identity_access.models import PermissionRequest, Person, UserAccount, UserRole
-from module_02_hr.models import Employee, PersonDepartmentHistory
+from module_02_hr.models import Designation, Employee, PersonDepartmentHistory
 from .models import (
     AccessLevel,
     AiDocumentGeneration,
@@ -585,6 +589,149 @@ def _merge_placeholder_runs(paragraphs):
                 i += 1
 
 
+# ---- Role on an offer letter: a real designation, tied to the course -------------------------------
+# "AI Fullstack Developer" for the AI Fullstack course is fine; "aisf", "aaa" or "bbb" is not. The
+# role has to read like a job title (two or more real words ending in, or containing, a job-title
+# word) and match either an existing designation or the intern's course.
+ROLE_NOUNS = {
+    "developer", "engineer", "designer", "analyst", "tester", "executive", "manager", "associate",
+    "specialist", "consultant", "marketer", "administrator", "architect", "programmer", "trainee",
+    "intern", "officer", "coordinator", "lead", "scientist", "strategist", "writer", "support",
+    "assistant", "technician", "representative", "recruiter", "producer", "editor", "creator",
+}
+ROLE_ACRONYMS = {"AI", "ML", "UI", "UX", "QA", "HR", "IT", "DM", "SEO", "SQL", "API", "BI", "AWS", "VR", "AR", "UI/UX"}
+_VOWELS = set("aeiouyAEIOUY")
+
+
+def _words(text):
+    return [w for w in re.split(r"[^A-Za-z]+", text or "") if w]
+
+
+def _clean_role(role):
+    """Trim, collapse spaces and Title Case each word (AI, UI/UX... stay upper case)."""
+    out = []
+    for word in re.split(r"\s+", (role or "").strip()):
+        if word.upper() in ROLE_ACRONYMS:
+            out.append(word.upper())
+        else:
+            out.append(word[:1].upper() + word[1:].lower() if word.isalpha() else word)
+    return " ".join(out)
+
+
+def _suggest_role(course_name):
+    """A sensible example role for a course: AI Fullstack Development -> AI Fullstack Developer."""
+    name = (course_name or "").strip()
+    for tail, noun in (("Development", "Developer"), ("Designing", "Designer"), ("Design", "Designer"),
+                       ("Testing", "Tester"), ("Analytics", "Analyst"), ("Analysis", "Analyst")):
+        if name.endswith(tail):
+            return name[: -len(tail)] + noun
+    if name.endswith("Marketing"):
+        return name + " Executive"
+    return (name + " Developer") if name else "AI Fullstack Developer"
+
+
+def validate_offer_role(role, course_name=""):
+    """None when the role is fine, otherwise the message to show."""
+    role = (role or "").strip()
+    if not role:
+        return "Enter the role."
+    if not re.fullmatch(r"[A-Za-z][A-Za-z &/.\-]{3,59}", role):
+        return "Use a real job title with letters only, for example AI Fullstack Developer."
+    words = _words(role)
+    if len(words) < 2:
+        return "A role needs at least two words, for example AI Fullstack Developer."
+    for w in words:
+        if len(w) < 2 or (len(w) >= 3 and not (set(w) & _VOWELS)) or re.search(r"(.)\1\1", w, re.I):
+            return f'"{w}" doesn\'t look like a real word. Use a job title such as AI Fullstack Developer.'
+        if len(w) <= 4 and w.upper() not in ROLE_ACRONYMS and w.lower() not in ROLE_NOUNS and len(set(w.lower())) < 3:
+            return f'"{w}" doesn\'t look like a real word. Use a job title such as AI Fullstack Developer.'
+    designations = [d.lower() for d in Designation.objects.filter(is_active=True).values_list("designation_name", flat=True)]
+    lowered = {w.lower() for w in words}
+    designation_words = {w.lower() for d in designations for w in _words(d)}
+    if role.lower() in designations:
+        return None
+    if not (lowered & (ROLE_NOUNS | designation_words)):
+        return "The role should be a job title, for example AI Fullstack Developer or Digital Marketing Executive."
+    course_words = {w.lower() for w in _words(course_name) if len(w) > 3}
+    if course_words and not (lowered & course_words):
+        return f"The role should match the course ({course_name}), for example {_suggest_role(course_name)}."
+    return None
+
+
+def _styled_replace(paragraph, values):
+    """Fill {{placeholders}} in one paragraph, putting each filled-in value in bold and the rest of the
+    sentence in regular weight (the template's own runs are usually all bold)."""
+    runs = list(paragraph.runs)
+    if not runs:
+        return
+    text = "".join(r.text for r in runs)
+    if "{{" not in text:
+        return
+    base = runs[0]._r.rPr
+    for r in runs:
+        r._r.getparent().remove(r._r)
+    for part in re.split(r"(\{\{\s*[a-zA-Z0-9_]+\s*\}\})", text):
+        if not part:
+            continue
+        m = re.fullmatch(r"\{\{\s*([a-zA-Z0-9_]+)\s*\}\}", part)
+        is_value = bool(m and values.get(m.group(1)) not in (None, ""))
+        new = paragraph.add_run(str(values[m.group(1)]) if is_value else part)
+        if base is not None:
+            new._r.insert(0, copy.deepcopy(base))
+        new.bold = is_value
+
+
+_DETAIL_LABELS = ("role:", "effective from:", "duration", "stipend:")
+
+
+def _polish_offer_letter(doc, start_index, placeholder_paragraphs):
+    """Make the filled-in letter read well: regular body text with bold values, even spacing, justified
+    paragraphs, the four offer details as a tidy block, bold greeting and closing."""
+    paragraphs = list(doc.paragraphs)
+    detail_seen = 0
+    for idx, p in enumerate(paragraphs):
+        if idx < start_index:
+            continue
+        text = p.text.strip()
+        if not text:
+            continue
+        low = text.lower()
+        pf = p.paragraph_format
+        pf.space_before = Pt(0)
+        pf.space_after = Pt(6)
+        pf.line_spacing = 1.1
+        p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY if len(text) > 70 else WD_ALIGN_PARAGRAPH.LEFT
+        # The template's own body font is Arial Black (every letter heavy); body text uses plain Arial.
+        for r in p.runs:
+            r.font.name = "Arial"
+            r.font.size = Pt(10.5)
+        if low.startswith("to :") or low.startswith("to:") or low.startswith("date"):
+            pf.space_after = Pt(2)
+        elif low.startswith("congratulations"):
+            pf.space_before = Pt(8)
+            pf.space_after = Pt(8)
+            for r in p.runs:
+                r.bold = True
+                r.font.size = Pt(12.5)
+        elif low.startswith(_DETAIL_LABELS):
+            detail_seen += 1
+            pf.left_indent = Pt(18)
+            pf.space_after = Pt(2)
+            if detail_seen == 1:
+                pf.space_before = Pt(8)
+            if low.startswith("stipend:"):
+                pf.space_after = Pt(10)
+        elif low.startswith("welcome on board"):
+            pf.space_before = Pt(6)
+            for r in p.runs:
+                r.bold = True
+        elif idx not in placeholder_paragraphs:
+            # a plain sentence with nothing filled in: the template has it all bold, make it regular
+            for r in p.runs:
+                r.bold = False
+    return doc
+
+
 def _merge_intern_offer_pdf(template, intern, field_values):
     """Design-preserving merge for an Intern (module_04_interns, read-only
     from here — that module is Haripriya's). Branches on the template's
@@ -606,6 +753,14 @@ def _merge_intern_offer_pdf(template, intern, field_values):
     stipend/effective_date) is a manual field. Returns (pdf_bytes,
     error_response) — shared by the real save-and-generate path and the
     no-save preview."""
+    # The role has to be a real job title tied to the intern's course (see validate_offer_role).
+    role_given = (field_values.get("role") or "").strip()
+    if role_given:
+        problem = validate_offer_role(role_given, _intern_offer_known_values(intern).get("course_name", ""))
+        if problem:
+            return None, Response({"detail": problem, "role": [problem]}, status=400)
+        field_values = {**field_values, "role": _clean_role(role_given)}
+
     if template.template_format == "HTML":
         return _merge_canvas_pdf(template, intern, field_values)
 
@@ -695,10 +850,16 @@ def _merge_intern_offer_pdf(template, intern, field_values):
     elif body_placeholders:
         # No Content step text — this is an older, fully-written-body
         # template (its own baked-in placeholders, literal find/replace).
+        # What the person typed in the Offer details step (role, effective date, duration,
+        # stipend...) wins; only when it is left blank does the intern's own data fill in
+        # (e.g. their own start date for "Effective from").
+        manual_keys = ("role", "duration", "stipend", "effective_date", "department", "location")
         final_values = {}
         missing = []
         for key in body_placeholders:
-            if key in known_values and known_values[key]:
+            if key in manual_keys and field_values.get(key):
+                final_values[key] = field_values[key]
+            elif key in known_values and known_values[key]:
                 final_values[key] = known_values[key]
             elif key in field_values and field_values[key]:
                 final_values[key] = field_values[key]
@@ -708,7 +869,14 @@ def _merge_intern_offer_pdf(template, intern, field_values):
         if missing:
             return None, Response({"detail": f"Missing values for: {', '.join(missing)}"}, status=400)
 
-        apply_replacements({**known_values, **final_values})
+        # Where the letter body starts (the "To : {{recipient_name}}" line), found before filling in.
+        body_start = next((i for i, para in enumerate(doc.paragraphs) if "{{recipient_name}}" in para.text), None)
+        placeholder_paragraphs = {i for i, para in enumerate(doc.paragraphs) if "{{" in para.text}
+        merged_values = {**known_values, **final_values}
+        for paragraph in all_paragraphs:
+            _styled_replace(paragraph, merged_values)
+        if body_start is not None:
+            _polish_offer_letter(doc, body_start, placeholder_paragraphs)
     else:
         apply_replacements(known_values)
 

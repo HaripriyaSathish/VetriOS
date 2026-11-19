@@ -3,6 +3,7 @@ from . import student_views as views
 from . import student_message_views, student_eligibility_views
 from . import student_assignment_views, student_recording_views, student_report_views
 from . import student_progress_views
+from .batch_email_views import StudentAnnouncementsView
 
 urlpatterns = [
     path("dashboard/", views.StudentDashboardView.as_view(), name="student-dashboard"),
@@ -15,5 +16,6 @@ urlpatterns = [
     path("assignments/", student_assignment_views.StudentAssignmentListView.as_view(), name="student-assignments"),
     path("assignments/submit/", student_assignment_views.StudentAssignmentSubmitView.as_view(), name="student-assignment-submit"),
     path("recordings/", student_recording_views.StudentRecordingListView.as_view(), name="student-recordings"),
+    path("announcements/", StudentAnnouncementsView.as_view(), name="student-announcements"),
     path("reports/<str:period>/download/", student_report_views.StudentZoneReportDownloadView.as_view(), name="student-report-download"),
 ]

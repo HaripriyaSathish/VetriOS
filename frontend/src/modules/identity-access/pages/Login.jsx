@@ -40,6 +40,17 @@ const ROLE_WORKSPACE_MAP = {
   "Project Manager": { key: "project", label: "Project Management", path: "/project/dashboard" },
 };
 
+// What a System Administrator can open from the chooser. They keep the merged
+// full-access menu inside whichever one they pick; only the landing page changes
+// (menus per workspace come later).
+const SYSTEM_ADMIN_WORKSPACES = [
+  { key: "sysadmin", label: "System Administration", path: "/dashboard" },
+  { key: "hr", label: "HR Management", path: "/hr" },
+  { key: "training", label: "Training Management", path: "/training" },
+  { key: "business", label: "Business Team", path: "/training/enquiries" },
+  { key: "project", label: "Project Management", path: "/project/dashboard" },
+];
+
 // Module icons orbiting the VetriOS mark on the brand panel — inner ring
 // spins one way, outer ring the other. `tone` picks the chip gradient.
 const INNER_ORBIT = [
@@ -103,11 +114,12 @@ function Login() {
 
       let roles = response.data.user?.roles || [];
 
-      // System Administrator always gets the merged, full-access
-      // dashboard directly — never the workspace chooser, even if they
-      // also hold other roles like Project Manager.
+      // System Administrator picks a workspace on the same chooser screen as
+      // everyone else, even if they also hold other roles like Project Manager.
+      // The menu stays the merged, full-access one inside every workspace.
       if (roles.includes("System Administrator")) {
-        navigate("/dashboard");
+        localStorage.setItem("available_workspaces", JSON.stringify(SYSTEM_ADMIN_WORKSPACES));
+        navigate("/choose-workspace");
         return;
       }
 

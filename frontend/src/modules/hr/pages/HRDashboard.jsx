@@ -1627,6 +1627,14 @@ function HRDashboard({ view = "employees" }) {
                   <h3><span className="emp-step">1</span>Personal details</h3>
                   <div className="emp-view-grid">
                     <div><small>Email</small><span>{viewEmployee.email || <em>Not set</em>}</span></div>
+                    {(viewEmployee.previous_emails || []).map((p) => (
+                      <div key={p.email} className="emp-old-email">
+                        <small>Old email</small>
+                        <span>
+                          {p.email} <em>not used{p.replaced_on ? ` · replaced ${fmtDate(p.replaced_on)}` : ""}</em>
+                        </span>
+                      </div>
+                    ))}
                     <div><small>Phone</small><span>{viewEmployee.phone || <em>Not set</em>}</span></div>
                     <div><small>Date of birth</small><span>{fmtDate(viewEmployee.date_of_birth) || <em>Not set</em>}</span></div>
                     <div><small>Gender</small><span>{viewEmployee.gender || <em>Not set</em>}</span></div>

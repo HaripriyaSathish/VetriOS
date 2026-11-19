@@ -1,6 +1,7 @@
 ﻿import { useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import client from "../api/client";
+import { SHOW_EMAIL_BULK } from "../modules/email/featureFlags";
 import {
   X,
   History,
@@ -35,7 +36,6 @@ import {
   Sparkles,
   LayoutTemplate,
   Mail,
-  Send,
   CheckCircle2,
   MailOpen,
   SlidersHorizontal,
@@ -70,14 +70,11 @@ function NavImage({ name, fallback: Fallback }) {
 // "/dashboard" is deliberately excluded — it's the universal post-login
 // landing page, so including it would force this group open on every
 // login/refresh for a System Administrator regardless of prior toggle state.
-const SYSADMIN_PATHS = ["/identity/users", "/identity/login-requests", "/identity/leave-settings", "/identity/roles", "/identity/permissions", "/system-admin/approvals"];
 const HR_PATHS = ["/hr"];
 const BUSINESS_TEAM_PATHS = [
   "/training/students", "/training/internship-approvals", "/training/enquiries",
   "/training/fee-conversion", "/training/batches/new", "/training/welcome-emails",
 ];
-const DOCUMENTS_PATHS = ["/documents"];
-const EMAIL_PATHS = ["/email"];
 const PROJECT_MGMT_PATHS = [
   "/project/dashboard", "/project/team", "/project/requirements", "/project/kanban",
   "/project/milestones", "/project/deployments", "/project/tech-stack", "/project/change-requests",
@@ -153,7 +150,6 @@ function Sidebar({ open = false, onClose }) {
 
   const identityRequirement = { type: "role", value: "System Administrator" };
   const businessTeamRequirement = { type: "role", value: ["Business Team", "System Administrator"] };
-  const auditRequirement = { type: "role", value: ["Business Team", "System Administrator"] };
   const trainerRequirement = { type: "role", value: "Employee" };
   const studentRequirement = { type: "role", value: "Student" };
   const internRequirement = { type: "role", value: "Intern" };
@@ -174,7 +170,14 @@ function Sidebar({ open = false, onClose }) {
   const isConvertedEmployee = hasAccess(trainerRequirement, user) && isIntern;
 
   const activeWorkspace = localStorage.getItem("active_workspace");
-  const inWorkspace = (key) => isSystemAdministrator || activeWorkspace === key;
+  // A System Administrator picks a workspace on the chooser screen and the menu shows
+  // only that workspace (sysadmin / hr / training / business / project). Everyone else
+  // keeps the workspace their role maps to.
+  const SYSADMIN_WORKSPACES = ["sysadmin", "hr", "training", "business", "project"];
+  const sysWs = isSystemAdministrator
+    ? (SYSADMIN_WORKSPACES.includes(activeWorkspace) ? activeWorkspace : "sysadmin")
+    : null;
+  const inWorkspace = (key) => (isSystemAdministrator ? sysWs === key : activeWorkspace === key);
 
   // Trainees (Student workspace) get only their own portal links — no
   // Request access, generic Dashboard or Email in their sidebar.
@@ -196,13 +199,14 @@ function Sidebar({ open = false, onClose }) {
   // Intern workspace gets the flat, sectioned menu from the Intern Figma.
   const isInternView = !isSystemAdministrator && inWorkspace("intern") && isIntern && !isConvertedEmployee;
 
-  const isOnSysAdminPage = SYSADMIN_PATHS.some((path) => location.pathname.startsWith(path));
-  const [sysAdminOpen, setSysAdminOpen] = useState(isOnSysAdminPage);
 
   const canSeeHR = hrItem && hasAccess(hrItem.requirement, user);
   // HR Administrator (not System Administrator) in the HR workspace: the menu is shown
   // as SELF SERVICE / HR ADMIN / TOOLS sections instead of dropdowns.
   const hrDirect = inWorkspace("hr") && canSeeHR && !isSystemAdministrator;
+  // The HR menu is always open, under headings: for an HR Administrator, and for a
+  // System Administrator who picked the HR Management workspace.
+  const hrFlat = hrDirect || (isSystemAdministrator && sysWs === "hr");
   const isOnHRPage = HR_PATHS.some((path) => location.pathname.startsWith(path));
   const [hrOpen, setHrOpen] = useState(isOnHRPage);
 
@@ -211,17 +215,13 @@ function Sidebar({ open = false, onClose }) {
 
   const documentsItem = NAV_ITEMS.find((item) => item.id === "documents");
   const canSeeDocuments = documentsItem && hasAccess(documentsItem.requirement, user);
-  const isOnDocumentsPage = DOCUMENTS_PATHS.some((path) => location.pathname.startsWith(path));
-  const [documentsOpen, setDocumentsOpen] = useState(isOnDocumentsPage && location.pathname !== "/documents");
 
   // Email is open to every login now (Dashboard + Compose) — only the
   // Bulk (batch send) menu stays limited to whoever the old SYSTEM_ADMIN
   // permission requirement covers.
   const emailItem = NAV_ITEMS.find((item) => item.id === "email");
   const canSeeEmail = true;
-  const canSeeEmailBulk = emailItem && hasAccess(emailItem.requirement, user);
-  const isOnEmailPage = EMAIL_PATHS.some((path) => location.pathname.startsWith(path));
-  const [emailOpen, setEmailOpen] = useState(isOnEmailPage);
+  const canSeeEmailBulk = SHOW_EMAIL_BULK && emailItem && hasAccess(emailItem.requirement, user);
 
   const isOnProjectMgmtPage = PROJECT_MGMT_PATHS.some((path) => location.pathname.startsWith(path));
   const [projectMgmtOpen, setProjectMgmtOpen] = useState(isOnProjectMgmtPage);
@@ -250,6 +250,28 @@ function Sidebar({ open = false, onClose }) {
   // Manager Figma (CORE / DELIVERY & QUALITY / ENGAGEMENT) instead of
   // the collapsible Project/Client Management groups.
   const isPmView = !isSystemAdministrator && activeWorkspace === "project" && isProjectTeamMember;
+
+  // New "Audit & Security" group: Audit Logs, for the two roles that can open it (System Administrator
+  // and Business Team).
+  const canSeeAudit =
+    !isBusinessView &&
+    hasAccess({ type: "role", value: ["Business Team", "System Administrator"] }, user) &&
+    (!isSystemAdministrator || sysWs === "sysadmin" || sysWs === "business");
+  const systemGroup = canSeeAudit ? (
+    <>
+      <p className="nav-section-label nav-hr-heading">
+        <ShieldAlert size={15} /> Audit &amp; Security
+      </p>
+      <div className="nav-subgroup nav-subgroup-direct">
+        <NavLink to="/audit" className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}>
+          <span className="nav-icon">
+            <ShieldAlert size={14} />
+          </span>
+          Audit Logs
+        </NavLink>
+      </div>
+    </>
+  ) : null;
 
   return (
     <aside className={"sidebar" + (open ? " open" : "")}>
@@ -395,7 +417,7 @@ function Sidebar({ open = false, onClose }) {
       {/* Unconditional — every role (Employee, Trainer, any admin) can
           ask a specific admin for a permission, so this sits above every
           role-gated group rather than living inside one of them. */}
-      {!isTraineeView && !isBusinessView && !isInternView && !isPmView && !hrDirect && (
+      {!isTraineeView && !isBusinessView && !isInternView && !isPmView && !hrDirect && !isSystemAdministrator && (
         <NavLink
           to="/request-access"
           className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
@@ -406,22 +428,10 @@ function Sidebar({ open = false, onClose }) {
         </NavLink>
       )}
 
-      {/* Audit Logs — Business Team operates it day-to-day, System
-          Administrator gets the same view for oversight. Not tied to
-          any workspace, so it sits standalone like Request access. */}
-      {!isBusinessView && hasAccess(auditRequirement, user) && (
-        <NavLink
-          to="/audit"
-          className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
-        >
-          <span className="nav-icon">
-            <ShieldAlert size={16} />
-          </span>
-          Audit Logs
-        </NavLink>
-      )}
+      {/* Audit Logs now lives inside the System Administration group and the
+          Business Team group (the only two roles that can open it). */}
 
-      {hrDirect && <p className="nav-section-label nav-self-heading">Self service</p>}
+      {(hrDirect || isSystemAdministrator) && <p className="nav-section-label nav-self-heading">Self service</p>}
 
       {!isSystemAdministrator && !isTraineeView && !isBusinessView && !isTrainerView && !isInternView && !isPmView && (
         <NavLink
@@ -435,7 +445,7 @@ function Sidebar({ open = false, onClose }) {
         </NavLink>
       )}
 
-      {!isSystemAdministrator && !isBusinessView && !isTrainerView && !isIntern && !isPmView && !!user?.employee_code && (
+      {!isBusinessView && !isTrainerView && !isIntern && !isPmView && !!user?.employee_code && (
         <>
           <NavLink
             to="/my/attendance"
@@ -459,7 +469,7 @@ function Sidebar({ open = false, onClose }) {
         </>
       )}
 
-      {!isSystemAdministrator && !isBusinessView && !isTrainerView && !isIntern && !isPmView && !!user?.employee_code && (
+      {!isBusinessView && !isTrainerView && !isIntern && !isPmView && !!user?.employee_code && (
         <NavLink
           to="/my/worklog"
           className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
@@ -483,7 +493,7 @@ function Sidebar({ open = false, onClose }) {
         </NavLink>
       )}
 
-      {hrDirect && (
+      {(hrDirect || isSystemAdministrator) && (
         <NavLink
           to="/request-access"
           className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
@@ -494,24 +504,14 @@ function Sidebar({ open = false, onClose }) {
         </NavLink>
       )}
 
-      {isSystemAdministrator && (
+      {isSystemAdministrator && sysWs === "sysadmin" && (
         <>
-          <button
-            type="button"
-            className={"nav-item nav-group-toggle" + (sysAdminOpen ? " open" : "")}
-            onClick={() => setSysAdminOpen((prev) => !prev)}
-          >
-            <span className="nav-icon">
-              <ShieldCheck size={16} />
-            </span>
-            System Administrator
-            <span className="nav-chevron">
-              <ChevronDown size={14} />
-            </span>
-          </button>
+          <p className="nav-section-label nav-hr-heading">
+            <ShieldCheck size={15} /> System Administration
+          </p>
 
-          {sysAdminOpen && (
-            <div className="nav-subgroup">
+          {(
+            <div className="nav-subgroup nav-subgroup-direct">
               <NavLink
                 to="/dashboard"
                 className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
@@ -584,9 +584,9 @@ function Sidebar({ open = false, onClose }) {
                 </span>
                 Leave & attendance settings
               </NavLink>
-
             </div>
           )}
+          {systemGroup}
         </>
       )}
 
@@ -594,7 +594,7 @@ function Sidebar({ open = false, onClose }) {
         <>
           {/* An HR Administrator sees the HR menu always open under an "HR Admin" heading;
               a System Administrator (who has several big menus) keeps the dropdown. */}
-          {isSystemAdministrator ? (
+          {!hrFlat ? (
             <button
               type="button"
               className={"nav-item nav-group-toggle" + (hrOpen ? " open" : "")}
@@ -614,8 +614,8 @@ function Sidebar({ open = false, onClose }) {
             </p>
           )}
 
-          {(hrOpen || !isSystemAdministrator) && (
-            <div className={"nav-subgroup" + (isSystemAdministrator ? "" : " nav-subgroup-direct")}>
+          {(hrOpen || hrFlat) && (
+            <div className={"nav-subgroup" + (hrFlat ? " nav-subgroup-direct" : "")}>
               <p className="nav-section-label">People</p>
 
               <NavLink
@@ -746,12 +746,15 @@ function Sidebar({ open = false, onClose }) {
               </NavLink>
             </div>
           )}
-          {!isSystemAdministrator && <p className="nav-section-label nav-tools-heading">Tools</p>}
+          {hrFlat && <p className="nav-section-label nav-tools-heading">Tools</p>}
         </>
       )}
 
       {canSeeDocuments && !isBusinessView && !isTrainerView && !isInternView && !isPmView && (
         <>
+          {/* System Administrator: Document Library / Generator / Templates and Email sit under a Tools
+              heading. (The HR workspace already prints its own Tools heading after the HR groups.) */}
+          {isSystemAdministrator && !hrFlat && <p className="nav-section-label nav-tools-heading">Tools</p>}
           <NavLink
             to="/documents"
             end
@@ -763,98 +766,56 @@ function Sidebar({ open = false, onClose }) {
             Document Library
           </NavLink>
 
-          <button
-            type="button"
-            className={"nav-item nav-group-toggle" + (documentsOpen ? " open" : "")}
-            onClick={() => setDocumentsOpen((prev) => !prev)}
+          <NavLink
+            to="/documents/ai-generator"
+            className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
           >
             <span className="nav-icon">
-              <FileText size={16} />
+              <Sparkles size={16} />
             </span>
             Document Generator
-            <span className="nav-chevron">
-              <ChevronDown size={14} />
-            </span>
-          </button>
+          </NavLink>
 
-          {documentsOpen && (
-            <div className="nav-subgroup">
-              <NavLink
-                to="/documents/ai-generator"
-                className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
-              >
-                <span className="nav-icon">
-                  <Sparkles size={14} />
-                </span>
-                Generate
-              </NavLink>
-
-              {isSystemAdminOrHR && (
-                <NavLink
-                  to="/documents/templates"
-                  className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
-                >
-                  <span className="nav-icon">
-                    <LayoutTemplate size={14} />
-                  </span>
-                  Templates
-                </NavLink>
-              )}
-            </div>
+          {isSystemAdminOrHR && (
+            <NavLink
+              to="/documents/templates"
+              className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
+            >
+              <span className="nav-icon">
+                <LayoutTemplate size={16} />
+              </span>
+              Document Templates
+            </NavLink>
           )}
         </>
       )}
 
       {canSeeEmail && !isTraineeView && !isBusinessView && !isTrainerView && !isInternView && !isPmView && (
         <>
-          <button
-            type="button"
-            className={"nav-item nav-group-toggle" + (emailOpen ? " open" : "")}
-            onClick={() => setEmailOpen((prev) => !prev)}
+          {/* One "E-mail" menu: the overview page, with Compose reached from its header
+              button (and still highlighted here while composing). Bulk joins it as a sub-item
+              only when SHOW_EMAIL_BULK is turned on. */}
+          <NavLink
+            to="/email"
+            className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
           >
             <span className="nav-icon">
               <Mail size={16} />
             </span>
-            Email
-            <span className="nav-chevron">
-              <ChevronDown size={14} />
-            </span>
-          </button>
+            E-mail
+          </NavLink>
 
-          {emailOpen && (
+          {canSeeEmailBulk && (
             <div className="nav-subgroup">
               <NavLink
-                to="/email"
-                end
+                to="/email/batches"
                 className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
               >
                 <span className="nav-icon">
-                  <LayoutDashboard size={14} />
+                  <Layers size={14} />
                 </span>
-                Overview
+                Bulk
               </NavLink>
-
-              <NavLink
-                to="/email/compose"
-                className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
-              >
-                <span className="nav-icon">
-                  <Send size={14} />
-                </span>
-                Compose
-              </NavLink>
-
-              {canSeeEmailBulk && (
-                <NavLink
-                  to="/email/batches"
-                  className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
-                >
-                  <span className="nav-icon">
-                    <Layers size={14} />
-                  </span>
-                  Bulk
-                </NavLink>
-              )}
             </div>
           )}
         </>
@@ -965,7 +926,7 @@ function Sidebar({ open = false, onClose }) {
         </>
       )}
 
-      {!isBusinessView && inWorkspace("training") && hasAccess(businessTeamRequirement, user) && (
+      {!isBusinessView && (isSystemAdministrator ? sysWs === "business" : inWorkspace("training")) && hasAccess(businessTeamRequirement, user) && (
         <>
           <button
             type="button"
@@ -1011,6 +972,11 @@ function Sidebar({ open = false, onClose }) {
           )}
         </>
       )}
+
+      {/* System administrators and Business Team: the Audit & Security group (Audit Logs). In the System
+          Administration workspace it follows that group; in the Business Team workspace it follows
+          the Business Team group. */}
+      {!(isSystemAdministrator && sysWs === "sysadmin") && systemGroup}
 
       {inWorkspace("student") && hasAccess(studentRequirement, user) && !isIntern && (
         <>
@@ -1344,6 +1310,12 @@ function Sidebar({ open = false, onClose }) {
       {(isBusinessView || isInternView) && (
         <div className="sidebar-art team" aria-hidden="true">
           <TeamIllustration />
+        </div>
+      )}
+      {/* System Administrator and HR Administrator menus: the same animated character */}
+      {(isSystemAdministrator || hrDirect) && (
+        <div className="sidebar-art" aria-hidden="true">
+          <LoginIllustration />
         </div>
       )}
     </aside>

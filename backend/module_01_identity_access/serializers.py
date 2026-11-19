@@ -26,6 +26,9 @@ USERNAME_HINT = (
 )
 
 
+from . import company_email
+
+
 def validate_username_format(value):
     """Shared with UsernameAvailabilityView so the live-check endpoint and
     the actual save both enforce the exact same rule."""
@@ -290,6 +293,8 @@ class UserAccountWriteSerializer(serializers.Serializer):
     # "role assignments" drawer, which showed a single active role per user
     # for every seeded account.
     role_id = serializers.IntegerField(required=False, allow_null=True)
+    # A new intern's company email (required for interns, ignored for everyone else).
+    company_email = serializers.CharField(max_length=255, required=False, allow_blank=True)
 
     def validate_username(self, value):
         validate_username_format(value)
@@ -321,6 +326,16 @@ class UserAccountWriteSerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 {"person_id": ["Choose an existing person. Add them in HR Admin > Employees first."]}
             )
+        # A new intern gets a company email id with their login; the old address is
+        # kept for reference (see company_email.py).
+        if self.instance is None and company_email.is_intern_person(attrs["person_id"]):
+            person = Person.objects.get(pk=attrs["person_id"])
+            try:
+                attrs["company_email"] = company_email.clean(person, attrs.get("company_email"))
+            except ValueError as exc:
+                raise serializers.ValidationError({"company_email": [str(exc)]})
+        else:
+            attrs.pop("company_email", None)
         return attrs
 
     def create(self, validated_data):

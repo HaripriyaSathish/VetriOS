@@ -182,6 +182,8 @@
 .ws-training .ws-icon svg { animation-name: ws-flip; }
 .ws-hr .ws-icon svg { animation-name: ws-bob; }
 .ws-project .ws-icon svg { animation-name: ws-wiggle; }
+.ws-sysadmin .ws-icon svg { animation-name: ws-tilt; }
+.ws-business .ws-icon svg { animation-name: ws-swing; transform-origin: 50% 10%; }
 
 .ws-option:hover .ws-icon svg { animation-duration: 1s; }
 

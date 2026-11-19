@@ -37,12 +37,21 @@ function LoginRequests() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [rejectingId, setRejectingId] = useState(null);
+  // Names of people waiting for a login who are interns (they need a company email).
+  const [internNames, setInternNames] = useState(new Set());
 
   const load = async () => {
     setLoading(true);
     try {
       const { data } = await client.get("/api/identity/permission-requests/", { params: { box: "received" } });
       setAll(data.filter((r) => r.permission_requested?.startsWith(PREFIX)));
+      client
+        .get("/api/identity/persons/unlinked/")
+        .then(({ data: people }) => {
+          const rows = Array.isArray(people) ? people : people?.results || [];
+          setInternNames(new Set(rows.filter((p) => p.is_intern).map((p) => p.full_name)));
+        })
+        .catch(() => {});
     } catch {
       setError("Couldn't load the login requests.");
     } finally {
@@ -197,6 +206,9 @@ function LoginRequests() {
                 <b>{PREFIX}{personOf(r)}</b>
                 <span>Requested by {r.requester_name}</span>
                 <div className="lr-meta">
+                  {tab === "pending" && internNames.has(personOf(r).replace(/\s*\([^)]*\)\s*$/, "")) && (
+                    <i className="lr-tag lr-tag-email">New intern: assign a company email</i>
+                  )}
                   {r.reason && <i className="lr-tag">Reason: {r.reason}</i>}
                   <i className="lr-tag grey">Sent {fmtWhen(r.created_at)}</i>
                   {tab === "history" && r.decided_at && <i className="lr-tag grey">Decided {fmtWhen(r.decided_at)}</i>}

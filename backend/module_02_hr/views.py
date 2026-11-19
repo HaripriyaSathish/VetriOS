@@ -44,7 +44,8 @@ from .models import (
     PersonDepartmentHistory,
 )
 from .permissions import IsHRorSystemAdministrator, IsSystemAdministrator
-from . import employee_codes, history, leave_requests, leave_settings, location_check
+from .serializers import is_intern_designation
+from . import employee_codes, history, intern_conversion, leave_requests, leave_settings, location_check
 from .serializers import (
     AttendanceRecordSerializer,
     AttendanceReportRowSerializer,
@@ -1595,28 +1596,18 @@ class EmployeeOnboardingReportExportView(APIView):
         )
 
 
-# All 7 onboarding checklist steps done -> the intern shows up on the
-# Employee dashboard for the first time, as an actual Employee row (not
-# just an InternOnboarding tracker row, which the Employee screens never
-# read). Reuses the intern's EXISTING Person (never creates a duplicate
-# one, unlike EmployeeWriteSerializer's "+ New Employee" form path).
-# employment_type is always INTERN here — converting to a full-time
-# employee is a separate, later step (module_04_interns' internship
-# completion flow, which updates this same Employee row's
-# employment_type once the internship actually finishes). Idempotent:
-# checks for an existing Employee first, so re-saving an already-100%
-# onboarding never creates a duplicate.
+# The moment HR assigns the intern's designation (and stipend) during
+# onboarding, the intern gets an actual Employee row with its EMP code, so the
+# code exists from day one (before the login request and everything after it).
+# They are a TEMPORARY employee: employment_type is INTERN until their role
+# revision is approved (see intern_conversion.py), which keeps this same row and
+# code and only moves it to full-time. The Employee row needs a designation,
+# which is why this waits for that step rather than the first save. Reuses the
+# intern's EXISTING Person (never creates a duplicate, unlike the "+ New
+# Employee" form path). Idempotent: checks for an existing Employee first, so
+# saving again never creates a duplicate.
 def _maybe_auto_create_employee_from_onboarding(intern, onboarding, now):
-    done = sum([
-        onboarding.documents_shared,
-        onboarding.signed_documents_received,
-        onboarding.documents_verified,
-        onboarding.designation_stipend_assigned,
-        onboarding.welcome_email_sent,
-        onboarding.offer_letter_acknowledged,
-        onboarding.login_credentials_provided,
-    ])
-    if round(done / 7 * 100) < 100:
+    if not (onboarding.designation_stipend_assigned and onboarding.designation_id):
         return
 
     person = intern.student.person
@@ -1646,10 +1637,9 @@ def _maybe_auto_create_employee_from_onboarding(intern, onboarding, now):
 # Updates one intern's onboarding checklist (documents verified / offer
 # letter acknowledged) and designation/stipend assignment — creates the
 # InternOnboarding row on first save, updates it after. The welcome
-# email is a separate action, not part of this endpoint yet. On the
-# save that brings the checklist to 100%, also creates the Employee
-# record (see _maybe_auto_create_employee_from_onboarding) — reaching
-# 100% here used to leave the intern invisible to every Employee screen.
+# email is a separate action, not part of this endpoint yet. The save that
+# assigns the designation also creates the Employee record with its EMP code
+# (see _maybe_auto_create_employee_from_onboarding).
 class InternOnboardingUpdateView(APIView):
     permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
 
@@ -1762,15 +1752,22 @@ class PromotionApproveView(APIView):
         serializer.is_valid(raise_exception=True)
 
         today = timezone.localdate()
-        promotion.status = "APPROVED"
-        promotion.approved_by = request.user
-        promotion.approval_date = today
-        promotion.remarks = serializer.validated_data.get("remarks", "")
-        promotion.save(update_fields=["status", "approved_by", "approval_date", "remarks"])
+        with transaction.atomic():
+            promotion.status = "APPROVED"
+            promotion.approved_by = request.user
+            promotion.approval_date = today
+            promotion.remarks = serializer.validated_data.get("remarks", "")
+            promotion.save(update_fields=["status", "approved_by", "approval_date", "remarks"])
 
-        Employee.objects.filter(pk=promotion.employee_id).update(
-            designation_id=promotion.new_designation_id, updated_at=timezone.now()
-        )
+            Employee.objects.filter(pk=promotion.employee_id).update(
+                designation_id=promotion.new_designation_id, updated_at=timezone.now()
+            )
+
+            # An intern's role revision is also their conversion to a full-time employee:
+            # same employee record, same effects as the internship completion flow.
+            if is_intern_designation(promotion.previous_designation):
+                employee = Employee.objects.select_related("employment_type").get(pk=promotion.employee_id)
+                intern_conversion.apply(employee, today)
 
         return Response(PromotionListSerializer(promotion).data)
 

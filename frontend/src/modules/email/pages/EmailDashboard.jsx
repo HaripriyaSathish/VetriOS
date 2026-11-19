@@ -5,6 +5,7 @@ import {
   Search, Copy, Clock3, CheckCircle2, AlertTriangle, MailOpen, RotateCw,
 } from "lucide-react";
 import client from "../../../api/client";
+import { SHOW_EMAIL_BULK } from "../featureFlags";
 import "../../training/styles/BusinessPages.css";
 import "../styles/EmailMailbox.css";
 import "../../documents/styles/DocumentLibrary.css";
@@ -164,7 +165,9 @@ export default function EmailDashboard() {
             </p>
           </div>
           <div className="dl2-ban-actions">
-            <Link to="/email/batches" className="dl2-ghost"><Megaphone size={15} /> Bulk email</Link>
+            {SHOW_EMAIL_BULK && (
+              <Link to="/email/batches" className="dl2-ghost"><Megaphone size={15} /> Bulk email</Link>
+            )}
             <Link to="/email/compose" className="dl2-new"><SquarePen size={15} /> Compose</Link>
           </div>
         </div>

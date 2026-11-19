@@ -145,12 +145,21 @@
 /* ===== Vetri redesign ===== */
 .hrd-body { font-family: var(--vt-font-body); color: var(--vt-text); gap: 20px; }
 
-/* No motion on this page (shared trainee CSS animates the hero/stat cards). */
-.hrd-body *, .hrd-body *::before, .hrd-body *::after { animation: none !important; }
+/* The welcome banner (blobs, shine, waving character) is animated; the rest of the page stays still
+   (shared trainee CSS animates the hero/stat cards). */
+.hrd-body *:not(.sd-hero):not(.sd-hero *),
+.hrd-body *:not(.sd-hero):not(.sd-hero *)::before,
+.hrd-body *:not(.sd-hero):not(.sd-hero *)::after { animation: none !important; }
 
-/* Compact welcome banner, no cartoon (shared hero left untouched). */
-.hrd-body .sd-hero-art { display: none; }
-.hrd-body .sd-hero { grid-template-columns: 1fr; min-height: 0; padding: 12px 24px; }
+/* Compact welcome banner with the waving character on the right (as on the Project dashboard). */
+.hrd-body .sd-hero-art { height: 110px; margin: -12px 0 -18px; }
+.hrd-body .sd-hero-art .login-cartoon { width: 150px; height: 150px; }
+.hrd-body .sd-extra { display: none; }
+.hrd-body .sd-hero { grid-template-columns: minmax(0, 1fr) 170px; align-items: center; min-height: 0; padding: 12px 24px; }
+@media (max-width: 900px) {
+  .hrd-body .sd-hero { grid-template-columns: 1fr; }
+  .hrd-body .sd-hero-art { display: none; }
+}
 .hrd-body .sd-hero-text { max-width: none; }
 .hrd-body .sd-hero-eyebrow { margin-bottom: 2px; font-size: 12px; }
 .hrd-body .sd-hero-title { font-size: 19px; line-height: 1.25; }

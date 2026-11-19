@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  GraduationCap, Briefcase, BookOpen, Building2, FolderKanban, ArrowRight,
+  GraduationCap, Briefcase, BookOpen, Building2, FolderKanban, ArrowRight, ShieldCheck, Handshake,
 } from "lucide-react";
 import LoginIllustration from "../modules/identity-access/components/LoginIllustration";
 import "../styles/ChooseWorkspace.css";
@@ -12,6 +12,8 @@ const WORKSPACE_ICON = {
   training: BookOpen,
   hr: Building2,
   project: FolderKanban,
+  sysadmin: ShieldCheck,
+  business: Handshake,
 };
 
 // Chip gradient + icon motion per workspace (see ChooseWorkspace.css).
@@ -22,6 +24,8 @@ const WORKSPACE_TONE = {
   training: "orange",
   hr: "amber",
   project: "royal",
+  sysadmin: "navy",
+  business: "sky",
 };
 
 const WORKSPACE_SUBTEXT = {
@@ -30,6 +34,8 @@ const WORKSPACE_SUBTEXT = {
   training: "Batches, attendance, reports",
   hr: "Employees, attendance, leave",
   project: "Projects, tasks, team management",
+  sysadmin: "Accounts, approvals, audit, settings",
+  business: "Enquiries, approvals, students",
 };
 
 function ChooseWorkspace() {

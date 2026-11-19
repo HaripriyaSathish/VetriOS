@@ -17,6 +17,7 @@ from module_02_hr.work_schedule import set_schedule, validate_times
 from module_02_hr import leave_settings
 from module_06_documents.models import Document, DocumentAccessRule
 
+from . import company_email
 from .models import PermissionRequest, Permission, Person, Role, RolePermission, UserAccount, UserPermission, UserRole
 from .permissions import IsSystemAdministrator
 from .serializers import (
@@ -177,10 +178,16 @@ class UserAccountListCreateView(generics.ListCreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
+        # The credentials go to the address the intern can already read (their old
+        # one); only after that does the company email replace it.
         email_sent, email_reason = _send_login_credentials_email(user, plain_password)
+        new_email = serializer.validated_data.get("company_email")
+        if new_email:
+            company_email.assign(user.person, new_email, request.user.pk)
         payload = UserAccountListSerializer(user).data
         payload["email_sent"] = email_sent
         payload["email_reason"] = email_reason
+        payload["company_email"] = new_email
         return Response(payload, status=status.HTTP_201_CREATED)
 
 
@@ -359,6 +366,9 @@ class UnlinkedPersonListView(generics.ListAPIView):
         rows = response.data["results"] if isinstance(response.data, dict) and "results" in response.data else response.data
         for row in rows:
             row["is_employee"] = row["person_id"] in employee_ids
+            # A new intern is given a company email with their login (old one kept, disabled).
+            row["is_intern"] = company_email.is_intern_person(row["person_id"])
+            row["previous_emails"] = company_email.previous_emails(row["person_id"])
         return response
 
 

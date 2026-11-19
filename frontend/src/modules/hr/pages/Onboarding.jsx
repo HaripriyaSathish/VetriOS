@@ -217,7 +217,7 @@ function Onboarding() {
         admin_category: "System Administrator",
         target_admin_id: selectedAdminId,
         request_type: "GENERAL",
-        permission_requested: `Create login credentials for ${intern.full_name} (${intern.intern_code})`,
+        permission_requested: `Create login credentials for ${intern.full_name} (${intern.employee_code || intern.intern_code})`,
         reason: `${intern.full_name} is an active intern (${intern.designation_name || "no designation yet"}) but doesn't have a login yet.`,
       });
       await client.patch(`/api/hr/onboarding/interns/${intern.intern_id}/`, {

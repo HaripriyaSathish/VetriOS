@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
-import { ChevronDown, User, Settings, LogOut, Search, Menu } from "lucide-react";
+import { ChevronDown, User, Settings, LogOut, Search, Menu, ArrowLeftRight } from "lucide-react";
 import Sidebar from "./Sidebar";
 import RouteBreadcrumbs from "./RouteBreadcrumbs";
 import "../components-styles/AppLayout.css";
@@ -204,6 +204,12 @@ function AppLayout() {
                   <button type="button" className="app-user-dropdown-item" onClick={() => goTo("/settings")}>
                     <Settings size={15} /> Settings
                   </button>
+                  {/* System Administrator only: back to the workspace chooser, no sign-out needed. */}
+                  {user?.roles?.includes("System Administrator") && (
+                    <button type="button" className="app-user-dropdown-item" onClick={() => goTo("/choose-workspace")}>
+                      <ArrowLeftRight size={15} /> Switch workspace
+                    </button>
+                  )}
                 </div>
               )}
             </div>

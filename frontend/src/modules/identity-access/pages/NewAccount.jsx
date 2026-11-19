@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Camera, Check, CheckCircle2, Circle, Eye, EyeOff, LogIn, LogOut, ShieldCheck, UserPlus } from "lucide-react";
+import { Camera, Check, CheckCircle2, Circle, Eye, EyeOff, LogIn, LogOut, Mail, ShieldCheck, UserPlus } from "lucide-react";
 import client from "../../../api/client";
 import Breadcrumbs from "../../../components/Breadcrumbs";
 import { PASSWORD_HINT, PASSWORD_PATTERN, fmtClock, workDuration } from "../accountHelpers";
@@ -10,11 +10,14 @@ import "../../hr/styles/Attendance.css";
 import "../../documents/styles/DocumentLibrary.css";
 import "../styles/UserAccounts.css";
 
+const EMAIL_PATTERN = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$/;
+
 const EMPTY_FORM = {
   username: "",
   password: "",
   is_active: true,
   person_id: "",
+  company_email: "",
   work_login_time: "",
   work_logout_time: "",
 };
@@ -39,6 +42,7 @@ function NewAccount() {
   const [usernameStatus, setUsernameStatus] = useState("idle");
   const [usernameStatusMsg, setUsernameStatusMsg] = useState("");
   const [formError, setFormError] = useState("");
+  const [emailError, setEmailError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [photoFile, setPhotoFile] = useState(null);
   const [photoPreview, setPhotoPreview] = useState("");
@@ -127,7 +131,8 @@ function NewAccount() {
   // Picking a person pre-selects the Employee role for employees only
   // (students and interns don't get it). It can still be changed below.
   function choosePerson(person) {
-    setForm((f) => ({ ...f, person_id: person ? String(person.person_id) : "" }));
+    setForm((f) => ({ ...f, person_id: person ? String(person.person_id) : "", company_email: "" }));
+    setEmailError("");
     setRoleNames((prev) => {
       const next = new Set(prev);
       if (person?.is_employee) next.add("Employee");
@@ -179,10 +184,29 @@ function NewAccount() {
       setFormError("Assign at least one role before creating this account.");
       return;
     }
+    // A new intern needs a company email id (their old one is kept, disabled).
+    const intern = !!unlinkedPersons.find((p) => String(p.person_id) === String(form.person_id))?.is_intern;
+    if (intern) {
+      const typed = form.company_email.trim();
+      const oldEmail = (unlinkedPersons.find((p) => String(p.person_id) === String(form.person_id))?.email || "").trim().toLowerCase();
+      const problem = !typed
+        ? "Enter the new company email for this intern."
+        : !EMAIL_PATTERN.test(typed)
+        ? "Enter a valid email address."
+        : typed.toLowerCase() === oldEmail
+        ? "That is the intern's current email. Enter the new company email."
+        : "";
+      if (problem) {
+        setEmailError(problem);
+        return;
+      }
+    }
 
     setSubmitting(true);
     const { work_login_time, work_logout_time, ...payload } = form;
     if (!payload.password) delete payload.password;
+    if (intern) payload.company_email = form.company_email.trim();
+    else delete payload.company_email;
 
     try {
       const { data: created } = await client.post("/api/identity/users/", payload);
@@ -198,6 +222,11 @@ function NewAccount() {
 
       await uploadPhoto(created.user_id);
 
+      if (created.company_email) {
+        window.alert(
+          `Company email ${created.company_email} assigned. The old email is kept for reference and is no longer used.`
+        );
+      }
       if (payload.password) {
         if (created.email_sent) {
           window.alert(`Login credentials sent to ${created.email_reason}.`);
@@ -221,6 +250,11 @@ function NewAccount() {
       navigate("/identity/users");
     } catch (err) {
       const data = err.response?.data;
+      if (data?.company_email) {
+        setEmailError(Array.isArray(data.company_email) ? data.company_email[0] : String(data.company_email));
+        setSubmitting(false);
+        return;
+      }
       const firstError = data && Object.values(data)[0];
       setFormError(
         Array.isArray(firstError) ? firstError[0] : typeof firstError === "string" ? firstError : "Something went wrong."
@@ -230,6 +264,7 @@ function NewAccount() {
   };
 
   const pickedPerson = unlinkedPersons.find((p) => String(p.person_id) === String(form.person_id));
+  const isInternPerson = !!pickedPerson?.is_intern;
   const displayName = pickedPerson?.full_name || "Create login";
   const duration = workDuration(form.work_login_time, form.work_logout_time);
   const selectedRoles = roles.filter((r) => roleNames.has(r.role_name));
@@ -244,6 +279,7 @@ function NewAccount() {
       done: !!form.username.trim() && usernameStatus === "available" && PASSWORD_PATTERN.test(form.password),
     },
     { label: "Roles", done: roleNames.size > 0 },
+    ...(isInternPerson ? [{ label: "Company email", done: EMAIL_PATTERN.test(form.company_email.trim()) }] : []),
   ];
   const doneCount = checks.filter((c) => c.done).length;
   const timingsSet = !!(form.work_login_time && form.work_logout_time);
@@ -322,6 +358,32 @@ function NewAccount() {
                 )}
             </>
           </section>
+
+          {isInternPerson && (
+            <section className="na-card na-intern">
+              <h3><span className="na-n"><Mail size={14} /></span>Company email</h3>
+              <p className="na-intern-note">
+                <b>New intern: assign a company email.</b> Create the mailbox, then enter the address below. The login
+                details go to the old email once; after that every email uses the new one.
+              </p>
+              <label>Old email <span className="na-off">not used after this · kept for reference</span></label>
+              <input className="na-old-email" value={pickedPerson?.email || "No email on file"} disabled readOnly />
+              <label>New company email</label>
+              <input
+                type="text"
+                inputMode="email"
+                autoComplete="off"
+                className={emailError ? "na-invalid" : ""}
+                value={form.company_email}
+                placeholder="name@yourcompany.com"
+                onChange={(e) => {
+                  setForm({ ...form, company_email: e.target.value });
+                  setEmailError("");
+                }}
+              />
+              {emailError && <p className="na-err">{emailError}</p>}
+            </section>
+          )}
 
           <section className="na-card">
             <h3><span className="na-n">2</span>Sign-in</h3>

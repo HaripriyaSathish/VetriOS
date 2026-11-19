@@ -552,6 +552,7 @@ class EmployeeDetailSerializer(serializers.ModelSerializer):
     branch_id = serializers.SerializerMethodField()
     branch_name = serializers.SerializerMethodField()
     branch_location = serializers.SerializerMethodField()
+    previous_emails = serializers.SerializerMethodField()
 
     class Meta:
         model = Employee
@@ -578,7 +579,15 @@ class EmployeeDetailSerializer(serializers.ModelSerializer):
             "joining_date",
             "confirmation_date",
             "status",
+            "previous_emails",
         ]
+
+    # Old addresses (e.g. an intern's personal email before the company one was assigned):
+    # shown disabled, for reference only.
+    def get_previous_emails(self, obj):
+        from module_01_identity_access.company_email import previous_emails
+
+        return previous_emails(obj.person_id)
 
     def get_full_name(self, obj):
         return str(obj.person)
@@ -810,12 +819,14 @@ class OnboardingInternSerializer(serializers.ModelSerializer):
     offer_letter_acknowledged = serializers.SerializerMethodField()
     login_credentials_provided = serializers.SerializerMethodField()
     progress_percent = serializers.SerializerMethodField()
+    employee_code = serializers.SerializerMethodField()
 
     class Meta:
         model = Intern
         fields = [
             "intern_id",
             "intern_code",
+            "employee_code",
             "full_name",
             "email",
             "internship_start_date",
@@ -840,6 +851,11 @@ class OnboardingInternSerializer(serializers.ModelSerializer):
 
     def get_email(self, obj):
         return obj.student.person.email
+
+    # The EMP code, once the designation has been assigned (None before that).
+    def get_employee_code(self, obj):
+        employee = Employee.objects.filter(person_id=obj.student.person_id).only("employee_code").first()
+        return employee.employee_code if employee else None
 
     def _onboarding(self, obj):
         if not hasattr(obj, "_onboarding_cache"):

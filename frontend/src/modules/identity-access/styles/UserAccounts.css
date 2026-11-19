@@ -1158,3 +1158,13 @@
 .ls-remove { display: inline-flex; align-items: center; justify-content: center; gap: 7px; white-space: nowrap; cursor: pointer; font: inherit; font-size: 14px; font-weight: 600; padding: 8px 14px; border-radius: 10px; color: #b4231f; background: #fff; border: 1.5px solid #f4c4c2; transition: background .15s ease, border-color .15s ease; }
 .ls-remove:hover { background: #fdecec; border-color: #e8908c; }
 .ls-remove:focus-visible { outline: 2px solid #e8908c; outline-offset: 2px; }
+
+/* New intern: company email on Create login */
+.na-intern { border-color: var(--vt-orange); background: var(--vt-orange-50); }
+.na-intern-note { margin: 0 0 10px; font-size: 14px; color: #7a3a12; }
+.na-intern-note b { color: var(--vt-navy); }
+.na-off { margin-left: 8px; font-size: 12px; font-weight: 600; color: var(--vt-muted); }
+.na-old-email { background: #eef1f6; color: #8993a8; text-decoration: line-through; cursor: not-allowed; }
+.na-invalid { border-color: #b3261e !important; }
+.na-err { margin: 4px 0 0; font-size: 12.5px; font-weight: 600; color: #b3261e; }
+.lr-tag-email { background: var(--vt-orange-50); color: var(--vt-orange-600); font-weight: 700; }

@@ -36,6 +36,16 @@ function formatDateRange(start, end) {
   return `${s} – ${e}`;
 }
 
+// An approved request can be revoked while it hasn't fully happened: leave only
+// before it starts; work from home, on duty and permission until their last day.
+function canRevoke(r) {
+  if (r.status !== "APPROVED") return false;
+  const d = new Date();
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  const today = d.toISOString().slice(0, 10);
+  return r.request_kind === "LEAVE" ? r.start_date >= today : r.end_date >= today;
+}
+
 // Leave-menu request kinds: what to show in the Type and Length columns.
 function typeText(r) {
   if (r.request_kind === "PERMISSION") return `Hourly permission · ${r.from_time}–${r.to_time}`;
@@ -122,6 +132,8 @@ function Leave() {
     try {
       if (action === "approve") {
         await client.post(`/api/hr/leave/requests/${leave.leave_id}/approve/`);
+      } else if (action === "revoke") {
+        await client.post(`/api/hr/leave/requests/${leave.leave_id}/cancel/`, { reason: rejectReason });
       } else {
         await client.post(`/api/hr/leave/requests/${leave.leave_id}/reject/`, { reason: rejectReason });
       }
@@ -309,6 +321,17 @@ function Leave() {
                         </div>
                       ) : r.status === "PENDING" ? (
                         <span className="hr-sub">Sent to {r.approver_name || "another approver"}</span>
+                      ) : canRevoke(r) ? (
+                        <div className="hr-row-actions">
+                          <button
+                            type="button"
+                            className="lv-action-btn lv-action-reject"
+                            title="Revoke this approved request"
+                            onClick={() => openConfirm(r, "revoke")}
+                          >
+                            <X size={14} /> Revoke
+                          </button>
+                        </div>
                       ) : (
                         "—"
                       )}
@@ -326,16 +349,25 @@ function Leave() {
         <div className="hr-modal-backdrop" onClick={closeConfirm}>
           <div className="hr-modal hr-confirm" onClick={(e) => e.stopPropagation()}>
             <h2>
-              {confirmTarget.action === "approve" ? "Approve" : "Reject"} {confirmTarget.leave.full_name}'s request?
+              {confirmTarget.action === "approve" ? "Approve" : confirmTarget.action === "revoke" ? "Revoke" : "Reject"} {confirmTarget.leave.full_name}'s request?
             </h2>
             <p>
               {confirmTarget.leave.leave_type_name} · {formatDateRange(confirmTarget.leave.start_date, confirmTarget.leave.end_date)} ·{" "}
               {confirmTarget.leave.total_days} {confirmTarget.leave.total_days === 1 ? "day" : "days"}
             </p>
 
-            {confirmTarget.action === "reject" && (
+            {confirmTarget.action === "revoke" && (
+              <p className="hr-sub">
+                {confirmTarget.leave.request_kind === "LEAVE"
+                  ? "The leave days go back to their balance."
+                  : "Days they haven't checked in on go back to normal; days already worked stay."}{" "}
+                They will be notified.
+              </p>
+            )}
+
+            {(confirmTarget.action === "reject" || confirmTarget.action === "revoke") && (
               <>
-                <label>Reason for rejecting</label>
+                <label>{confirmTarget.action === "revoke" ? "Reason for revoking" : "Reason for rejecting"}</label>
                 <textarea
                   className="lv-textarea"
                   value={rejectReason}
@@ -355,11 +387,11 @@ function Leave() {
               </button>
               <button
                 type="button"
-                className={confirmTarget.action === "reject" ? "hr-btn-sm hr-btn-danger" : "hr-btn-accent"}
+                className={confirmTarget.action !== "approve" ? "hr-btn-sm hr-btn-danger" : "hr-btn-accent"}
                 onClick={handleConfirm}
-                disabled={confirming || (confirmTarget.action === "reject" && !rejectReason.trim())}
+                disabled={confirming || (confirmTarget.action !== "approve" && !rejectReason.trim())}
               >
-                {confirming ? "Working…" : confirmTarget.action === "approve" ? "Approve" : "Reject"}
+                {confirming ? "Working…" : confirmTarget.action === "approve" ? "Approve" : confirmTarget.action === "revoke" ? "Revoke" : "Reject"}
               </button>
             </div>
           </div>

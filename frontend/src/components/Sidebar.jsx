@@ -197,7 +197,7 @@ function Sidebar({ open = false, onClose }) {
   const documentsItem = NAV_ITEMS.find((item) => item.id === "documents");
   const canSeeDocuments = documentsItem && hasAccess(documentsItem.requirement, user);
   const isOnDocumentsPage = DOCUMENTS_PATHS.some((path) => location.pathname.startsWith(path));
-  const [documentsOpen, setDocumentsOpen] = useState(isOnDocumentsPage);
+  const [documentsOpen, setDocumentsOpen] = useState(isOnDocumentsPage && location.pathname !== "/documents");
 
   // Email is open to every login now (Dashboard + Compose) — only the
   // Bulk (batch send) menu stays limited to whoever the old SYSTEM_ADMIN
@@ -726,6 +726,17 @@ function Sidebar({ open = false, onClose }) {
 
       {canSeeDocuments && !isBusinessView && !isTrainerView && !isInternView && !isPmView && (
         <>
+          <NavLink
+            to="/documents"
+            end
+            className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
+          >
+            <span className="nav-icon">
+              <Library size={16} />
+            </span>
+            Document Library
+          </NavLink>
+
           <button
             type="button"
             className={"nav-item nav-group-toggle" + (documentsOpen ? " open" : "")}
@@ -742,17 +753,6 @@ function Sidebar({ open = false, onClose }) {
 
           {documentsOpen && (
             <div className="nav-subgroup">
-              <NavLink
-                to="/documents"
-                end
-                className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
-              >
-                <span className="nav-icon">
-                  <Library size={14} />
-                </span>
-                Library
-              </NavLink>
-
               <NavLink
                 to="/documents/ai-generator"
                 className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}

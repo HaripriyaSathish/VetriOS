@@ -64,11 +64,10 @@ const EMPTY_FORM = {
 const EMPTY_DEPT_FORM = { department_name: "", description: "" };
 const EMPTY_DESIG_FORM = { designation_code: "", designation_name: "", description: "", level_number: "" };
 
-// Nothing in the UI otherwise shows which employee codes are already
-// taken, so guessing the next one (EMP005? EMP006?) isn't really
-// possible — suggest it instead: highest EMP<N> in use, plus one, same
-// zero-padding width. Pre-filled but still an editable text field, so
-// HR can always override it.
+// The next employee code comes from the server (GET /api/hr/employees/next-code/),
+// the same rule the automatic intern -> employee conversion uses. The local
+// guess below is only a fallback while that loads or if it fails. Pre-filled
+// but still an editable text field, so HR can always override it.
 const fmtDate = (d) => {
   if (!d) return "";
   const dt = new Date(`${d}T00:00:00`);
@@ -109,7 +108,7 @@ function suggestNextEmployeeCode(employees) {
   let maxNum = 0;
   let width = 3;
   for (const emp of employees) {
-    const match = /^EMP(\d+)$/i.exec(emp.employee_code || "");
+    const match = /^EMP-?(\d+)$/i.exec(emp.employee_code || "");
     if (!match) continue;
     const num = parseInt(match[1], 10);
     if (num > maxNum) {
@@ -336,7 +335,14 @@ function HRDashboard({ view = "employees" }) {
 
   const openCreate = () => {
     setEditingEmployee(null);
-    setForm({ ...EMPTY_FORM, employee_code: suggestNextEmployeeCode(employees) });
+    const guess = suggestNextEmployeeCode(employees);
+    setForm({ ...EMPTY_FORM, employee_code: guess });
+    client
+      .get("/api/hr/employees/next-code/")
+      .then(({ data }) =>
+        setForm((f) => (f.employee_code === guess && data?.employee_code ? { ...f, employee_code: data.employee_code } : f))
+      )
+      .catch(() => {});
     setFormError("");
     setAvatarFile(null);
     setAvatarPreview("");

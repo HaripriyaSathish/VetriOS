@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useOutletContext } from "react-router-dom";
-import { Clock, Search, CalendarCheck, Timer, Plane } from "lucide-react";
+import { Clock, Search, CalendarCheck, Timer, Plane, MapPin } from "lucide-react";
 import client from "../../../api/client";
+import { getBrowserLocation } from "../../../utils/geolocation";
 import "../styles/HRDashboard.css";
 import "../styles/Attendance.css";
 import "../../documents/styles/DocumentLibrary.css";
@@ -63,6 +64,7 @@ function MyAttendance() {
   const [error, setError] = useState("");
   const [punching, setPunching] = useState(false);
   const [punchError, setPunchError] = useState("");
+  const [locationNote, setLocationNote] = useState(null); // { status, message } from the last check-in
   const [now, setNow] = useState(new Date());
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -98,7 +100,10 @@ function MyAttendance() {
       if (data?.today?.checked_in) {
         await client.post("/api/hr/attendance/check-out/");
       } else {
-        await client.post("/api/hr/attendance/check-in/");
+        // Ask the browser where we are first; a "no" never blocks the check-in.
+        const where = await getBrowserLocation();
+        const { data: res } = await client.post("/api/hr/attendance/check-in/", where || {});
+        setLocationNote(res.location || null);
       }
       await loadData();
     } catch (err) {
@@ -166,6 +171,11 @@ function MyAttendance() {
 
       <div className="dl2-body">
         {punchError && <p className="att-error">{punchError}</p>}
+        {locationNote && (
+          <p className={"att2-locnote " + (locationNote.status || "").toLowerCase()}>
+            <MapPin size={15} /> {locationNote.message}
+          </p>
+        )}
         {error && <p className="att-error">{error}</p>}
 
         {data?.employee_id && (

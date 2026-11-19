@@ -43,7 +43,7 @@ from .models import (
     PersonDepartmentHistory,
 )
 from .permissions import IsHRorSystemAdministrator, IsSystemAdministrator
-from . import history, leave_requests, leave_settings
+from . import employee_codes, history, leave_requests, leave_settings, location_check
 from .serializers import (
     AttendanceRecordSerializer,
     AttendanceReportRowSerializer,
@@ -82,6 +82,15 @@ from .serializers import (
 
 # HR screen — list every employee, create a new one (which also creates
 # their person record — see EmployeeWriteSerializer).
+# The code the New employee form pre-fills (still editable). Same rule as the
+# automatic intern -> employee conversion, so both always agree.
+class NextEmployeeCodeView(APIView):
+    permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
+
+    def get(self, request):
+        return Response({"employee_code": employee_codes.next_employee_code()})
+
+
 class EmployeeListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated, IsHRorSystemAdministrator]
     queryset = Employee.objects.select_related("person", "designation", "employment_type").order_by(
@@ -466,6 +475,7 @@ class AttendanceTodayView(APIView):
                 status="APPROVED", start_date__lte=today, end_date__gte=today
             ).values_list("employee_id", flat=True)
         )
+        locations = location_check.for_attendance(a.attendance_id for a in attendance_by_employee.values())
         accounts = list(UserAccount.objects.filter(person_id__in=[e.person_id for e in employees]))
         person_ids_with_login = {a.person_id for a in accounts}
         # Login roles (Employee, HR Administrator, ...) shown under each name.
@@ -506,6 +516,8 @@ class AttendanceTodayView(APIView):
                     "check_out_time": att.check_out_time if att else None,
                     "hours": hours,
                     "status": display_status,
+                    "location_status": (locations.get(att.attendance_id) or {}).get("status") if att else None,
+                    "distance_m": (locations.get(att.attendance_id) or {}).get("distance_m") if att else None,
                 }
             )
 
@@ -751,9 +763,20 @@ class AttendanceCheckInView(APIView):
         if record.check_in_time:
             return Response({"detail": "Already checked in today."}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Location check (offline employees). It only ever FLAGS the check-in:
+        # outside the radius, no location shared, or no branch location saved still
+        # checks the person in; HR sees the flag on the Attendance screen.
+        latitude, longitude = request.data.get("latitude"), request.data.get("longitude")
+        accuracy = request.data.get("accuracy")
+        result = location_check.evaluate(employee, today, record, latitude, longitude, accuracy)
+
         record.check_in_time = now
         record.save(update_fields=["check_in_time"])
-        return Response({"check_in_time": record.check_in_time})
+        location_check.save(record, result, latitude, longitude, accuracy)
+        return Response({
+            "check_in_time": record.check_in_time,
+            "location": {**result, "message": location_check.message(result)},
+        })
 
 
 class AttendanceCheckOutView(APIView):
@@ -806,6 +829,10 @@ class MyAttendanceView(APIView):
         ).exists()
 
         today_record = records.filter(attendance_date=today).first()
+        today_location = (
+            (location_check.for_attendance([today_record.attendance_id]).get(today_record.attendance_id))
+            if today_record and today_record.check_in_time else None
+        )
         today_note = _day_note(today)
         today_status, today_hours = _attendance_status(
             today_record, is_on_leave_today, True, bool(today_note and today_note["type"] == "HOLIDAY")
@@ -841,6 +868,7 @@ class MyAttendanceView(APIView):
                     "status": today_status,
                     "hours": today_hours,
                     "day_note": today_note,
+                    "location": today_location,
                 },
                 "history": history,
             }
@@ -1478,10 +1506,8 @@ def _maybe_auto_create_employee_from_onboarding(intern, onboarding, now):
     intern_employment_type = EmploymentType.objects.filter(employment_type_code="INTERN").first()
     # One transaction, so a failure can't leave a half-created employee.
     with transaction.atomic():
-        # employee_code is NOT NULL in some databases, but the final code
-        # ("EMP-<employee_id>") is only known once the row exists (its own
-        # employee_id is auto-generated). So create with a unique temporary
-        # code, then replace it with the real one right after.
+        # employee_code is NOT NULL in some databases, so create with a unique
+        # temporary code, then give it the next running code (EMP0xx) right after.
         employee = Employee.objects.create(
             person=person,
             employment_type=intern_employment_type,
@@ -1492,7 +1518,7 @@ def _maybe_auto_create_employee_from_onboarding(intern, onboarding, now):
             created_at=now,
             updated_at=now,
         )
-        employee.employee_code = f"EMP-{employee.employee_id}"
+        employee.employee_code = employee_codes.next_employee_code()
         employee.save(update_fields=["employee_code"])
         _set_current_department(person.person_id, onboarding.department_id)
 

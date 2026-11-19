@@ -21,6 +21,13 @@ const STATUS_LABEL = {
   NO_LOGIN: "No login",
 };
 
+// Where the check-in happened (EXEMPT = remote / approved WFH / on duty: shows nothing).
+const LOCATION_TAG = {
+  INSIDE: { label: "At branch", tone: "in" },
+  OUTSIDE: { label: "Outside branch", tone: "out" },
+  NO_LOCATION: { label: "No location", tone: "none" },
+};
+
 const STATUS_CLASS = {
   PRESENT: "present",
   HALF_DAY: "half",
@@ -392,6 +399,12 @@ function Attendance() {
                       <td>{r.department_name || "—"}</td>
                       <td>
                         {hasIn ? <span className="att2-time in"><LogIn size={14} />{formatTime(r.check_in_time)}</span> : <span className="att2-none">—</span>}
+                        {hasIn && LOCATION_TAG[r.location_status] && (
+                          <span className={"att2-loc " + LOCATION_TAG[r.location_status].tone}>
+                            {LOCATION_TAG[r.location_status].label}
+                            {r.location_status === "OUTSIDE" && r.distance_m != null ? ` · ${Math.round(r.distance_m)} m` : ""}
+                          </span>
+                        )}
                       </td>
                       <td>
                         {r.check_out_time ? (

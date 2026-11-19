@@ -1,16 +1,38 @@
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Check, X, TrendingUp, Hourglass, CircleX, ListChecks, ArrowRight, CalendarDays } from "lucide-react";
+import { Plus, Check, X, TrendingUp, Hourglass, CircleX, ListChecks, ArrowRight, CalendarDays, Lock } from "lucide-react";
 import client from "../../../api/client";
 import { EmployeeAvatar } from "../components/EmployeeAvatar";
 import Pagination, { paginate } from "../../../components/Pagination";
 import "../styles/HRDashboard.css";
 import "../styles/Employees.css";
 import "../styles/Leave.css";
+import "../styles/Promotions.css";
 
 const STATUS_CLASS = {
   PENDING: "half",
   APPROVED: "present",
   REJECTED: "absent",
+};
+
+// Two kinds of request share the same table. The kind is derived, not stored:
+// a request is a role revision when the person was on an intern designation.
+const KINDS = {
+  PROMOTION: {
+    tab: "Employee promotions",
+    draft: "Draft promotion",
+    noun: "promotion",
+    title: "Promotions",
+    subtitle: "Move an employee to a senior or higher designation.",
+    empty: "No employee promotions here.",
+  },
+  ROLE_REVISION: {
+    tab: "Role revisions",
+    draft: "Draft role revision",
+    noun: "role revision",
+    title: "Role revisions",
+    subtitle: "Move an intern to the full-time role, for example Junior Developer Intern to Junior Developer.",
+    empty: "No role revisions here.",
+  },
 };
 
 const EMPTY_FORM = { employee_id: "", new_designation_id: "", effective_date: "", reason: "" };
@@ -20,10 +42,33 @@ function formatDate(d) {
   return new Date(d).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 }
 
-// Promotions screen — existing employees moving to a senior/higher
-// designation. HR Administrator submits a request (always starts
+function plusYearISO() {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() + 1);
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 10);
+}
+
+const isInternDesignation = (d) => {
+  const code = (d?.designation_code || "").toUpperCase();
+  return code === "INTERN" || code.endsWith("_INTERN");
+};
+
+// JUNIOR_DEVELOPER_INTERN -> the active JUNIOR_DEVELOPER designation.
+const revisionTarget = (d, designations) => {
+  const code = (d?.designation_code || "").toUpperCase();
+  if (!code.endsWith("_INTERN")) return null;
+  const target = code.slice(0, -"_INTERN".length);
+  return designations.find((x) => x.is_active && (x.designation_code || "").toUpperCase() === target) || null;
+};
+
+// Promotions screen — HR Administrator drafts a request (always starts
 // PENDING); only System Administrator can approve/reject it — approving
 // immediately updates the employee's real designation.
+//
+// Two tabs: Employee promotions (existing employees moving up a level) and
+// Role revisions (interns moving to the full-time role). Every dropdown only
+// offers valid choices, and the same rules are enforced again on the server.
 //
 // Approve/Reject is gated by VIEW, not just role: this component is
 // mounted twice — read-only on HR's own Promotions page (so HR can
@@ -36,7 +81,7 @@ function Promotions({
   showActions = true,
   showDraftButton = true,
   title = "Promotions",
-  subtitle = "Move an employee to a senior or higher designation.",
+  subtitle = "Employee promotions and intern role revisions.",
 }) {
   const user = JSON.parse(localStorage.getItem("user") || "null");
   const isSystemAdministrator = (user?.roles || []).includes("System Administrator");
@@ -44,14 +89,16 @@ function Promotions({
 
   const [promotions, setPromotions] = useState([]);
   const [employees, setEmployees] = useState([]);
-  const [designations, setDesignations] = useState([]);
+  const [designations, setDesignations] = useState([]); // all, incl. inactive (current roles may be old)
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [kind, setKind] = useState("PROMOTION"); // "PROMOTION" | "ROLE_REVISION"
   const [tab, setTab] = useState("all"); // "all" | "pending" | "approved" | "rejected"
   const [page, setPage] = useState(1);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [fieldErrors, setFieldErrors] = useState({});
   const [formError, setFormError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -81,30 +128,104 @@ function Promotions({
       .catch(() => {});
     client
       .get("/api/hr/designations/")
-      .then(({ data }) => setDesignations(data.filter((d) => d.is_active)))
+      .then(({ data }) => setDesignations(data))
       .catch(() => {});
   }, []);
 
+  const designationById = useMemo(() => {
+    const map = new Map();
+    designations.forEach((d) => map.set(String(d.designation_id), d));
+    return map;
+  }, [designations]);
+
+  const hasPending = useMemo(() => {
+    const ids = new Set();
+    promotions.forEach((p) => p.status === "PENDING" && ids.add(String(p.employee_id)));
+    return ids;
+  }, [promotions]);
+
+  // Who can be picked in the form for the current kind.
+  const eligibleEmployees = useMemo(
+    () =>
+      employees.filter((e) => {
+        if (e.status !== "ACTIVE" || !e.designation_id) return false;
+        const current = designationById.get(String(e.designation_id));
+        if (!current) return false;
+        if (kind === "ROLE_REVISION") return isInternDesignation(current) && !!revisionTarget(current, designations);
+        return !isInternDesignation(current) && current.level_number != null;
+      }),
+    [employees, designationById, designations, kind]
+  );
+
   const selectedEmployee = employees.find((e) => String(e.employee_id) === String(form.employee_id));
+  const currentDesignation = selectedEmployee ? designationById.get(String(selectedEmployee.designation_id)) : null;
+
+  // Designations the chosen employee can move to.
+  const targetOptions = useMemo(() => {
+    if (!currentDesignation) return [];
+    if (kind === "ROLE_REVISION") {
+      const t = revisionTarget(currentDesignation, designations);
+      return t ? [t] : [];
+    }
+    return designations
+      .filter((d) => d.is_active && !isInternDesignation(d) && d.level_number != null && d.level_number > currentDesignation.level_number)
+      .sort((a, b) => a.level_number - b.level_number || a.designation_name.localeCompare(b.designation_name));
+  }, [currentDesignation, designations, kind]);
+
+  const newDesignationName = designationById.get(String(form.new_designation_id))?.designation_name;
 
   const openNewPromotion = () => {
     setForm(EMPTY_FORM);
+    setFieldErrors({});
     setFormError("");
     setModalOpen(true);
   };
 
+  const changeEmployee = (employeeId) => {
+    const emp = employees.find((e) => String(e.employee_id) === String(employeeId));
+    const current = emp ? designationById.get(String(emp.designation_id)) : null;
+    // A role revision has exactly one valid target, so it fills itself in.
+    const auto = kind === "ROLE_REVISION" && current ? revisionTarget(current, designations) : null;
+    setForm({ ...form, employee_id: employeeId, new_designation_id: auto ? String(auto.designation_id) : "" });
+    setFieldErrors({ ...fieldErrors, employee_id: undefined, new_designation_id: undefined });
+  };
+
+  const validate = () => {
+    const errs = {};
+    if (!form.employee_id) errs.employee_id = kind === "ROLE_REVISION" ? "Select an intern." : "Select an employee.";
+    else if (hasPending.has(String(form.employee_id))) errs.employee_id = "This employee already has a pending request.";
+    if (!form.new_designation_id) errs.new_designation_id = kind === "ROLE_REVISION" ? "No matching role found." : "Select the new designation.";
+    if (!form.effective_date) errs.effective_date = "Pick an effective date.";
+    else if (selectedEmployee?.joining_date && form.effective_date < selectedEmployee.joining_date)
+      errs.effective_date = `Date can't be before the joining date (${formatDate(selectedEmployee.joining_date)}).`;
+    else if (form.effective_date > plusYearISO()) errs.effective_date = "Date can't be more than a year ahead.";
+    return errs;
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
-    setSubmitting(true);
+    const errs = validate();
+    setFieldErrors(errs);
     setFormError("");
+    if (Object.keys(errs).length) return;
+    setSubmitting(true);
     try {
-      await client.post("/api/hr/promotions/", form);
+      await client.post("/api/hr/promotions/", { ...form, kind });
       setModalOpen(false);
       await loadPromotions();
     } catch (err) {
       const data = err.response?.data;
-      const firstError = data && Object.values(data)[0];
-      setFormError(Array.isArray(firstError) ? firstError[0] : data?.detail || "Something went wrong.");
+      if (data && typeof data === "object" && !data.detail) {
+        const mapped = {};
+        Object.entries(data).forEach(([k, v]) => {
+          mapped[k] = Array.isArray(v) ? v[0] : String(v);
+        });
+        setFieldErrors(mapped);
+        if (!Object.keys(mapped).some((k) => ["employee_id", "new_designation_id", "effective_date"].includes(k)))
+          setFormError(Object.values(mapped)[0] || "Something went wrong.");
+      } else {
+        setFormError(data?.detail || "Something went wrong.");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -134,45 +255,50 @@ function Promotions({
     }
   };
 
-  const counts = useMemo(
+  const ofKind = useMemo(() => promotions.filter((p) => (p.kind || "PROMOTION") === kind), [promotions, kind]);
+  const kindCounts = useMemo(
     () => ({
-      all: promotions.length,
-      pending: promotions.filter((p) => p.status === "PENDING").length,
-      approved: promotions.filter((p) => p.status === "APPROVED").length,
-      rejected: promotions.filter((p) => p.status === "REJECTED").length,
+      PROMOTION: promotions.filter((p) => (p.kind || "PROMOTION") === "PROMOTION").length,
+      ROLE_REVISION: promotions.filter((p) => p.kind === "ROLE_REVISION").length,
     }),
     [promotions]
   );
 
-  const filtered = useMemo(() => {
-    if (tab === "pending") return promotions.filter((p) => p.status === "PENDING");
-    if (tab === "approved") return promotions.filter((p) => p.status === "APPROVED");
-    if (tab === "rejected") return promotions.filter((p) => p.status === "REJECTED");
-    return promotions;
-  }, [promotions, tab]);
+  const counts = useMemo(
+    () => ({
+      all: ofKind.length,
+      pending: ofKind.filter((p) => p.status === "PENDING").length,
+      approved: ofKind.filter((p) => p.status === "APPROVED").length,
+      rejected: ofKind.filter((p) => p.status === "REJECTED").length,
+    }),
+    [ofKind]
+  );
 
-  useEffect(() => setPage(1), [tab]);
+  const filtered = useMemo(() => {
+    if (tab === "pending") return ofKind.filter((p) => p.status === "PENDING");
+    if (tab === "approved") return ofKind.filter((p) => p.status === "APPROVED");
+    if (tab === "rejected") return ofKind.filter((p) => p.status === "REJECTED");
+    return ofKind;
+  }, [ofKind, tab]);
+
+  useEffect(() => setPage(1), [tab, kind]);
 
   const currentYear = new Date().getFullYear();
   const [statsYear, setStatsYear] = useState(currentYear);
   const statsYearOptions = useMemo(() => {
     const years = new Set([currentYear]);
-    promotions.forEach((p) => years.add(new Date(p.effective_date).getFullYear()));
+    ofKind.forEach((p) => years.add(new Date(p.effective_date).getFullYear()));
     return [...years].sort((a, b) => b - a);
-  }, [promotions, currentYear]);
-
-  const promotionsInStatsYear = promotions.filter(
-    (p) => p.status === "APPROVED" && new Date(p.effective_date).getFullYear() === statsYear
-  ).length;
+  }, [ofKind, currentYear]);
 
   const inStatsYear = (p, status) => p.status === status && new Date(p.effective_date).getFullYear() === statsYear;
+  const k = KINDS[kind];
   const statCards = [
-    { label: `Approved · ${statsYear}`, value: promotionsInStatsYear, tone: "green", Icon: TrendingUp },
+    { label: `Approved · ${statsYear}`, value: ofKind.filter((p) => inStatsYear(p, "APPROVED")).length, tone: "green", Icon: TrendingUp },
     { label: "Awaiting approval", value: counts.pending, tone: "amber", Icon: Hourglass },
-    { label: `Rejected · ${statsYear}`, value: promotions.filter((p) => inStatsYear(p, "REJECTED")).length, tone: "red", Icon: CircleX },
+    { label: `Rejected · ${statsYear}`, value: ofKind.filter((p) => inStatsYear(p, "REJECTED")).length, tone: "red", Icon: CircleX },
     { label: "Total requests", value: counts.all, tone: "blue", Icon: ListChecks },
   ];
-  const newDesignationName = designations.find((d) => String(d.designation_id) === String(form.new_designation_id))?.designation_name;
 
   return (
     <div className="att-screen lv-v2">
@@ -183,10 +309,29 @@ function Promotions({
         </div>
         {showDraftButton && (
           <button type="button" className="att-btn-accent" onClick={openNewPromotion}>
-            <Plus size={15} /> Draft Promotion
+            <Plus size={15} /> {k.draft}
           </button>
         )}
       </div>
+
+      <div className="pr3-kinds" role="tablist">
+        {Object.entries(KINDS).map(([key, v]) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={kind === key}
+            className={"pr3-kind" + (kind === key ? " active" : "")}
+            onClick={() => {
+              setKind(key);
+              setTab("all");
+            }}
+          >
+            {v.tab} <span>{kindCounts[key]}</span>
+          </button>
+        ))}
+      </div>
+      <p className="pr3-kind-help">{k.subtitle}</p>
 
       {error && <p className="att-error">{error}</p>}
       {actionError && <p className="att-error">{actionError}</p>}
@@ -217,7 +362,7 @@ function Promotions({
       <div className="att-panel">
         <div className="att-panel-head">
           <div>
-            <h3>Promotion requests</h3>
+            <h3>{kind === "ROLE_REVISION" ? "Role revision requests" : "Promotion requests"}</h3>
             <p>
               {canAct
                 ? "Review and decide on pending requests."
@@ -225,37 +370,23 @@ function Promotions({
             </p>
           </div>
           <div className="lv-tabs">
-            <button type="button" className={"lv-tab" + (tab === "all" ? " active" : "")} onClick={() => setTab("all")}>
-              All {counts.all}
-            </button>
-            <button
-              type="button"
-              className={"lv-tab" + (tab === "pending" ? " active" : "")}
-              onClick={() => setTab("pending")}
-            >
-              Pending {counts.pending}
-            </button>
-            <button
-              type="button"
-              className={"lv-tab" + (tab === "approved" ? " active" : "")}
-              onClick={() => setTab("approved")}
-            >
-              Approved {counts.approved}
-            </button>
-            <button
-              type="button"
-              className={"lv-tab" + (tab === "rejected" ? " active" : "")}
-              onClick={() => setTab("rejected")}
-            >
-              Rejected {counts.rejected}
-            </button>
+            {[
+              ["all", "All"],
+              ["pending", "Pending"],
+              ["approved", "Approved"],
+              ["rejected", "Rejected"],
+            ].map(([key, label]) => (
+              <button key={key} type="button" className={"lv-tab" + (tab === key ? " active" : "")} onClick={() => setTab(key)}>
+                {label} {counts[key]}
+              </button>
+            ))}
           </div>
         </div>
 
         {loading ? (
           <p className="hr-empty">Loading…</p>
         ) : filtered.length === 0 ? (
-          <p className="hr-empty">No promotion requests here.</p>
+          <p className="hr-empty">{k.empty}</p>
         ) : (
           <>
             <div className="hr-table-scroll">
@@ -263,7 +394,7 @@ function Promotions({
                 <thead>
                   <tr>
                     <th>Employee</th>
-                    <th>Promotion</th>
+                    <th>{kind === "ROLE_REVISION" ? "Role revision" : "Promotion"}</th>
                     <th>Effective date</th>
                     <th>Status</th>
                     <th>Decided by</th>
@@ -333,46 +464,84 @@ function Promotions({
 
       {modalOpen && (
         <div className="hr-modal-backdrop" onClick={() => setModalOpen(false)}>
-          <form className="hr-modal org-modal" onClick={(e) => e.stopPropagation()} onSubmit={handleSubmit}>
+          <form className="hr-modal org-modal" onClick={(e) => e.stopPropagation()} onSubmit={handleSubmit} noValidate>
             <button type="button" className="hr-modal-x org-modal-x" onClick={() => setModalOpen(false)} aria-label="Close">
               ✕
             </button>
             <div className="org-modal-head">
               <span className="org-modal-ico"><TrendingUp size={19} /></span>
               <div>
-                <h2>Draft promotion</h2>
+                <h2>{k.draft}</h2>
                 <p>Sent as a pending request for System Administrator to approve.</p>
               </div>
             </div>
 
             <div className="org-modal-body">
-              <label>Employee</label>
+              <label>{kind === "ROLE_REVISION" ? "Intern" : "Employee"}</label>
               <select
+                className={fieldErrors.employee_id ? "pr3-invalid" : ""}
                 value={form.employee_id}
-                onChange={(e) => setForm({ ...form, employee_id: e.target.value })}
-                required
+                onChange={(e) => changeEmployee(e.target.value)}
               >
-                <option value="">Select…</option>
-                {employees.map((e) => (
-                  <option key={e.employee_id} value={e.employee_id}>
-                    {e.full_name} {e.employee_code ? `(${e.employee_code})` : ""}
+                <option value="">
+                  {eligibleEmployees.length === 0
+                    ? kind === "ROLE_REVISION"
+                      ? "No interns to revise"
+                      : "No eligible employees"
+                    : "Select…"}
+                </option>
+                {eligibleEmployees.map((e) => (
+                  <option key={e.employee_id} value={e.employee_id} disabled={hasPending.has(String(e.employee_id))}>
+                    {e.full_name} {e.employee_code ? `(${e.employee_code})` : ""} · {e.designation_name}
+                    {hasPending.has(String(e.employee_id)) ? " — request pending" : ""}
                   </option>
                 ))}
               </select>
+              {fieldErrors.employee_id ? (
+                <p className="pr3-err">{fieldErrors.employee_id}</p>
+              ) : (
+                <p className="pr3-hint">
+                  {kind === "ROLE_REVISION"
+                    ? "Only active people on an intern designation."
+                    : "Only active employees. Interns go through Role revision."}
+                </p>
+              )}
 
-              <label>New designation</label>
-              <select
-                value={form.new_designation_id}
-                onChange={(e) => setForm({ ...form, new_designation_id: e.target.value })}
-                required
-              >
-                <option value="">Select…</option>
-                {designations.map((d) => (
-                  <option key={d.designation_id} value={d.designation_id}>
-                    {d.designation_name}
+              <label>{kind === "ROLE_REVISION" ? "New role" : "New designation"}</label>
+              {kind === "ROLE_REVISION" ? (
+                <div className={"pr3-locked" + (fieldErrors.new_designation_id ? " pr3-invalid" : "")}>
+                  <Lock size={13} />
+                  {newDesignationName || (selectedEmployee ? "No matching role found" : "Pick an intern first")}
+                </div>
+              ) : (
+                <select
+                  className={fieldErrors.new_designation_id ? "pr3-invalid" : ""}
+                  value={form.new_designation_id}
+                  disabled={!selectedEmployee}
+                  onChange={(e) => {
+                    setForm({ ...form, new_designation_id: e.target.value });
+                    setFieldErrors({ ...fieldErrors, new_designation_id: undefined });
+                  }}
+                >
+                  <option value="">
+                    {!selectedEmployee ? "Select an employee first" : targetOptions.length ? "Select…" : "No higher designation available"}
                   </option>
-                ))}
-              </select>
+                  {targetOptions.map((d) => (
+                    <option key={d.designation_id} value={d.designation_id}>
+                      {d.designation_name}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {fieldErrors.new_designation_id ? (
+                <p className="pr3-err">{fieldErrors.new_designation_id}</p>
+              ) : (
+                <p className="pr3-hint">
+                  {kind === "ROLE_REVISION"
+                    ? "Set automatically from the intern role."
+                    : "Only designations above the employee's current level."}
+                </p>
+              )}
 
               {selectedEmployee && (
                 <div className="pr2-preview">
@@ -385,17 +554,23 @@ function Promotions({
               <label>Effective date</label>
               <input
                 type="date"
+                className={fieldErrors.effective_date ? "pr3-invalid" : ""}
                 value={form.effective_date}
-                onChange={(e) => setForm({ ...form, effective_date: e.target.value })}
-                required
+                min={selectedEmployee?.joining_date || undefined}
+                max={plusYearISO()}
+                onChange={(e) => {
+                  setForm({ ...form, effective_date: e.target.value });
+                  setFieldErrors({ ...fieldErrors, effective_date: undefined });
+                }}
               />
+              {fieldErrors.effective_date && <p className="pr3-err">{fieldErrors.effective_date}</p>}
 
               <label>Reason (optional)</label>
               <textarea
                 className="lv-textarea"
                 value={form.reason}
                 onChange={(e) => setForm({ ...form, reason: e.target.value })}
-                placeholder="Why is this promotion happening?"
+                placeholder={kind === "ROLE_REVISION" ? "Why is this role being revised?" : "Why is this promotion happening?"}
                 rows={3}
               />
 
@@ -418,8 +593,8 @@ function Promotions({
         <div className="hr-modal-backdrop" onClick={closeConfirm}>
           <div className="hr-modal hr-confirm" onClick={(e) => e.stopPropagation()}>
             <h2>
-              {confirmTarget.action === "approve" ? "Approve" : "Reject"} {confirmTarget.promotion.full_name}'s
-              promotion?
+              {confirmTarget.action === "approve" ? "Approve" : "Reject"} {confirmTarget.promotion.full_name}'s{" "}
+              {confirmTarget.promotion.kind === "ROLE_REVISION" ? "role revision" : "promotion"}?
             </h2>
             <p>
               {confirmTarget.promotion.previous_designation_name || "—"} → {confirmTarget.promotion.new_designation_name}{" "}

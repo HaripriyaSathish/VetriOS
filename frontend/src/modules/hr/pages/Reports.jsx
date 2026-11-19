@@ -28,6 +28,8 @@ const ATT_STATUS_LABEL = {
   PRESENT: "Present",
   HALF_DAY: "Half day",
   ON_LEAVE: "On leave",
+  WORK_FROM_HOME: "WFH",
+  EXCUSED: "On duty",
   ABSENT: "Absent",
   NO_LOGIN: "No login",
 };
@@ -35,6 +37,8 @@ const ATT_STATUS_CLASS = {
   PRESENT: "present",
   HALF_DAY: "half",
   ON_LEAVE: "leave",
+  WORK_FROM_HOME: "present",
+  EXCUSED: "leave",
   ABSENT: "absent",
   NO_LOGIN: "no-login",
 };

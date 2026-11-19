@@ -1,0 +1,14 @@
+/* Promotions: Employee promotions / Role revisions tabs and form validation */
+.pr3-kinds { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0 6px; }
+.pr3-kind { display: inline-flex; align-items: center; gap: 8px; border: 1.5px solid var(--vt-border); background: #fff; color: var(--vt-text); font: inherit; font-size: 14px; font-weight: 700; padding: 8px 18px; border-radius: 999px; cursor: pointer; }
+.pr3-kind:hover { border-color: var(--vt-orange); color: var(--vt-orange-600); }
+.pr3-kind span { font-size: 12px; font-weight: 700; padding: 1px 9px; border-radius: 999px; background: var(--vt-tint); color: var(--vt-navy); }
+.pr3-kind.active { background: var(--vt-navy); border-color: var(--vt-navy); color: #fff; }
+.pr3-kind.active span { background: var(--vt-orange); color: #fff; }
+.pr3-kind-help { margin: 0 0 14px; font-size: 13.5px; color: var(--vt-muted); }
+
+.pr3-hint { margin: 3px 0 0; font-size: 12.5px; color: var(--vt-muted); }
+.pr3-err { margin: 3px 0 0; font-size: 12.5px; font-weight: 600; color: #b3261e; }
+.pr3-invalid { border-color: #b3261e !important; }
+.pr3-locked { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border: 1.5px solid var(--vt-border); border-radius: 10px; background: var(--vt-tint); color: var(--vt-navy); font-weight: 600; }
+.pr3-locked svg { color: var(--vt-muted); flex: none; }

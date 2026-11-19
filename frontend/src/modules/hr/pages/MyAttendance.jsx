@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useOutletContext } from "react-router-dom";
-import { Clock, Search, CalendarCheck, Timer, Plane } from "lucide-react";
+import { Clock, Search, CalendarCheck, Timer, Plane, MapPin } from "lucide-react";
 import client from "../../../api/client";
+import { getBrowserLocation } from "../../../utils/geolocation";
 import "../styles/HRDashboard.css";
 import "../styles/Attendance.css";
 import "../../documents/styles/DocumentLibrary.css";
@@ -11,6 +12,8 @@ const STATUS_LABEL = {
   PRESENT: "Present",
   HALF_DAY: "Half day",
   ON_LEAVE: "On leave",
+  WORK_FROM_HOME: "WFH",
+  EXCUSED: "On duty",
   ABSENT: "Absent",
   HOLIDAY: "Holiday",
 };
@@ -19,6 +22,8 @@ const STATUS_CLASS = {
   PRESENT: "present",
   HALF_DAY: "half",
   ON_LEAVE: "leave",
+  WORK_FROM_HOME: "present",
+  EXCUSED: "leave",
   ABSENT: "absent",
   HOLIDAY: "leave",
 };
@@ -26,6 +31,7 @@ const STATUS_CLASS = {
 const STATUS_FILTERS = [
   ["", "All"],
   ["PRESENT", "Present"],
+  ["WORK_FROM_HOME", "WFH"],
   ["ON_LEAVE", "Leave"],
   ["ABSENT", "Absent"],
 ];
@@ -63,6 +69,7 @@ function MyAttendance() {
   const [error, setError] = useState("");
   const [punching, setPunching] = useState(false);
   const [punchError, setPunchError] = useState("");
+  const [locationNote, setLocationNote] = useState(null); // { status, message } from the last check-in
   const [now, setNow] = useState(new Date());
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -98,7 +105,10 @@ function MyAttendance() {
       if (data?.today?.checked_in) {
         await client.post("/api/hr/attendance/check-out/");
       } else {
-        await client.post("/api/hr/attendance/check-in/");
+        // Ask the browser where we are first; a "no" never blocks the check-in.
+        const where = await getBrowserLocation();
+        const { data: res } = await client.post("/api/hr/attendance/check-in/", where || {});
+        setLocationNote(res.location || null);
       }
       await loadData();
     } catch (err) {
@@ -134,7 +144,7 @@ function MyAttendance() {
     : "Your workday hasn't started yet";
 
   const hist = data?.history || [];
-  const present = hist.filter((d) => d.status === "PRESENT").length;
+  const present = hist.filter((d) => d.status === "PRESENT" || d.status === "WORK_FROM_HOME").length;
   const leave = hist.filter((d) => d.status === "ON_LEAVE").length;
   const absent = hist.filter((d) => d.status === "ABSENT").length;
   const counted = present + absent;
@@ -166,6 +176,11 @@ function MyAttendance() {
 
       <div className="dl2-body">
         {punchError && <p className="att-error">{punchError}</p>}
+        {locationNote && (
+          <p className={"att2-locnote " + (locationNote.status || "").toLowerCase()}>
+            <MapPin size={15} /> {locationNote.message}
+          </p>
+        )}
         {error && <p className="att-error">{error}</p>}
 
         {data?.employee_id && (

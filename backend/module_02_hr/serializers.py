@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from django.utils import timezone
 from rest_framework import serializers
 
@@ -36,6 +38,10 @@ class AttendanceRecordSerializer(serializers.Serializer):
     check_out_time = serializers.DateTimeField(allow_null=True)
     hours = serializers.FloatField(allow_null=True)
     status = serializers.CharField()
+    # Where the check-in happened: INSIDE / OUTSIDE / NO_LOCATION / EXEMPT, or null
+    # when there was no check-in. distance_m is metres from the branch.
+    location_status = serializers.CharField(allow_null=True, required=False)
+    distance_m = serializers.FloatField(allow_null=True, required=False)
 
 
 # Attendance overview report — one employee-day per row across a whole
@@ -948,11 +954,13 @@ class PromotionListSerializer(serializers.ModelSerializer):
     previous_designation_name = serializers.SerializerMethodField()
     new_designation_name = serializers.SerializerMethodField()
     approved_by_name = serializers.SerializerMethodField()
+    kind = serializers.SerializerMethodField()
 
     class Meta:
         model = EmployeePromotion
         fields = [
             "promotion_id",
+            "kind",
             "employee_id",
             "employee_code",
             "person_id",
@@ -973,6 +981,11 @@ class PromotionListSerializer(serializers.ModelSerializer):
     def get_full_name(self, obj):
         return str(obj.employee.person)
 
+    # No stored type column: a request is a "role revision" when the person
+    # was on an intern designation, otherwise a normal promotion.
+    def get_kind(self, obj):
+        return "ROLE_REVISION" if is_intern_designation(obj.previous_designation) else "PROMOTION"
+
     def get_previous_designation_name(self, obj):
         return obj.previous_designation.designation_name if obj.previous_designation_id else None
 
@@ -986,7 +999,21 @@ class PromotionListSerializer(serializers.ModelSerializer):
 # HR fills in employee + new designation + effective date; previous
 # designation is snapshotted server-side from the employee's current
 # designation at request time, not client-supplied.
+def is_intern_designation(designation):
+    code = (getattr(designation, "designation_code", None) or "").upper()
+    return code == "INTERN" or code.endswith("_INTERN")
+
+
+def revision_target_designation(designation):
+    """JUNIOR_DEVELOPER_INTERN -> the active JUNIOR_DEVELOPER designation (or None)."""
+    code = (getattr(designation, "designation_code", None) or "").upper()
+    if not code.endswith("_INTERN"):
+        return None
+    return Designation.objects.filter(designation_code=code[: -len("_INTERN")], is_active=True).first()
+
+
 class PromotionCreateSerializer(serializers.Serializer):
+    kind = serializers.ChoiceField(choices=["PROMOTION", "ROLE_REVISION"], default="PROMOTION")
     employee_id = serializers.IntegerField()
     new_designation_id = serializers.IntegerField()
     effective_date = serializers.DateField()
@@ -1003,11 +1030,49 @@ class PromotionCreateSerializer(serializers.Serializer):
         return value
 
     def validate(self, attrs):
-        employee = Employee.objects.get(pk=attrs["employee_id"])
-        if employee.designation_id == attrs["new_designation_id"]:
-            raise serializers.ValidationError(
-                {"new_designation_id": ["Employee already holds this designation."]}
-            )
+        employee = Employee.objects.select_related("designation").get(pk=attrs["employee_id"])
+        current = employee.designation
+        new = Designation.objects.get(pk=attrs["new_designation_id"])
+        kind = attrs["kind"]
+        errors = {}
+
+        if employee.status != "ACTIVE":
+            errors["employee_id"] = ["Only active employees can be promoted or revised."]
+        elif current is None:
+            errors["employee_id"] = ["This employee has no designation yet."]
+        elif employee.designation_id == new.designation_id:
+            errors["new_designation_id"] = ["Employee already holds this designation."]
+        elif kind == "ROLE_REVISION":
+            if not is_intern_designation(current):
+                errors["employee_id"] = ["Role revision is only for interns."]
+            else:
+                target = revision_target_designation(current)
+                if target is None:
+                    errors["employee_id"] = ["No matching full-time role exists for this intern designation."]
+                elif target.designation_id != new.designation_id:
+                    errors["new_designation_id"] = [f"An intern's role is revised to {target.designation_name}."]
+        else:
+            if is_intern_designation(current):
+                errors["employee_id"] = ["Interns go through Role revision, not Employee promotion."]
+            elif current.level_number is None:
+                errors["employee_id"] = ["This designation has no level, so it can't be promoted."]
+            elif is_intern_designation(new):
+                errors["new_designation_id"] = ["An intern designation can't be a promotion target."]
+            elif new.level_number is None or new.level_number <= current.level_number:
+                errors["new_designation_id"] = ["Pick a designation above the employee's current level."]
+
+        effective = attrs["effective_date"]
+        if "effective_date" not in errors:
+            if employee.joining_date and effective < employee.joining_date:
+                errors["effective_date"] = ["Date can't be before the employee's joining date."]
+            elif effective > timezone.localdate() + timedelta(days=365):
+                errors["effective_date"] = ["Date can't be more than a year ahead."]
+
+        if not errors and EmployeePromotion.objects.filter(employee_id=employee.pk, status="PENDING").exists():
+            errors["employee_id"] = ["This employee already has a pending request."]
+
+        if errors:
+            raise serializers.ValidationError(errors)
         return attrs
 
 

@@ -35,7 +35,6 @@ import {
   Sparkles,
   LayoutTemplate,
   Mail,
-  Send,
   CheckCircle2,
   MailOpen,
   SlidersHorizontal,
@@ -75,7 +74,9 @@ const BUSINESS_TEAM_PATHS = [
   "/training/students", "/training/internship-approvals", "/training/enquiries",
   "/training/fee-conversion", "/training/batches/new", "/training/welcome-emails",
 ];
-const EMAIL_PATHS = ["/email"];
+// The Email "Bulk" page (/email/batches) is built and its route still works, but its menu
+// entries are hidden for now. Set this to true to show them again.
+const SHOW_EMAIL_BULK = false;
 const PROJECT_MGMT_PATHS = [
   "/project/dashboard", "/project/team", "/project/requirements", "/project/kanban",
   "/project/milestones", "/project/deployments", "/project/tech-stack", "/project/change-requests",
@@ -222,9 +223,7 @@ function Sidebar({ open = false, onClose }) {
   // permission requirement covers.
   const emailItem = NAV_ITEMS.find((item) => item.id === "email");
   const canSeeEmail = true;
-  const canSeeEmailBulk = emailItem && hasAccess(emailItem.requirement, user);
-  const isOnEmailPage = EMAIL_PATHS.some((path) => location.pathname.startsWith(path));
-  const [emailOpen, setEmailOpen] = useState(isOnEmailPage);
+  const canSeeEmailBulk = SHOW_EMAIL_BULK && emailItem && hasAccess(emailItem.requirement, user);
 
   const isOnProjectMgmtPage = PROJECT_MGMT_PATHS.some((path) => location.pathname.startsWith(path));
   const [projectMgmtOpen, setProjectMgmtOpen] = useState(isOnProjectMgmtPage);
@@ -795,54 +794,30 @@ function Sidebar({ open = false, onClose }) {
 
       {canSeeEmail && !isTraineeView && !isBusinessView && !isTrainerView && !isInternView && !isPmView && (
         <>
-          <button
-            type="button"
-            className={"nav-item nav-group-toggle" + (emailOpen ? " open" : "")}
-            onClick={() => setEmailOpen((prev) => !prev)}
+          {/* One "E-mail" menu: the overview page, with Compose reached from its header
+              button (and still highlighted here while composing). Bulk joins it as a sub-item
+              only when SHOW_EMAIL_BULK is turned on. */}
+          <NavLink
+            to="/email"
+            className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
           >
             <span className="nav-icon">
               <Mail size={16} />
             </span>
-            Email
-            <span className="nav-chevron">
-              <ChevronDown size={14} />
-            </span>
-          </button>
+            E-mail
+          </NavLink>
 
-          {emailOpen && (
+          {canSeeEmailBulk && (
             <div className="nav-subgroup">
               <NavLink
-                to="/email"
-                end
+                to="/email/batches"
                 className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
               >
                 <span className="nav-icon">
-                  <LayoutDashboard size={14} />
+                  <Layers size={14} />
                 </span>
-                Overview
+                Bulk
               </NavLink>
-
-              <NavLink
-                to="/email/compose"
-                className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
-              >
-                <span className="nav-icon">
-                  <Send size={14} />
-                </span>
-                Compose
-              </NavLink>
-
-              {canSeeEmailBulk && (
-                <NavLink
-                  to="/email/batches"
-                  className={({ isActive }) => "nav-item nav-subitem" + (isActive ? " active" : "")}
-                >
-                  <span className="nav-icon">
-                    <Layers size={14} />
-                  </span>
-                  Bulk
-                </NavLink>
-              )}
             </div>
           )}
         </>

@@ -57,6 +57,8 @@ ATTENDANCE_STATUS_COLOR = {
     "PRESENT": "C6EFCE",
     "HALF_DAY": "FFEB9C",
     "ON_LEAVE": "DCE6F1",
+    "WORK_FROM_HOME": "C6EFCE",
+    "EXCUSED": "DCE6F1",
     "ABSENT": "FFC7CE",
     "NO_LOGIN": "F2F2F2",
 }
@@ -64,6 +66,8 @@ ATTENDANCE_STATUS_LABEL = {
     "PRESENT": "Present",
     "HALF_DAY": "Half day",
     "ON_LEAVE": "On leave",
+    "WORK_FROM_HOME": "Work from home",
+    "EXCUSED": "On duty",
     "ABSENT": "Absent",
     "NO_LOGIN": "No login",
 }

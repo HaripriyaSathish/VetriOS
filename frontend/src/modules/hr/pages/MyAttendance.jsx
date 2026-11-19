@@ -12,6 +12,8 @@ const STATUS_LABEL = {
   PRESENT: "Present",
   HALF_DAY: "Half day",
   ON_LEAVE: "On leave",
+  WORK_FROM_HOME: "WFH",
+  EXCUSED: "On duty",
   ABSENT: "Absent",
   HOLIDAY: "Holiday",
 };
@@ -20,6 +22,8 @@ const STATUS_CLASS = {
   PRESENT: "present",
   HALF_DAY: "half",
   ON_LEAVE: "leave",
+  WORK_FROM_HOME: "present",
+  EXCUSED: "leave",
   ABSENT: "absent",
   HOLIDAY: "leave",
 };
@@ -27,6 +31,7 @@ const STATUS_CLASS = {
 const STATUS_FILTERS = [
   ["", "All"],
   ["PRESENT", "Present"],
+  ["WORK_FROM_HOME", "WFH"],
   ["ON_LEAVE", "Leave"],
   ["ABSENT", "Absent"],
 ];
@@ -139,7 +144,7 @@ function MyAttendance() {
     : "Your workday hasn't started yet";
 
   const hist = data?.history || [];
-  const present = hist.filter((d) => d.status === "PRESENT").length;
+  const present = hist.filter((d) => d.status === "PRESENT" || d.status === "WORK_FROM_HOME").length;
   const leave = hist.filter((d) => d.status === "ON_LEAVE").length;
   const absent = hist.filter((d) => d.status === "ABSENT").length;
   const counted = present + absent;

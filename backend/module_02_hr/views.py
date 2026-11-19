@@ -354,6 +354,13 @@ def _employee_for_user(user):
 # ever produce a real attendance/leave record — showing them as plain
 # "Absent" would wrongly suggest they skipped work instead of never
 # having had login access at all.
+# Only real leave counts as "on leave". Approved work from home, on duty and
+# permission requests are also EmployeeLeave rows, so they are filtered out here;
+# those days are described by the attendance row apply_approved() creates instead.
+def _full_leaves(queryset):
+    return queryset.exclude(leave_type__leave_type_code__in=leave_requests.SPECIAL_CODES)
+
+
 def _attendance_status(att, is_on_leave, has_login=True, day_off=False):
     hours = None
     if att and att.check_in_time and att.check_out_time:
@@ -363,6 +370,13 @@ def _attendance_status(att, is_on_leave, has_login=True, day_off=False):
         return "NO_LOGIN", hours
     if is_on_leave:
         return "ON_LEAVE", hours
+    # On duty (travel, a program...): excused, no check-in needed.
+    if att is not None and att.attendance_status == "EXCUSED":
+        return "EXCUSED", hours
+    # Approved work from home: check-in is still required. The row exists from the
+    # moment the request is approved, so without a check-in it is still an absence.
+    if att is not None and att.attendance_status == "WORK_FROM_HOME":
+        return ("WORK_FROM_HOME" if att.check_in_time else "ABSENT"), hours
     if att is None:
         return ("HOLIDAY" if day_off else "ABSENT"), hours
     # Checked in = Present, whether or not they've checked out yet, and
@@ -407,9 +421,9 @@ def _attendance_report_rows(period, department_id=None, status_filter=None):
         )
     }
     leaves = list(
-        EmployeeLeave.objects.filter(
+        _full_leaves(EmployeeLeave.objects.filter(
             employee_id__in=employee_ids, status="APPROVED", start_date__lte=end, end_date__gte=start
-        )
+        ))
     )
     person_ids_with_login = set(
         UserAccount.objects.filter(person_id__in=person_ids).values_list("person_id", flat=True)
@@ -430,7 +444,10 @@ def _attendance_report_rows(period, department_id=None, status_filter=None):
                 continue  # before they joined
             is_on_leave = any(l.start_date <= day <= l.end_date for l in emp_leaves)
             day_status, hours = _attendance_status(att, is_on_leave, has_login)
-            if status_filter and day_status != status_filter:
+            if status_filter and day_status != status_filter and not (
+                (status_filter == "PRESENT" and day_status == "WORK_FROM_HOME")
+                or (status_filter == "ON_LEAVE" and day_status == "EXCUSED")
+            ):
                 continue
             rows.append({
                 "employee_id": emp.employee_id,
@@ -471,9 +488,9 @@ class AttendanceTodayView(APIView):
             a.employee_id: a for a in EmployeeAttendance.objects.filter(attendance_date=today)
         }
         on_leave_ids = set(
-            EmployeeLeave.objects.filter(
+            _full_leaves(EmployeeLeave.objects.filter(
                 status="APPROVED", start_date__lte=today, end_date__gte=today
-            ).values_list("employee_id", flat=True)
+            )).values_list("employee_id", flat=True)
         )
         locations = location_check.for_attendance(a.attendance_id for a in attendance_by_employee.values())
         accounts = list(UserAccount.objects.filter(person_id__in=[e.person_id for e in employees]))
@@ -495,7 +512,9 @@ class AttendanceTodayView(APIView):
                 on_leave += 1
             elif display_status == "ABSENT":
                 absent += 1
-            elif display_status == "PRESENT":
+            elif display_status == "EXCUSED":
+                on_leave += 1
+            elif display_status in ("PRESENT", "WORK_FROM_HOME"):
                 present += 1
                 if att and att.check_in_time and not att.check_out_time:
                     # Checked in is enough to count as Present for the day —
@@ -593,9 +612,9 @@ def _working_day_statuses(start, end, department_id=None):
         )
     }
     leaves = list(
-        EmployeeLeave.objects.filter(
+        _full_leaves(EmployeeLeave.objects.filter(
             employee_id__in=employee_ids, status="APPROVED", start_date__lte=end, end_date__gte=start
-        )
+        ))
     )
 
     result = []
@@ -824,9 +843,9 @@ class MyAttendanceView(APIView):
         records = EmployeeAttendance.objects.filter(
             employee=employee, attendance_date__gte=since, attendance_date__lte=today
         ).order_by("-attendance_date")
-        is_on_leave_today = EmployeeLeave.objects.filter(
+        is_on_leave_today = _full_leaves(EmployeeLeave.objects.filter(
             employee=employee, status="APPROVED", start_date__lte=today, end_date__gte=today
-        ).exists()
+        )).exists()
 
         today_record = records.filter(attendance_date=today).first()
         today_location = (
@@ -840,12 +859,12 @@ class MyAttendanceView(APIView):
 
         history = []
         for att in records:
-            is_leave_day = EmployeeLeave.objects.filter(
+            is_leave_day = _full_leaves(EmployeeLeave.objects.filter(
                 employee=employee,
                 status="APPROVED",
                 start_date__lte=att.attendance_date,
                 end_date__gte=att.attendance_date,
-            ).exists()
+            )).exists()
             day_status, day_hours = _attendance_status(att, is_leave_day)
             history.append(
                 {
@@ -1944,9 +1963,9 @@ class HRDashboardView(APIView):
             for a in EmployeeAttendance.objects.filter(employee_id__in=active_employee_ids, attendance_date=today)
         }
         leaves_today = list(
-            EmployeeLeave.objects.filter(
+            _full_leaves(EmployeeLeave.objects.filter(
                 employee_id__in=active_employee_ids, status="APPROVED", start_date__lte=today, end_date__gte=today,
-            )
+            ))
         )
         leave_employee_ids_today = {l.employee_id for l in leaves_today}
         person_ids_with_login = set(
@@ -1958,6 +1977,7 @@ class HRDashboardView(APIView):
             is_on_leave = emp.employee_id in leave_employee_ids_today
             has_login = emp.person_id in person_ids_with_login
             day_status, _hours = _attendance_status(att, is_on_leave, has_login)
+            day_status = {"WORK_FROM_HOME": "PRESENT", "EXCUSED": "ON_LEAVE"}.get(day_status, day_status)
             attendance_counts[day_status] = attendance_counts.get(day_status, 0) + 1
 
         # ---- headcount by department (currently-active assignments only) ----

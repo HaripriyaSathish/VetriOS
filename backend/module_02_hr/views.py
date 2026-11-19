@@ -20,6 +20,7 @@ from rest_framework.views import APIView
 from module_01_identity_access.models import UserAccount
 from local_extensions.email_utils import send_email
 from local_extensions.models import Notification
+from local_extensions.notification_utils import notify
 from .excel_exports import (
     build_absentees_excel, build_attendance_excel, build_employee_onboarding_excel, build_exit_excel,
     build_onboarding_excel, build_summary_excel,
@@ -1160,6 +1161,106 @@ class LeaveRequestApproveView(APIView):
         leave.updated_at = now
         leave.save(update_fields=["leave_type", "status", "approved_by_user_id", "approved_at", "updated_at"])
         return Response(_leave_rows([leave])[0])
+
+
+# Withdraw and revoke share one endpoint (status ends up CANCELLED either way):
+#   - WITHDRAW: the person who sent a PENDING request takes it back.
+#   - REVOKE:   an APPROVED request is cancelled by the person it was sent to, an
+#               HR Administrator or a System Administrator (a reason is required).
+# Revoking undoes what approval did, for days that haven't happened yet:
+#   leave          -> the days go back to the balance (only if it hasn't started)
+#   WFH / On duty  -> the attendance rows made at approval are removed, except days
+#                     the person already checked in on
+#   permission     -> nothing to undo
+class LeaveRequestCancelView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        try:
+            leave = EmployeeLeave.objects.select_related("employee__person", "leave_type").get(pk=pk)
+        except EmployeeLeave.DoesNotExist:
+            return Response({"detail": "Leave request not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        detail = leave_requests.details_by_leave_id([leave.leave_id]).get(leave.leave_id)
+        me = _employee_for_user(request.user)
+        is_owner = bool(me and me.employee_id == leave.employee_id)
+        roles = request.user.active_role_names()
+        today = timezone.localdate()
+        note = (request.data.get("reason") or "").strip()
+
+        if leave.status == "PENDING":
+            if not is_owner:
+                return Response({"detail": "Only the person who sent this request can withdraw it."}, status=status.HTTP_403_FORBIDDEN)
+            action = "withdrawn"
+        elif leave.status == "APPROVED":
+            if not (leave_requests.can_decide(request.user, leave, detail) or "HR Administrator" in roles):
+                return Response(
+                    {"detail": "Only the approver, an HR Administrator or a System Administrator can revoke an approved request."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            if not note:
+                return Response({"reason": ["Tell the person why it's being revoked."]}, status=status.HTTP_400_BAD_REQUEST)
+            action = "revoked"
+        else:
+            return Response({"detail": "Only a pending or approved request can be cancelled."}, status=status.HTTP_400_BAD_REQUEST)
+
+        kind = leave_requests.kind_of(leave, detail)
+        now = timezone.now()
+        removed = 0
+        with transaction.atomic():
+            if action == "revoked":
+                if kind == leave_requests.KIND_LEAVE:
+                    if leave.start_date < today:
+                        return Response(
+                            {"detail": "This leave has already started, so it can't be revoked."},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+                    # Give the days back, unless approval fell back to unpaid (nothing was deducted).
+                    if leave.leave_type and leave.leave_type.leave_type_code != "UNPAID":
+                        balance = _get_or_create_balance(leave.employee, leave.leave_type, leave.start_date.year)
+                        days = float(leave.total_days or 0)
+                        balance.used_days = max(float(balance.used_days) - days, 0)
+                        balance.remaining_days = min(float(balance.remaining_days) + days, float(balance.allocated_days))
+                        balance.updated_at = now
+                        balance.save(update_fields=["used_days", "remaining_days", "updated_at"])
+                else:
+                    if leave.end_date < today:
+                        return Response({"detail": "This request has already finished, so it can't be revoked."}, status=status.HTTP_400_BAD_REQUEST)
+                    if kind in (leave_requests.KIND_WFH, leave_requests.KIND_ON_DUTY):
+                        row_status = "WORK_FROM_HOME" if kind == leave_requests.KIND_WFH else "EXCUSED"
+                        removed, _ = EmployeeAttendance.objects.filter(
+                            employee_id=leave.employee_id,
+                            attendance_date__gte=max(leave.start_date, today), attendance_date__lte=leave.end_date,
+                            attendance_status=row_status, check_in_time__isnull=True,
+                        ).delete()
+
+            tag = "[Withdrawn]" if action == "withdrawn" else f"[Revoked: {note}]"
+            leave.reason = f"{leave.reason}\n\n{tag}" if leave.reason else tag
+            leave.status = "CANCELLED"
+            leave.updated_at = now
+            leave.save(update_fields=["reason", "status", "updated_at"])
+
+        # Tell the other side.
+        label = {"WFH": "work from home", "ON_DUTY": "on duty", "PERMISSION": "permission"}.get(kind, "leave")
+        actor_name = str(request.user.person) if getattr(request.user, "person", None) else request.user.username
+        if action == "withdrawn" and detail and detail.approver_user_id:
+            recipient = UserAccount.objects.filter(pk=detail.approver_user_id).first()
+            if recipient:
+                notify(recipient=recipient, module="HR", notification_type="LEAVE_WITHDRAWN",
+                       title=f"{actor_name} withdrew a {label} request",
+                       message=f"{leave.start_date} to {leave.end_date}", link="/my/leave",
+                       entity_type="employee_leave", entity_id=leave.leave_id, actor=request.user)
+        elif action == "revoked":
+            owner = UserAccount.objects.filter(person_id=leave.employee.person_id).first()
+            if owner and owner.pk != request.user.pk:
+                notify(recipient=owner, module="HR", notification_type="LEAVE_REVOKED",
+                       title=f"Your {label} request was revoked",
+                       message=f"{leave.start_date} to {leave.end_date}. {note}", link="/my/leave",
+                       entity_type="employee_leave", entity_id=leave.leave_id, actor=request.user)
+
+        data = _leave_rows([leave])[0]
+        data["attendance_days_removed"] = removed
+        return Response(data)
 
 
 # employee_leave has one "reason" column, already used for the

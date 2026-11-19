@@ -27,6 +27,16 @@ const STATUS_CLASS = {
 const BALANCE_TONES = ["blue", "green", "red", "violet", "amber"];
 const BALANCE_ICONS = [Sun, Palmtree, HeartPulse, CalendarDays, CalendarDays];
 
+// An approved request can be revoked while it hasn't fully happened: leave only
+// before it starts; work from home, on duty and permission until their last day.
+function canRevoke(r) {
+  if (r.status !== "APPROVED") return false;
+  const d = new Date();
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  const today = d.toISOString().slice(0, 10);
+  return r.request_kind === "LEAVE" ? r.start_date >= today : r.end_date >= today;
+}
+
 // "Casual Leave" / "Hourly permission · 10:00–12:00" / "On duty · Exhibition"
 function typeText(r) {
   if (r.request_kind === "PERMISSION") return `Hourly permission · ${r.from_time}–${r.to_time}`;
@@ -65,6 +75,8 @@ function MyLeave() {
   const [deciding, setDeciding] = useState(null); // leave_id currently being approved/rejected
   const [rejecting, setRejecting] = useState(null); // leave_id with the reason box open
   const [rejectReason, setRejectReason] = useState("");
+  const [revoking, setRevoking] = useState(null); // leave_id with the revoke reason box open
+  const [withdrawing, setWithdrawing] = useState(null); // leave_id asking "withdraw this?"
 
   const loadData = async () => {
     setLoading(true);
@@ -97,6 +109,23 @@ function MyLeave() {
       await loadData();
     } catch (err) {
       setError(err.response?.data?.detail || err.response?.data?.reason?.[0] || "Couldn't update that request.");
+    } finally {
+      setDeciding(null);
+    }
+  };
+
+  // Withdraw my own pending request / revoke one I approved (reason required).
+  const cancelRequest = async (leave, reason) => {
+    setDeciding(leave.leave_id);
+    setError("");
+    try {
+      await client.post(`/api/hr/leave/requests/${leave.leave_id}/cancel/`, reason ? { reason } : {});
+      setRevoking(null);
+      setWithdrawing(null);
+      setRejectReason("");
+      await loadData();
+    } catch (err) {
+      setError(err.response?.data?.detail || err.response?.data?.reason?.[0] || "Couldn't cancel that request.");
     } finally {
       setDeciding(null);
     }
@@ -220,6 +249,32 @@ function MyLeave() {
                               </button>
                             </div>
                           )
+                        ) : canRevoke(r) ? (
+                          revoking === r.leave_id ? (
+                            <div className="lq-inbox-reason">
+                              <input
+                                autoFocus
+                                placeholder="Reason for revoking"
+                                value={rejectReason}
+                                onChange={(e) => setRejectReason(e.target.value)}
+                              />
+                              <button
+                                type="button"
+                                className="lv-action-btn lv-action-reject"
+                                disabled={deciding === r.leave_id || !rejectReason.trim()}
+                                onClick={() => cancelRequest(r, rejectReason)}
+                              >
+                                <X size={14} /> Revoke
+                              </button>
+                              <button type="button" className="hr-btn-sm" onClick={() => { setRevoking(null); setRejectReason(""); }}>
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <button type="button" className="lv-action-btn lv-action-reject" onClick={() => { setRevoking(r.leave_id); setRejectReason(""); }}>
+                              <X size={14} /> Revoke
+                            </button>
+                          )
                         ) : (
                           "—"
                         )}
@@ -255,6 +310,7 @@ function MyLeave() {
                     <th>Sent to</th>
                     <th>Reason</th>
                     <th>Status</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -269,6 +325,31 @@ function MyLeave() {
                         <span className={"att-pill " + (STATUS_CLASS[r.status] || "absent")}>
                           {STATUS_LABEL[r.status] || r.status}
                         </span>
+                      </td>
+                      <td>
+                        {r.status === "PENDING" ? (
+                          withdrawing === r.leave_id ? (
+                            <div className="lq-inbox-actions">
+                              <button
+                                type="button"
+                                className="lv-action-btn lv-action-reject"
+                                disabled={deciding === r.leave_id}
+                                onClick={() => cancelRequest(r)}
+                              >
+                                <X size={14} /> Yes, withdraw
+                              </button>
+                              <button type="button" className="hr-btn-sm" onClick={() => setWithdrawing(null)}>
+                                Keep it
+                              </button>
+                            </div>
+                          ) : (
+                            <button type="button" className="lv-action-btn lv-action-reject" onClick={() => setWithdrawing(r.leave_id)}>
+                              <X size={14} /> Withdraw
+                            </button>
+                          )
+                        ) : (
+                          "—"
+                        )}
                       </td>
                     </tr>
                   ))}

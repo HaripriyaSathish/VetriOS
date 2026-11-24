@@ -54,26 +54,58 @@ VetriOS/
 You'll need Python 3.11+, Node 18+, and access to the shared PostgreSQL
 database (over Tailscale, or a local copy if that's unreachable).
 
+Run the backend and the frontend in **two separate terminals**, both
+started from the `VetriOS` folder. Commands below are for Windows
+PowerShell.
+
+### First-time setup (once per machine)
+
 **Backend**
-```bash
+```powershell
 cd backend
 python -m venv venv
-venv\Scripts\activate          # Windows
+venv/Scripts/activate
 pip install -r requirements.txt
 copy .env.sample .env          # then fill in the real values (ask a teammate)
 python manage.py check
-python manage.py runserver
 ```
 
 **Frontend**
-```bash
+```powershell
 cd frontend
 npm install
+```
+
+### Every day — run the app
+
+**Terminal 1 — Backend** (http://localhost:8000)
+```powershell
+cd backend
+venv/Scripts/activate
+python manage.py runserver
+```
+
+**Terminal 2 — Frontend** (http://localhost:5173)
+```powershell
+cd frontend
 npm run dev
 ```
 
-The frontend runs at `http://localhost:5173`, the backend at
-`http://localhost:8000`.
+Open http://localhost:5173 in the browser. Stop either server with `Ctrl+C`.
+
+### After pulling new code
+
+```powershell
+git checkout dev
+git pull
+```
+
+Then, before starting the servers:
+
+- **Backend** — if `requirements.txt` changed, run `pip install -r requirements.txt`
+  (venv activated); if any `migrations/` folder changed, run
+  `python manage.py migrate`; always run `python manage.py check`.
+- **Frontend** — if `package.json` changed, run `npm install`.
 
 > ⚠️ `.env` holds real secrets and is git-ignored — never commit it.
 > Ask a teammate for the actual values.
